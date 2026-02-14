@@ -192,7 +192,7 @@ export const storyLinesData: DepartmentStory[] = [
   },
   {
     department: 'service',
-    label: '售后部',
+    label: '市场部',
     title: '用户满意吗？',
     stories: [
       {

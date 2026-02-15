@@ -21,7 +21,7 @@ const getChangeIcon = (change?: number) => {
 
 const getChangeColor = (change?: number) => {
   if (!change) return 'text-gray-600';
-  return change > 0 ? 'text-emerald-600' : 'text-red-600';
+  return change > 0 ? 'text-blue-600' : 'text-indigo-600';
 };
 
 export default function DataTable({ card }: DataTableProps) {
@@ -36,7 +36,7 @@ export default function DataTable({ card }: DataTableProps) {
       whileHover={isProductCard ? { y: -4, boxShadow: '0 18px 40px -24px rgba(30, 64, 175, 0.45)' } : undefined}
       className={`rounded-2xl p-6 border transition-all duration-300 ${
         isProductCard
-          ? 'bg-gradient-to-br from-white to-blue-50/60 border-blue-100 shadow-[0_10px_30px_-22px_rgba(30,64,175,0.6)]'
+          ? 'border-blue-200/70 bg-gradient-to-br from-[#f6faff] via-[#f1f7ff] to-[#eaf4ff] shadow-[0_14px_36px_-24px_rgba(30,64,175,0.72)]'
           : 'bg-white shadow-sm border-gray-100'
       }`}
     >
@@ -54,7 +54,7 @@ export default function DataTable({ card }: DataTableProps) {
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-              <TableRow className="border-gray-100 hover:bg-transparent">
+              <TableRow className={`hover:bg-transparent ${isProductCard ? 'border-blue-100 bg-blue-50/60' : 'border-gray-100'}`}>
               <TableHead className={`text-xs font-medium uppercase ${isProductCard ? 'text-blue-500' : 'text-gray-500'}`}>名称</TableHead>
               <TableHead className={`text-xs font-medium uppercase text-right ${isProductCard ? 'text-blue-500' : 'text-gray-500'}`}>数值</TableHead>
               <TableHead className={`text-xs font-medium uppercase text-right ${isProductCard ? 'text-blue-500' : 'text-gray-500'}`}>变化</TableHead>
@@ -89,7 +89,7 @@ export default function DataTable({ card }: DataTableProps) {
                         </span>
                       </div>
                     ) : (
-                      <span className="text-sm text-gray-400">-</span>
+                      <span className={`text-sm ${isProductCard ? 'text-blue-300' : 'text-gray-400'}`}>-</span>
                     )}
                   </TableCell>
                 </motion.tr>

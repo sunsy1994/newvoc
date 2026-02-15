@@ -21,15 +21,15 @@ const getSentimentStyles = (label: string) => {
   switch (label) {
     case '正面评价':
       return {
-        color: 'bg-emerald-500',
-        bgColor: 'bg-emerald-50',
-        textColor: 'text-emerald-600'
+        color: 'bg-blue-500',
+        bgColor: 'bg-blue-50',
+        textColor: 'text-blue-600'
       };
     case '负面评价':
       return {
-        color: 'bg-red-500',
-        bgColor: 'bg-red-50',
-        textColor: 'text-red-600'
+        color: 'bg-indigo-600',
+        bgColor: 'bg-indigo-50',
+        textColor: 'text-indigo-700'
       };
     default:
       return {

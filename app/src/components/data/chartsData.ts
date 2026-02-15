@@ -69,9 +69,9 @@ const marketChannelData: ChannelData[] = [
 ];
 
 const marketSentimentData: SentimentData[] = [
-  { label: '正面评价', value: 28560, percentage: 68, color: 'bg-emerald-500' },
+  { label: '正面评价', value: 28560, percentage: 68, color: 'bg-blue-500' },
   { label: '中性评价', value: 9850, percentage: 23, color: 'bg-gray-400' },
-  { label: '负面评价', value: 3680, percentage: 9, color: 'bg-red-500' },
+  { label: '负面评价', value: 3680, percentage: 9, color: 'bg-indigo-600' },
 ];
 
 const marketKOLData: TableData[] = [
@@ -130,9 +130,9 @@ const salesTrendData: TrendData[] = [
 
 const salesBarrierData: PieData[] = [
   { name: '等真实口碑', value: 42, color: '#3b82f6' },
-  { name: '等降价促销', value: 28, color: '#8b5cf6' },
-  { name: '配置纠结', value: 18, color: '#ec4899' },
-  { name: '其他', value: 12, color: '#6b7280' },
+  { name: '等降价促销', value: 28, color: '#4f46e5' },
+  { name: '配置纠结', value: 18, color: '#1d4ed8' },
+  { name: '其他', value: 12, color: '#64748b' },
 ];
 
 const salesServiceData: RadarData[] = [
@@ -199,16 +199,16 @@ const prTrendData: TrendData[] = [
 ];
 
 const prNegativeData: PieData[] = [
-  { name: '价格争议', value: 45, color: '#ef4444' },
-  { name: '质量问题', value: 28, color: '#f59e0b' },
-  { name: '服务投诉', value: 15, color: '#eab308' },
-  { name: '其他', value: 12, color: '#6b7280' },
+  { name: '价格争议', value: 45, color: '#1d4ed8' },
+  { name: '质量问题', value: 28, color: '#4f46e5' },
+  { name: '服务投诉', value: 15, color: '#3b82f6' },
+  { name: '其他', value: 12, color: '#64748b' },
 ];
 
 const prKOLData: PieData[] = [
-  { name: '正面KOL', value: 12, color: '#22c55e' },
-  { name: '中立KOL', value: 8, color: '#94a3b8' },
-  { name: '开始质疑', value: 3, color: '#f97316' },
+  { name: '正面KOL', value: 12, color: '#2563eb' },
+  { name: '中立KOL', value: 8, color: '#a5b4fc' },
+  { name: '开始质疑', value: 3, color: '#4f46e5' },
 ];
 
 const prSpreadData: TableData[] = [

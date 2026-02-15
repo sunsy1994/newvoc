@@ -10,28 +10,33 @@ export default function AIReportButton({ onClick }: AIReportButtonProps) {
     <motion.button
       onClick={onClick}
       animate={{
-        scale: [1, 1.05, 1],
+        scale: [1, 1.03, 1],
       }}
       transition={{
-        duration: 3,
+        duration: 2.8,
         repeat: Infinity,
         ease: 'easeInOut',
       }}
-      whileHover={{ scale: 1.1 }}
+      whileHover={{ scale: 1.06, y: -1 }}
       whileTap={{ scale: 0.95 }}
-      className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all shadow-lg shadow-blue-500/30"
+      className="group relative flex items-center gap-2 overflow-hidden rounded-xl border border-white/30 bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#4f46e5] px-4 py-2 text-white shadow-[0_10px_24px_-10px_rgba(79,70,229,0.85)] transition-all duration-300 hover:shadow-[0_14px_30px_-12px_rgba(79,70,229,0.95)]"
     >
       <motion.div
         animate={{
-          opacity: [0.5, 1, 0.5],
-          scale: [1, 1.2, 1],
+          opacity: [0.35, 0.7, 0.35],
+          scale: [1, 1.12, 1],
         }}
         transition={{
-          duration: 2,
+          duration: 2.2,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute inset-0 bg-blue-400 rounded-xl blur-lg -z-10"
+        className="absolute -inset-1 -z-10 rounded-xl bg-gradient-to-r from-blue-500 via-blue-400 to-indigo-400 blur-md"
+      />
+      <motion.span
+        animate={{ x: ['-120%', '130%'] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
+        className="pointer-events-none absolute inset-y-0 w-10 bg-white/30 blur-sm"
       />
 
       <div className="relative">
@@ -45,7 +50,7 @@ export default function AIReportButton({ onClick }: AIReportButtonProps) {
         <Sparkles className="w-4 h-4" />
       </div>
 
-      <span className="text-sm font-medium">AI摘要</span>
+      <span className="text-sm font-semibold tracking-[0.01em]">AI摘要</span>
     </motion.button>
   );
 }

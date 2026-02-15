@@ -14,6 +14,8 @@ export default function VocViewPage() {
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
 
   const isMarketDepartment = selectedDepartment === 0;
+  const isProductDepartment = selectedDepartment === 1;
+  const shouldShowAIButton = isMarketDepartment || isProductDepartment;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9fc] via-[#f4f6fb] to-[#eef2f7] p-6">
@@ -52,10 +54,22 @@ export default function VocViewPage() {
             onSelect={setSelectedDepartment}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50/80 px-4 py-3">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${
+              isProductDepartment
+                ? 'border-blue-200/70 bg-gradient-to-r from-[#eef5ff] via-[#f5f9ff] to-[#eef7ff]'
+                : 'border-gray-200 bg-gray-50/80'
+            }`}
+          >
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900">Good morning, BI Team</h1>
-              <p className="mt-1 text-sm text-gray-500">VOC 事件洞察已按部门聚合，先完成市场部看板。</p>
+              <h1 className={`text-3xl font-semibold ${isProductDepartment ? 'text-blue-950' : 'text-gray-900'}`}>
+                {isProductDepartment ? 'Product Insight Console' : 'Good morning, BI Team'}
+              </h1>
+              <p className={`mt-1 text-sm ${isProductDepartment ? 'text-blue-700' : 'text-gray-500'}`}>
+                {isProductDepartment
+                  ? '产品部科技蓝主题已启用，聚焦口碑趋势、功能评价和质量反馈。'
+                  : 'VOC 事件洞察已按部门聚合，先完成市场部看板。'}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <button className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
@@ -64,7 +78,7 @@ export default function VocViewPage() {
               <button className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                 Export report
               </button>
-              {isMarketDepartment && (
+              {shouldShowAIButton && (
                 <AIReportButton onClick={() => setIsAIReportOpen(true)} />
               )}
             </div>

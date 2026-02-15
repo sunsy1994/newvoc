@@ -25,7 +25,7 @@ import {
   volumeTrendData,
 } from './data/marketChartData';
 
-const sentimentPalette = ['#1f8a70', '#f59e0b', '#ef4444'];
+const sentimentPalette = ['#2563eb', '#4f46e5', '#1e3a8a'];
 
 function formatWan(value: number) {
   return value >= 10000 ? `${(value / 10000).toFixed(1)}万` : value.toLocaleString();
@@ -86,9 +86,9 @@ export default function MarketDashboard() {
   }));
 
   const claimAcceptanceData = [
-    { name: '认同', value: 61, color: '#1f8a70' },
-    { name: '观望', value: 24, color: '#f59e0b' },
-    { name: '质疑', value: 15, color: '#ef4444' },
+    { name: '认同', value: 61, color: '#2563eb' },
+    { name: '观望', value: 24, color: '#4f46e5' },
+    { name: '质疑', value: 15, color: '#1e3a8a' },
   ];
 
   const claimTrendData = [
@@ -123,7 +123,7 @@ export default function MarketDashboard() {
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm xl:col-span-8">
           <p className="text-xs uppercase tracking-[0.14em] text-gray-500">品牌传播概况</p>
           <h2 className="mt-2 text-4xl font-semibold text-gray-900">{formatWan(totalVolume)} 条</h2>
-          <p className="mt-1 text-sm text-emerald-600">市场传播总声量，较上周期 +34%</p>
+          <p className="mt-1 text-sm text-blue-600">市场传播总声量，较上周期 +34%</p>
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
@@ -241,8 +241,8 @@ export default function MarketDashboard() {
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="interaction" name="互动量" fill="#2563eb" radius={[5, 5, 0, 0]} />
-                <Bar dataKey="share" name="分享量" fill="#14b8a6" radius={[5, 5, 0, 0]} />
-                <Bar dataKey="comment" name="评论量" fill="#f59e0b" radius={[5, 5, 0, 0]} />
+                <Bar dataKey="share" name="分享量" fill="#4f46e5" radius={[5, 5, 0, 0]} />
+                <Bar dataKey="comment" name="评论量" fill="#1e3a8a" radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -278,8 +278,8 @@ export default function MarketDashboard() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="positive" name="正向认同" stroke="#10b981" strokeWidth={2.4} />
-                <Line type="monotone" dataKey="negative" name="负向反馈" stroke="#ef4444" strokeWidth={2.2} />
+                <Line type="monotone" dataKey="positive" name="正向认同" stroke="#2563eb" strokeWidth={2.4} />
+                <Line type="monotone" dataKey="negative" name="负向反馈" stroke="#4f46e5" strokeWidth={2.2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -298,8 +298,8 @@ export default function MarketDashboard() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="positive" name="正面评论" stackId="a" fill="#16a34a" />
-                <Bar dataKey="negative" name="负面评论" stackId="a" fill="#ef4444" />
+                <Bar dataKey="positive" name="正面评论" stackId="a" fill="#60a5fa" />
+                <Bar dataKey="negative" name="负面评论" stackId="a" fill="#4f46e5" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -315,11 +315,11 @@ export default function MarketDashboard() {
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
                 <YAxis dataKey="topic" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} width={80} />
                 <Tooltip />
-                <Bar dataKey="value" fill="#0ea5e9" radius={[0, 6, 6, 0]} />
+                <Bar dataKey="value" fill="#2563eb" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
             当前负向情感占比 {negativeRatio}% ，建议优先跟进“价格贵”“卡顿”相关反馈。
           </div>
         </div>

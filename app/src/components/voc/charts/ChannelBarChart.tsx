@@ -36,7 +36,7 @@ export default function ChannelBarChart({ card }: ChannelBarChartProps) {
   // 为每个柱子生成颜色
   const getBarColor = (index: number) => {
     const colors = isProductCard
-      ? ['#0f172a', '#0b3f91', '#1d4ed8', '#0284c7', '#38bdf8']
+      ? ['#1e3a8a', '#1d4ed8', '#2563eb', '#0ea5e9', '#38bdf8']
       : ['#2563EB', '#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE'];
     return colors[index % colors.length];
   };
@@ -49,7 +49,7 @@ export default function ChannelBarChart({ card }: ChannelBarChartProps) {
       whileHover={isProductCard ? { y: -4, boxShadow: '0 18px 40px -24px rgba(29, 78, 216, 0.5)' } : undefined}
       className={`rounded-2xl p-6 border transition-all duration-300 ${
         isProductCard
-          ? 'bg-gradient-to-br from-white to-blue-50/70 border-blue-100 shadow-[0_10px_30px_-22px_rgba(29,78,216,0.6)]'
+          ? 'border-blue-200/70 bg-gradient-to-br from-[#f6faff] via-[#f1f7ff] to-[#eaf4ff] shadow-[0_14px_36px_-24px_rgba(29,78,216,0.7)]'
           : 'bg-white shadow-sm border-gray-100'
       }`}
     >
@@ -94,7 +94,7 @@ export default function ChannelBarChart({ card }: ChannelBarChartProps) {
       <div className="flex justify-center mt-3">
         <div className="flex items-center gap-2 text-sm">
           <span className="text-gray-500">最高值:</span>
-          <span className="font-semibold text-gray-900">{maxValue.toLocaleString()}</span>
+          <span className={`font-semibold ${isProductCard ? 'text-blue-700' : 'text-gray-900'}`}>{maxValue.toLocaleString()}</span>
         </div>
       </div>
     </motion.div>

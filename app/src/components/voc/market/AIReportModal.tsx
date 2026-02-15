@@ -67,15 +67,15 @@ export default function AIReportModal({ isOpen, onClose, data }: AIReportModalPr
 
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="w-4 h-4 text-emerald-600" />
+                    <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-indigo-600" />
                     </div>
                     <h3 className="text-base font-semibold text-gray-900">关键数据</h3>
                   </div>
                   <div className="ml-10 space-y-2">
                     {data.keyMetrics.map((item, index) => (
                       <div key={index} className="flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-2"></div>
+                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-2"></div>
                         <p className="text-sm text-gray-700">{item}</p>
                       </div>
                     ))}
@@ -84,15 +84,15 @@ export default function AIReportModal({ isOpen, onClose, data }: AIReportModalPr
 
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                      <AlertTriangle className="w-4 h-4 text-indigo-600" />
                     </div>
                     <h3 className="text-base font-semibold text-gray-900">异常提醒</h3>
                   </div>
                   <div className="ml-10 space-y-2">
                     {data.alerts.map((item, index) => (
                       <div key={index} className="flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-2"></div>
+                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-2"></div>
                         <p className="text-sm text-gray-700">{item}</p>
                       </div>
                     ))}

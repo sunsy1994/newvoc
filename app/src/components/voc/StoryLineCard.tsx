@@ -51,21 +51,21 @@ export default function StoryLineCard({ story, delay = 0 }: StoryLineCardProps) 
         </div>
 
         {/* 业务解读 */}
-        <div className="bg-green-50 rounded-lg p-4">
+        <div className="bg-blue-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Lightbulb className="w-5 h-5 text-green-600" />
-            <h4 className="font-semibold text-green-900">业务解读</h4>
+            <Lightbulb className="w-5 h-5 text-blue-600" />
+            <h4 className="font-semibold text-blue-900">业务解读</h4>
           </div>
-          <p className="text-sm text-green-800 leading-relaxed">{story.interpretation}</p>
+          <p className="text-sm text-blue-800 leading-relaxed">{story.interpretation}</p>
         </div>
 
         {/* 风险提示 */}
-        <div className="bg-amber-50 rounded-lg p-4">
+        <div className="bg-indigo-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
-            <h4 className="font-semibold text-amber-900">风险提示</h4>
+            <AlertTriangle className="w-5 h-5 text-indigo-600" />
+            <h4 className="font-semibold text-indigo-900">风险提示</h4>
           </div>
-          <p className="text-sm text-amber-800 leading-relaxed">{story.risk}</p>
+          <p className="text-sm text-indigo-800 leading-relaxed">{story.risk}</p>
         </div>
 
         {/* 行动建议 */}
@@ -75,7 +75,7 @@ export default function StoryLineCard({ story, delay = 0 }: StoryLineCardProps) 
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-emerald-600" />
+              <CheckCircle className="w-5 h-5 text-blue-600" />
               <h4 className="font-semibold text-gray-900">行动建议</h4>
               <span className="text-xs text-gray-500">({story.actions.length}条)</span>
             </div>
@@ -99,7 +99,7 @@ export default function StoryLineCard({ story, delay = 0 }: StoryLineCardProps) 
                 <ul className="px-4 pb-4 space-y-2">
                   {story.actions.map((action, index) => (
                     <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
                         {index + 1}
                       </span>
                       <span>{action}</span>

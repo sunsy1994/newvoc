@@ -50,7 +50,7 @@ export default function ControlKnob({ selectedIndex, onSelect }: ControlKnobProp
           <div className="absolute inset-4 rounded-full border border-dashed border-gray-600 opacity-30"></div>
 
           {/* 指示器 */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-1 h-4 bg-orange-500 rounded-full"></div>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-1 h-4 bg-indigo-500 rounded-full"></div>
 
           {/* 中心显示区域 */}
           <div className="relative z-10 text-center">
@@ -81,7 +81,7 @@ export default function ControlKnob({ selectedIndex, onSelect }: ControlKnobProp
             <div
               key={index}
               className={`w-2 h-2 rounded-full transition-all ${
-                index === selectedIndex ? 'bg-orange-500 scale-125' : 'bg-gray-400'
+                index === selectedIndex ? 'bg-indigo-500 scale-125' : 'bg-gray-400'
               }`}
             />
           ))}

@@ -31,6 +31,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export default function TrendChart({ card }: TrendChartProps) {
   const data = card.data as any[];
+  const isProductCard = card.id.startsWith('product-');
   const firstValue = data[0]?.value || 0;
   const lastValue = data[data.length - 1]?.value || 0;
   const change = ((lastValue - firstValue) / firstValue) * 100;
@@ -41,12 +42,17 @@ export default function TrendChart({ card }: TrendChartProps) {
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4 }}
-      className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100"
+      whileHover={isProductCard ? { y: -4, boxShadow: '0 18px 40px -24px rgba(37, 99, 235, 0.55)' } : undefined}
+      className={`rounded-2xl p-6 border transition-all duration-300 ${
+        isProductCard
+          ? 'bg-gradient-to-br from-white to-blue-50/60 border-blue-100 shadow-[0_10px_30px_-22px_rgba(37,99,235,0.65)]'
+          : 'bg-white shadow-sm border-gray-100'
+      }`}
     >
       {/* 标题 */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">{card.title}</h3>
+          <h3 className={`text-base font-semibold mb-1 ${isProductCard ? 'text-blue-950' : 'text-gray-900'}`}>{card.title}</h3>
           {card.subtitle && (
             <p className="text-xs text-gray-500">{card.subtitle}</p>
           )}
@@ -67,8 +73,8 @@ export default function TrendChart({ card }: TrendChartProps) {
           <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id={`trendGradient-${card.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                <stop offset="5%" stopColor={isProductCard ? '#0ea5e9' : '#2563EB'} stopOpacity={0.35} />
+                <stop offset="95%" stopColor={isProductCard ? '#0ea5e9' : '#2563EB'} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
@@ -88,11 +94,12 @@ export default function TrendChart({ card }: TrendChartProps) {
             <Area
               type="monotone"
               dataKey="value"
-              stroke="#2563EB"
-              strokeWidth={2}
+              stroke={isProductCard ? '#0284c7' : '#2563EB'}
+              strokeWidth={isProductCard ? 2.5 : 2}
               fill={`url(#trendGradient-${card.id})`}
-              animationDuration={1000}
+              animationDuration={1200}
               animationEasing="ease-out"
+              activeDot={{ r: isProductCard ? 5 : 4, fill: isProductCard ? '#0369a1' : '#2563EB' }}
             />
           </AreaChart>
         </ResponsiveContainer>

@@ -7,7 +7,9 @@ import DepartmentCharts from './DepartmentCharts';
 import AIReportButton from './market/AIReportButton';
 import AIReportModal from './market/AIReportModal';
 import MarketDashboard from './market/MarketDashboard';
+import ProductDashboard from './product/ProductDashboard';
 import { aiReportData } from './market/data/marketChartData';
+import { productAiReportData } from './product/data/productChartData';
 
 export default function VocViewPage() {
   const [selectedDepartment, setSelectedDepartment] = useState(0);
@@ -16,6 +18,8 @@ export default function VocViewPage() {
   const isMarketDepartment = selectedDepartment === 0;
   const isProductDepartment = selectedDepartment === 1;
   const shouldShowAIButton = isMarketDepartment || isProductDepartment;
+  const currentAIReportData = isProductDepartment ? productAiReportData : aiReportData;
+  const currentAIReportDepartment: 'market' | 'product' = isProductDepartment ? 'product' : 'market';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9fc] via-[#f4f6fb] to-[#eef2f7] p-6">
@@ -88,12 +92,15 @@ export default function VocViewPage() {
         <AIReportModal
           isOpen={isAIReportOpen}
           onClose={() => setIsAIReportOpen(false)}
-          data={aiReportData}
+          data={currentAIReportData}
+          department={currentAIReportDepartment}
         />
 
         <main className="mx-auto max-w-7xl">
           {isMarketDepartment ? (
             <MarketDashboard />
+          ) : isProductDepartment ? (
+            <ProductDashboard />
           ) : (
             <div className="space-y-6">
               <StoryLineList selectedIndex={selectedDepartment} />

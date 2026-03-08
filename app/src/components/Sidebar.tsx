@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   BarChart3,
+  Database,
   Users,
   TrendingUp,
   Megaphone,
@@ -15,7 +16,8 @@ import {
   ChevronDown,
   Crown,
   Car,
-  BookOpen
+  BookOpen,
+  UserRound
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,7 @@ interface MenuItem {
 interface SubMenuItem {
   label: string;
   icon: React.ElementType;
+  page?: string;
 }
 
 const mainMenuItems: MenuItem[] = [
@@ -41,9 +44,11 @@ const mainMenuItems: MenuItem[] = [
 ];
 
 const analysisSubItems: SubMenuItem[] = [
-  { label: '声量分析', icon: TrendingUp },
-  { label: '情感分析', icon: BarChart3 },
-  { label: '舆情报告', icon: FileText },
+  { label: '事件库', icon: TrendingUp, page: 'event-library' },
+  { label: '内容库', icon: BarChart3, page: 'content-library' },
+  { label: '评论库', icon: FileText, page: 'comment-library' },
+  { label: 'KOL库', icon: Users, page: 'kol-library' },
+  { label: '作者库', icon: UserRound, page: 'author-library' },
 ];
 
 const otherMenuItems: MenuItem[] = [
@@ -110,15 +115,15 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
           ))}
         </nav>
 
-        {/* 舆情分析 Section */}
+        {/* 数据资产 Section */}
         <div className="mt-4 px-3">
           <button
             onClick={() => setAnalysisOpen(!analysisOpen)}
             className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors duration-150"
           >
             <div className="flex items-center gap-3">
-              <BarChart3 className="w-5 h-5" />
-              <span>舆情分析</span>
+              <Database className="w-5 h-5" />
+              <span>数据资产</span>
             </div>
             <motion.div
               animate={{ rotate: analysisOpen ? 180 : 0 }}
@@ -139,17 +144,21 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
               >
                 <div className="ml-8 mt-1 space-y-1">
                   {analysisSubItems.map((item, index) => (
-                    <motion.a
+                    <motion.button
                       key={item.label}
-                      href="#"
+                      onClick={() => item.page && onPageChange(item.page)}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors duration-150"
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors duration-150 ${
+                        currentPage === item.page
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
                     >
                       <item.icon className="w-4 h-4" />
                       <span>{item.label}</span>
-                    </motion.a>
+                    </motion.button>
                   ))}
                 </div>
               </motion.div>

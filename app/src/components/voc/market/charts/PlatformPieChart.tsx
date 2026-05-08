@@ -33,10 +33,10 @@ const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: any[] 
 };
 
 export default function PlatformPieChart({ data }: PlatformPieChartProps) {
-  // 计算破圈指数
+  // 计算泛平台声量占比，用于判断事件主要扩散阵地。
   const totalVolume = data.reduce((sum, d) => sum + d.volume, 0);
   const generalVolume = data.filter(d => d.category === 'general').reduce((sum, d) => sum + d.volume, 0);
-  const breakoutIndex = ((generalVolume / totalVolume) * 100).toFixed(0);
+  const generalPlatformShare = ((generalVolume / totalVolume) * 100).toFixed(0);
 
   // 准备饼图数据 - 先分两大类
   const categoryData = [
@@ -58,7 +58,7 @@ export default function PlatformPieChart({ data }: PlatformPieChartProps) {
       className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100"
     >
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-base font-semibold text-gray-900">破圈指数与平台声量占比</h3>
+        <h3 className="text-base font-semibold text-gray-900">平台声量结构</h3>
       </div>
 
       <div className="flex items-center gap-6">
@@ -85,8 +85,8 @@ export default function PlatformPieChart({ data }: PlatformPieChartProps) {
 
         {/* 中心数字 */}
         <div className="absolute left-[30%] top-[55%] transform -translate-x-1/2 -translate-y-1/2 text-center">
-          <div className="text-3xl font-bold text-blue-600">{breakoutIndex}%</div>
-          <div className="text-xs text-gray-500">破圈指数</div>
+          <div className="text-3xl font-bold text-blue-600">{generalPlatformShare}%</div>
+          <div className="text-xs text-gray-500">泛平台占比</div>
         </div>
 
         {/* 图例和细分 */}

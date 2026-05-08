@@ -10,10 +10,10 @@ export const marketKPIData: KPIData[] = [
     suffix: '条'
   },
   {
-    title: '破圈指数',
-    value: 42,
-    change: 8,
-    comparison: '非汽车圈用户占比42%',
+    title: '有效互动率',
+    value: 64.6,
+    change: 3.2,
+    comparison: '车相关评论/评论总数',
     type: 'index',
     suffix: '%'
   },
@@ -26,10 +26,10 @@ export const marketKPIData: KPIData[] = [
     suffix: '万'
   },
   {
-    title: 'NPS估算',
-    value: 68,
-    change: -5,
-    comparison: '68%推荐，12%劝阻',
+    title: '主命题Top占比',
+    value: 61,
+    change: 6,
+    comparison: '智能/设计/价格合计',
     type: 'nps',
     suffix: '%'
   },
@@ -144,12 +144,12 @@ export const aiReportData: AIReportData = {
   ],
   keyMetrics: [
     '命题占比：讨论集中在「智能/设计/价格」，三大命题合计 61%',
-    '主张拉通率：核心卖点复述率 37%，仍有提升空间',
-    '有效互动率：带试驾/咨询意向评论占比 14.6%，高于基线 3.2pp'
+    '有效互动率：探讨与车相关的评论占比 64.6%，高于基线 3.2pp',
+    'KOL有效互动：车评与真实车主内容带来的车相关评论占 KOL 评论的 72%'
   ],
   alerts: [
-    '误伤风险：「价格贵」「恰饭」相关表达升温，建议在KOL内容中补充配置价值锚点',
-    '圈层穿透：观望党占比上升但准车主转化不足，建议追加对比向内容',
-    '渠道效率：微博互动率仅 2.3%，建议收缩预算并转投高意向平台'
+    '误伤信号：「价格贵」「恰饭」相关表达升温，建议在KOL内容中补充配置价值锚点',
+    '平台结构：微博车相关评论占比偏低，建议减少硬广表达并增加真实体验内容',
+    '人群匹配：观望用户更多讨论价格与配置，建议追加对比向内容'
   ]
 };

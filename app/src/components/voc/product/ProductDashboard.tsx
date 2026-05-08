@@ -124,7 +124,7 @@ const heroKpis: HeroKPI[] = [
     label: '跨平台覆盖',
     value: '4个平台',
     delta: '+1',
-    insight: '从垂类平台外溢至泛社媒，进入破圈阶段',
+    insight: '从垂类平台外溢至泛社媒，需继续看车相关评论占比',
   },
   {
     label: '证据可信占比',
@@ -133,7 +133,7 @@ const heroKpis: HeroKPI[] = [
     insight: '车主亲历与试驾实测合计占比持续提升',
   },
   {
-    label: '高风险问题数',
+    label: '重点问题数',
     value: '5个',
     delta: '+2',
     insight: '已形成标签化表达，需分路径处置',
@@ -326,7 +326,7 @@ export default function ProductDashboard() {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-5">
-          <SectionCard title="Top 问题域（近24h增速）" subtitle="问题占比 + 增速箭头，识别加速风险">
+          <SectionCard title="Top 问题域（近24h增速）" subtitle="问题占比 + 增速箭头，识别加速中的问题">
             <div className="space-y-3">
               {issueDomainData.map((item) => (
                 <div key={item.issue}>
@@ -391,7 +391,7 @@ export default function ProductDashboard() {
         </div>
 
         <div className="xl:col-span-5 space-y-4">
-          <SectionCard title="问题 × 平台热力" subtitle="看问题是否跨圈层扩散">
+          <SectionCard title="问题 × 平台热力" subtitle="看问题是否跨平台扩散">
             <div className="space-y-2">
               {heatmapData.map((row) => (
                 <div key={row.issue} className="grid grid-cols-5 gap-1.5">

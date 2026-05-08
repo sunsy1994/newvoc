@@ -93,7 +93,7 @@ export default function AIAssistant() {
   }, [messages, thinking, streamingText, reducedMotion]);
 
   const mockAssistantReply = (question: string) =>
-    `${activeMode.responsePrefix}：围绕“${question}”，已完成重点信息提取、风险等级判断与下一步行动建议。${toneSuffix}`;
+    `${activeMode.responsePrefix}：围绕“${question}”，已完成重点信息提取、争议信号判断与下一步行动建议。${toneSuffix}`;
 
   const handleSend = () => {
     const content = input.trim();

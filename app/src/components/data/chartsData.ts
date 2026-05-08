@@ -170,11 +170,11 @@ const serviceIssueData: ChannelData[] = [
 ];
 
 const serviceStoreData: ChannelData[] = [
-  { channel: '北京朝阳店', value: 92 },
-  { channel: '上海浦东店', value: 88 },
-  { channel: '广州天河店', value: 85 },
-  { channel: '深圳南山店', value: 72 },
-  { channel: '成都武侯店', value: 68 },
+  { channel: '等待时间', value: 42 },
+  { channel: '备件周期', value: 26 },
+  { channel: '服务态度', value: 18 },
+  { channel: '费用透明', value: 15 },
+  { channel: '重复进店', value: 12 },
 ];
 
 const serviceResponseData: TrendData[] = [
@@ -268,7 +268,7 @@ export const departmentChartsData: DepartmentCharts[] = [
         type: 'trend',
         size: 'half',
         data: productTrendData,
-        subtitle: 'NPS口碑指数变化'
+        subtitle: '正负反馈占比变化'
       },
       {
         id: 'product-feature',
@@ -302,11 +302,11 @@ export const departmentChartsData: DepartmentCharts[] = [
     cards: [
       {
         id: 'sales-trend',
-        title: '价格接受度趋势',
+        title: '价格感知趋势',
         type: 'trend',
         size: 'half',
         data: salesTrendData,
-        subtitle: '价格认可度变化'
+        subtitle: '价格相关表达占比变化'
       },
       {
         id: 'sales-barrier',
@@ -356,19 +356,19 @@ export const departmentChartsData: DepartmentCharts[] = [
       },
       {
         id: 'service-store',
-        title: '门店服务对比',
+        title: '服务场景问题分布',
         type: 'bar',
         size: 'half',
         data: serviceStoreData,
-        subtitle: '各门店满意度评分'
+        subtitle: '售后服务相关问题数量'
       },
       {
         id: 'service-response',
-        title: '响应时间分析',
+        title: '服务负向趋势',
         type: 'trend',
         size: 'half',
         data: serviceResponseData,
-        subtitle: '平均响应时间(分钟)'
+        subtitle: '服务相关负向表达占比'
       },
     ]
   },

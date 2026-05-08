@@ -34,8 +34,8 @@ export default function AIReportModal({ isOpen, onClose, data, department = 'mar
       iconWrap: 'bg-slate-200/80 text-slate-700',
       icon: AlertTriangle,
       bullet: 'bg-slate-500',
-      title: isProduct ? '处置路径与优先级' : '风险提醒与动作建议',
-      subtitle: isProduct ? '对应PRD模块E：OTA/服务/改款分流' : '对应PRD模块C/D：误伤风险与圈层穿透'
+      title: isProduct ? '处置路径与优先级' : '争议信号与动作建议',
+      subtitle: isProduct ? '对应PRD模块E：OTA/服务/改款分流' : '对应PRD模块C/D：误伤信号与人群匹配'
     }
   } as const;
 

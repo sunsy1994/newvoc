@@ -59,11 +59,11 @@ export default function StoryLineCard({ story, delay = 0 }: StoryLineCardProps) 
           <p className="text-sm text-blue-800 leading-relaxed">{story.interpretation}</p>
         </div>
 
-        {/* 风险提示 */}
+        {/* 注意信号 */}
         <div className="bg-indigo-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-5 h-5 text-indigo-600" />
-            <h4 className="font-semibold text-indigo-900">风险提示</h4>
+            <h4 className="font-semibold text-indigo-900">注意信号</h4>
           </div>
           <p className="text-sm text-indigo-800 leading-relaxed">{story.risk}</p>
         </div>

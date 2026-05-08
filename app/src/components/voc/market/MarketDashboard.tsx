@@ -347,7 +347,7 @@ export default function MarketDashboard() {
         </div>
 
         <div className="xl:col-span-3">
-          <SectionCard title="主张拉通漏斗" subtitle="曝光到兴趣的转化链路">
+          <SectionCard title="有效兴趣漏斗" subtitle="曝光到车相关兴趣表达的链路">
             <div className="space-y-3">
               {funnelData.map((item, index) => (
                 <div key={item.stage}>
@@ -417,7 +417,7 @@ export default function MarketDashboard() {
         </div>
 
         <div className="xl:col-span-5">
-          <SectionCard title="KOL 贡献指数榜单" subtitle="量 × 质 × 风险综合排序，定位高热高效与高热误伤">
+          <SectionCard title="KOL 贡献指数榜单" subtitle="量 × 质 × 误伤率综合排序，定位高热高效与高热误伤">
             <div className="space-y-2.5">
               {kolPerformance.map((item, index) => (
                 <div key={item.name} className="rounded-2xl border border-blue-100 bg-white p-3">
@@ -446,7 +446,7 @@ export default function MarketDashboard() {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-7">
-          <SectionCard title="Module D 圈层与人群穿透" subtitle="不同平台人群结构对比，识别触达偏差与补量机会">
+          <SectionCard title="Module D 人群匹配结构" subtitle="不同平台人群结构对比，识别触达偏差与补量机会">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={audienceMixData}>
@@ -467,7 +467,7 @@ export default function MarketDashboard() {
         </div>
 
         <div className="xl:col-span-5 space-y-4">
-          <SectionCard title="圈层穿透差 Penetration Gap" subtitle="目标圈层占比 vs 实际占比">
+          <SectionCard title="目标人群匹配差" subtitle="目标人群占比 vs 实际占比">
             <div className="space-y-2.5">
               {penetrationGapData.map((item) => {
                 const gap = item.actual - item.target;

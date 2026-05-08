@@ -17,7 +17,7 @@ export default function NegativeWordCloud({ data }: NegativeWordCloudProps) {
     <div className="bg-red-50 p-3 rounded-lg">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-red-600 font-semibold text-sm">TOP3反感词</span>
-        <span className="text-xs text-red-500 bg-red-100 px-2 py-0.5 rounded-full">风险等级: 中</span>
+        <span className="text-xs text-red-500 bg-red-100 px-2 py-0.5 rounded-full">负向信号: 中等</span>
       </div>
       <div className="flex items-center gap-2 text-xs text-gray-700">
         <span>1. 价格贵</span>

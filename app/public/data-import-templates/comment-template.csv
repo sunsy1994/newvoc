@@ -1,0 +1,2 @@
+comment_id,content_id,platform,comment_author_id,comment_author_name,parent_comment_id,reply_level,comment_text,published_at,like_cnt,reply_cnt,source_url
+CMT-9001,CNT-1001,B站,U-3011,北方电车主,,1,我在哈尔滨开X7，零下20度通勤确实掉电快，但如果预热和路线规划做好，实际还能接受。,2026-03-07 12:22,624,115,https://example.com/comments/cmt-9001

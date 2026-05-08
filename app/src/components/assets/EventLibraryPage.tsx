@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowUpDown,
@@ -6,12 +6,14 @@ import {
   CalendarRange,
   ChevronRight,
   Database,
+  ClipboardList,
   Eye,
   Filter,
   MessageSquare,
   Network,
   Search,
   Shapes,
+  Target,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -41,12 +43,21 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  eventLibraryData,
   eventTypeOptions,
   statusOptions,
   timeRangeOptions,
-  type EventLibraryItem,
 } from './data/eventLibraryData';
+import { getEventLibrary } from '@/lib/event-asset-api';
+import type { EventLibraryItem } from '@/types/eventAsset';
+import type { AssetPageChangeHandler } from './assetNavigation';
+import AssetFilterField from './AssetFilterField';
+import EventRelationViewDialog from './EventRelationViewDialog';
+import {
+  getDataReadinessChecklist,
+  getEventMetricSet,
+  getEventStoryFocus,
+  getEventStrategySummary,
+} from './eventVocStrategy';
 
 type SortKey = 'updatedAt' | 'contentCount' | 'commentCount' | 'authorCount' | 'heat' | 'growth';
 
@@ -77,7 +88,13 @@ function riskBadgeClass(riskLevel: EventLibraryItem['riskLevel']) {
   return 'bg-sky-100 text-sky-700';
 }
 
-export default function EventLibraryPage() {
+interface EventLibraryPageProps {
+  onPageChange?: AssetPageChangeHandler;
+}
+
+export default function EventLibraryPage({ onPageChange }: EventLibraryPageProps) {
+  const [events, setEvents] = useState<EventLibraryItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [keyword, setKeyword] = useState('');
   const [timeRange, setTimeRange] = useState<(typeof timeRangeOptions)[number]>('近30天');
   const [eventType, setEventType] = useState<(typeof eventTypeOptions)[number]>('全部');
@@ -86,59 +103,65 @@ export default function EventLibraryPage() {
   const [platform, setPlatform] = useState('全部平台');
   const [sortBy, setSortBy] = useState<SortKey>('updatedAt');
   const [selectedEvent, setSelectedEvent] = useState<EventLibraryItem | null>(null);
+  const [relationEvent, setRelationEvent] = useState<EventLibraryItem | null>(null);
 
-  const brandOptions = useMemo(() => ['全部品牌', ...new Set(eventLibraryData.map((item) => item.brand))], []);
-  const platformOptions = useMemo(
-    () => ['全部平台', ...new Set(eventLibraryData.flatMap((item) => item.platforms))],
-    []
-  );
+  useEffect(() => {
+    const now = new Date();
+    const rangeDays =
+      {
+        全部时间: undefined,
+        近7天: 7,
+        近30天: 30,
+        近90天: 90,
+      }[timeRange] ?? undefined;
+    const dateFrom =
+      typeof rangeDays === 'number'
+        ? new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+        : undefined;
 
-  const filteredEvents = useMemo(() => {
-    const now = new Date('2026-03-08');
-
-    const rangeDays = {
-      全部时间: Number.POSITIVE_INFINITY,
-      近7天: 7,
-      近30天: 30,
-      近90天: 90,
-    }[timeRange];
-
-    return eventLibraryData
-      .filter((item) => {
-        const q = keyword.trim().toLowerCase();
-        const matchKeyword =
-          q.length === 0 ||
-          item.name.toLowerCase().includes(q) ||
-          item.brand.toLowerCase().includes(q) ||
-          item.model.toLowerCase().includes(q) ||
-          item.keywords.some((tag) => tag.toLowerCase().includes(q));
-
-        const daysDiff = Math.floor(
-          (now.getTime() - new Date(item.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
-        );
-        const matchTimeRange = rangeDays === Number.POSITIVE_INFINITY || daysDiff <= rangeDays;
-        const matchType = eventType === '全部' || item.type === eventType;
-        const matchStatus = status === '全部' || item.status === status;
-        const matchBrand = brand === '全部品牌' || item.brand === brand;
-        const matchPlatform = platform === '全部平台' || item.platforms.includes(platform);
-
-        return matchKeyword && matchTimeRange && matchType && matchStatus && matchBrand && matchPlatform;
-      })
-      .sort((a, b) => {
-        if (sortBy === 'updatedAt') {
-          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        }
-        return Number(b[sortBy]) - Number(a[sortBy]);
-      });
+    getEventLibrary({
+      keyword,
+      eventType,
+      eventStatus: status,
+      brandName: brand,
+      platform,
+      dateFrom,
+      sortBy,
+      sortOrder: 'desc',
+      page: 1,
+      pageSize: 200,
+    }).then((payload) => {
+      setEvents(payload.items);
+      setTotal(payload.total);
+    });
   }, [brand, eventType, keyword, platform, sortBy, status, timeRange]);
 
+  const brandOptions = useMemo(
+    () => ['全部品牌', ...new Set(events.map((item) => item.brand).filter(Boolean))],
+    [events]
+  );
+  const platformOptions = useMemo(
+    () => ['全部平台', ...new Set(events.flatMap((item) => item.platforms).filter(Boolean))],
+    [events]
+  );
+
   const summary = useMemo(() => {
-    const totalContent = filteredEvents.reduce((sum, item) => sum + item.contentCount, 0);
-    const totalComment = filteredEvents.reduce((sum, item) => sum + item.commentCount, 0);
-    const runningCount = filteredEvents.filter((item) => item.status === '进行中').length;
-    const highRiskCount = filteredEvents.filter((item) => item.riskLevel === '高').length;
-    return { totalContent, totalComment, runningCount, highRiskCount };
-  }, [filteredEvents]);
+    const totalContent = events.reduce((sum, item) => sum + item.contentCount, 0);
+    const totalComment = events.reduce((sum, item) => sum + item.commentCount, 0);
+    const runningCount = events.filter((item) => item.status === '进行中').length;
+    const highRiskCount = events.filter((item) => item.riskLevel === '高').length;
+    const marketingCount = events.filter((item) => getEventStoryFocus(item.type).scenario === '营销事件').length;
+    const productRiskCount = events.length - marketingCount;
+    return { totalContent, totalComment, runningCount, highRiskCount, marketingCount, productRiskCount };
+  }, [events]);
+
+  const readinessChecklist = useMemo(() => getDataReadinessChecklist(), []);
+
+  const handlePageJump = (page: 'content-library' | 'comment-library' | 'author-library') => {
+    if (!selectedEvent || !onPageChange) return;
+    setSelectedEvent(null);
+    onPageChange(page, { eventId: selectedEvent.id });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f7f9fc] via-[#f4f6fb] to-[#edf2f7] p-6">
@@ -170,77 +193,53 @@ export default function EventLibraryPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <div className="xl:col-span-1">
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <AssetFilterField label="时间">
               <Select value={timeRange} onValueChange={(value) => setTimeRange(value as (typeof timeRangeOptions)[number])}>
                 <SelectTrigger><SelectValue placeholder="时间范围" /></SelectTrigger>
-                <SelectContent>
-                  {timeRangeOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{timeRangeOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="xl:col-span-1">
+            </AssetFilterField>
+            <AssetFilterField label="事件类型">
               <Select value={eventType} onValueChange={(value) => setEventType(value as (typeof eventTypeOptions)[number])}>
                 <SelectTrigger><SelectValue placeholder="事件类型" /></SelectTrigger>
-                <SelectContent>
-                  {eventTypeOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{eventTypeOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="xl:col-span-1">
+            </AssetFilterField>
+            <AssetFilterField label="品牌/车型">
               <Select value={brand} onValueChange={setBrand}>
                 <SelectTrigger><SelectValue placeholder="品牌/车型" /></SelectTrigger>
-                <SelectContent>
-                  {brandOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{brandOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="xl:col-span-1">
+            </AssetFilterField>
+            <AssetFilterField label="事件状态">
               <Select value={status} onValueChange={(value) => setStatus(value as (typeof statusOptions)[number])}>
                 <SelectTrigger><SelectValue placeholder="事件状态" /></SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{statusOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="xl:col-span-1">
+            </AssetFilterField>
+            <AssetFilterField label="平台范围">
               <Select value={platform} onValueChange={setPlatform}>
                 <SelectTrigger><SelectValue placeholder="平台范围" /></SelectTrigger>
-                <SelectContent>
-                  {platformOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{platformOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="xl:col-span-1">
+            </AssetFilterField>
+            <AssetFilterField label="排序方式">
               <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortKey)}>
                 <SelectTrigger>
                   <ArrowUpDown className="mr-2 h-4 w-4 text-gray-400" />
                   <SelectValue placeholder="排序字段" />
                 </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{SORT_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
+            </AssetFilterField>
           </div>
         </motion.section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-xs text-gray-500">事件总量</p>
-            <p className="mt-2 text-2xl font-semibold text-gray-900">{filteredEvents.length}</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-900">{total}</p>
             <p className="mt-1 text-xs text-gray-400">已匹配当前筛选条件</p>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -259,6 +258,46 @@ export default function EventLibraryPage() {
             <p className="text-xs text-gray-500">高风险事件</p>
             <p className="mt-2 text-2xl font-semibold text-red-600">{summary.highRiskCount}</p>
             <p className="mt-1 text-xs text-gray-400">建议进入详情核查事件命题</p>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr,0.7fr]">
+          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-blue-600" />
+              <p className="text-sm font-medium text-gray-900">故事线分流</p>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                <p className="text-xs text-blue-700">营销事件</p>
+                <p className="mt-2 text-2xl font-semibold text-blue-950">{summary.marketingCount}</p>
+                <p className="mt-2 text-sm text-blue-900">看传播有没有打到目标人群，并沉淀下次投放的内容与KOL资产。</p>
+              </div>
+              <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+                <p className="text-xs text-orange-700">产品舆情事件</p>
+                <p className="mt-2 text-2xl font-semibold text-orange-950">{summary.productRiskCount}</p>
+                <p className="mt-2 text-sm text-orange-900">看问题是真风险还是局部噪音，并追溯高置信用户原声证据。</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-slate-700" />
+              <p className="text-sm font-medium text-gray-900">数据准备优先级</p>
+            </div>
+            <div className="mt-3 space-y-2">
+              {readinessChecklist.map((group) => (
+                <div key={group.priority} className="rounded-2xl border border-gray-100 bg-gray-50/70 p-3">
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-slate-900 text-white">{group.priority}</Badge>
+                    <span className="text-xs text-gray-500">{group.items.length}项</span>
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-gray-900">{group.title}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-gray-500">{group.items.slice(0, 5).join(' / ')}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -288,15 +327,12 @@ export default function EventLibraryPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEvents.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedEvent(item)}
-                  >
+                {events.map((item) => (
+                  <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelectedEvent(item)}>
                     <TableCell className="min-w-[260px] align-top">
                       <p className="font-medium text-gray-900">{item.name}</p>
                       <p className="mt-1 line-clamp-2 text-xs text-gray-500">{item.description}</p>
+                      <Badge className="mt-2 bg-blue-50 text-blue-700">{getEventStoryFocus(item.type).scenario}</Badge>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{item.brand} / {item.model}</TableCell>
                     <TableCell>{item.type}</TableCell>
@@ -317,14 +353,27 @@ export default function EventLibraryPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs">内容</Button>
-                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs">评论</Button>
-                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs">关系</Button>
-                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedEvent(item);
+                        }}
+                      >
+                        查看详情
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
+                {events.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={11} className="py-10 text-center text-sm text-gray-500">
+                      当前筛选条件下暂无事件数据
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
@@ -407,22 +456,75 @@ export default function EventLibraryPage() {
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                    <Target className="h-4 w-4 text-slate-700" />
+                    事件故事线判断
+                  </div>
+                  {(() => {
+                    const focus = getEventStoryFocus(selectedEvent.type);
+                    const metrics = getEventMetricSet(selectedEvent.type);
+                    return (
+                      <div className="mt-3 space-y-3 text-sm text-gray-700">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge className={focus.scenario === '营销事件' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}>
+                            {focus.scenario}
+                          </Badge>
+                          <Badge variant="outline">{selectedEvent.businessOwner ?? '业务部门待补充'}</Badge>
+                          <Badge variant="outline">{selectedEvent.targetAudience ?? '目标人群待补充'}</Badge>
+                        </div>
+                        <p className="font-medium text-gray-950">{focus.coreQuestion}</p>
+                        <p>{selectedEvent.storyGoal ?? focus.businessOutput}</p>
+                        <p className="text-xs text-gray-500">{getEventStrategySummary(selectedEvent.type, selectedEvent.model)}</p>
+                        <div>
+                          <p className="text-xs text-gray-500">推荐分析路径</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {focus.analysisPath.map((step) => <Badge key={step} variant="outline">{step}</Badge>)}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">核心指标</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {metrics.primaryMetrics.map((metric) => <Badge key={metric} className="bg-white text-gray-700">{metric}</Badge>)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
                   <p className="text-sm font-medium text-blue-900">快速进入下游页面（自动带入事件上下文）</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="justify-start gap-2 bg-white">
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => handlePageJump('content-library')}
+                    >
                       <BookOpenCheck className="h-4 w-4" />
                       查看内容
                     </Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white">
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => handlePageJump('comment-library')}
+                    >
                       <MessageSquare className="h-4 w-4" />
                       查看评论
                     </Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white">
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => handlePageJump('author-library')}
+                    >
                       <Users className="h-4 w-4" />
                       查看作者
                     </Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white">
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => setRelationEvent(selectedEvent)}
+                    >
                       <Network className="h-4 w-4" />
                       关系视图
                     </Button>
@@ -449,6 +551,13 @@ export default function EventLibraryPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      <EventRelationViewDialog
+        open={Boolean(relationEvent)}
+        event={relationEvent}
+        onOpenChange={(open) => !open && setRelationEvent(null)}
+        onPageChange={onPageChange}
+      />
     </div>
   );
 }

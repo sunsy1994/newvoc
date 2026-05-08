@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -45,9 +45,12 @@ import {
   stageOptions,
   type CommentLibraryItem,
 } from './data/commentLibraryData';
+import type { AssetNavigationContext, AssetPageChangeHandler } from './assetNavigation';
+import AssetFilterField from './AssetFilterField';
 
 interface CommentLibraryPageProps {
-  onPageChange: (page: string) => void;
+  onPageChange: AssetPageChangeHandler;
+  navigationContext?: AssetNavigationContext;
 }
 
 function getInteractionThreshold(range: string) {
@@ -74,9 +77,9 @@ function sentimentBadge(sentiment: CommentLibraryItem['sentimentTag']) {
   return 'bg-red-100 text-red-700';
 }
 
-export default function CommentLibraryPage({ onPageChange }: CommentLibraryPageProps) {
-  const [selectedEventId, setSelectedEventId] = useState('EVT-2026-001');
-  const [keyword, setKeyword] = useState('');
+export default function CommentLibraryPage({ onPageChange, navigationContext }: CommentLibraryPageProps) {
+  const [selectedEventId, setSelectedEventId] = useState(navigationContext?.eventId ?? 'EVT-2026-001');
+  const [keyword, setKeyword] = useState(navigationContext?.keyword ?? '');
   const [platform, setPlatform] = useState<(typeof platformOptions)[number]>('全部平台');
   const [sourceType, setSourceType] = useState<(typeof contentTypeSourceOptions)[number]>('全部来源');
   const [confidence, setConfidence] = useState<(typeof confidenceOptions)[number]>('全部置信度');
@@ -113,6 +116,7 @@ export default function CommentLibraryPage({ onPageChange }: CommentLibraryPageP
           q.length === 0 ||
           item.text.toLowerCase().includes(q) ||
           item.contentTitle.toLowerCase().includes(q) ||
+          item.contentAuthor.toLowerCase().includes(q) ||
           item.commentAuthorName.toLowerCase().includes(q);
 
         const dayDiff = Math.floor(
@@ -173,6 +177,24 @@ export default function CommentLibraryPage({ onPageChange }: CommentLibraryPageP
     return { totalLikes, highConfidenceCount, strongNegativeCount };
   }, [filteredComments]);
 
+  useEffect(() => {
+    setSelectedEventId(navigationContext?.eventId ?? 'EVT-2026-001');
+    setKeyword(navigationContext?.keyword ?? '');
+    setSelectedComment(
+      navigationContext?.commentId
+        ? commentLibraryData.find((item) => item.id === navigationContext.commentId) ?? null
+        : null
+    );
+  }, [navigationContext]);
+
+  const jumpToPage = (
+    page: 'content-library' | 'author-library' | 'event-library',
+    context?: AssetNavigationContext
+  ) => {
+    setSelectedComment(null);
+    onPageChange(page, context);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f7f9fc] via-[#f4f6fb] to-[#edf2f7] p-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -215,24 +237,24 @@ export default function CommentLibraryPage({ onPageChange }: CommentLibraryPageP
         </motion.section>
 
         <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <div className="xl:col-span-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <AssetFilterField label="搜索" className="xl:col-span-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索评论/内容/用户" className="pl-10" />
               </div>
-            </div>
-            <Select value={platform} onValueChange={(v) => setPlatform(v as (typeof platformOptions)[number])}><SelectTrigger><SelectValue placeholder="平台" /></SelectTrigger><SelectContent>{platformOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={sourceType} onValueChange={(v) => setSourceType(v as (typeof contentTypeSourceOptions)[number])}><SelectTrigger><SelectValue placeholder="评论来源作者类型" /></SelectTrigger><SelectContent>{contentTypeSourceOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={confidence} onValueChange={(v) => setConfidence(v as (typeof confidenceOptions)[number])}><SelectTrigger><SelectValue placeholder="置信度" /></SelectTrigger><SelectContent>{confidenceOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={publishRange} onValueChange={(v) => setPublishRange(v as (typeof publishRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="时间范围" /></SelectTrigger><SelectContent>{publishRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={interactionRange} onValueChange={(v) => setInteractionRange(v as (typeof interactionRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="互动区间" /></SelectTrigger><SelectContent>{interactionRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={mindset} onValueChange={(v) => setMindset(v as (typeof mindsetOptions)[number])}><SelectTrigger><SelectValue placeholder="心智标签" /></SelectTrigger><SelectContent>{mindsetOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={stage} onValueChange={(v) => setStage(v as (typeof stageOptions)[number])}><SelectTrigger><SelectValue placeholder="阶段标签" /></SelectTrigger><SelectContent>{stageOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={proposition} onValueChange={(v) => setProposition(v as (typeof propositionOptions)[number])}><SelectTrigger><SelectValue placeholder="命题标签" /></SelectTrigger><SelectContent>{propositionOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={issue} onValueChange={(v) => setIssue(v as (typeof issueOptions)[number])}><SelectTrigger><SelectValue placeholder="问题标签" /></SelectTrigger><SelectContent>{issueOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={evidence} onValueChange={(v) => setEvidence(v as (typeof evidenceOptions)[number])}><SelectTrigger><SelectValue placeholder="证据标签" /></SelectTrigger><SelectContent>{evidenceOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={sentiment} onValueChange={(v) => setSentiment(v as (typeof sentimentOptions)[number])}><SelectTrigger><SelectValue placeholder="情绪/态度" /></SelectTrigger><SelectContent>{sentimentOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
+            </AssetFilterField>
+            <AssetFilterField label="平台"><Select value={platform} onValueChange={(v) => setPlatform(v as (typeof platformOptions)[number])}><SelectTrigger><SelectValue placeholder="平台" /></SelectTrigger><SelectContent>{platformOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="评论来源"><Select value={sourceType} onValueChange={(v) => setSourceType(v as (typeof contentTypeSourceOptions)[number])}><SelectTrigger><SelectValue placeholder="评论来源作者类型" /></SelectTrigger><SelectContent>{contentTypeSourceOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="置信度"><Select value={confidence} onValueChange={(v) => setConfidence(v as (typeof confidenceOptions)[number])}><SelectTrigger><SelectValue placeholder="置信度" /></SelectTrigger><SelectContent>{confidenceOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="时间范围"><Select value={publishRange} onValueChange={(v) => setPublishRange(v as (typeof publishRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="时间范围" /></SelectTrigger><SelectContent>{publishRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="互动区间"><Select value={interactionRange} onValueChange={(v) => setInteractionRange(v as (typeof interactionRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="互动区间" /></SelectTrigger><SelectContent>{interactionRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="心智标签"><Select value={mindset} onValueChange={(v) => setMindset(v as (typeof mindsetOptions)[number])}><SelectTrigger><SelectValue placeholder="心智标签" /></SelectTrigger><SelectContent>{mindsetOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="阶段标签"><Select value={stage} onValueChange={(v) => setStage(v as (typeof stageOptions)[number])}><SelectTrigger><SelectValue placeholder="阶段标签" /></SelectTrigger><SelectContent>{stageOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="命题标签"><Select value={proposition} onValueChange={(v) => setProposition(v as (typeof propositionOptions)[number])}><SelectTrigger><SelectValue placeholder="命题标签" /></SelectTrigger><SelectContent>{propositionOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="问题标签"><Select value={issue} onValueChange={(v) => setIssue(v as (typeof issueOptions)[number])}><SelectTrigger><SelectValue placeholder="问题标签" /></SelectTrigger><SelectContent>{issueOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="证据标签"><Select value={evidence} onValueChange={(v) => setEvidence(v as (typeof evidenceOptions)[number])}><SelectTrigger><SelectValue placeholder="证据标签" /></SelectTrigger><SelectContent>{evidenceOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="情绪态度"><Select value={sentiment} onValueChange={(v) => setSentiment(v as (typeof sentimentOptions)[number])}><SelectTrigger><SelectValue placeholder="情绪/态度" /></SelectTrigger><SelectContent>{sentimentOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
           </div>
         </section>
 
@@ -287,8 +309,34 @@ export default function CommentLibraryPage({ onPageChange }: CommentLibraryPageP
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500">
                 <span className="inline-flex items-center gap-1"><UserCircle2 className="h-3.5 w-3.5" />评论作者：{comment.commentAuthorName}</span>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">所属内容</Button>
-                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">作者详情</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() =>
+                      onPageChange('content-library', {
+                        eventId: comment.eventId,
+                        contentId: comment.contentId,
+                        keyword: comment.contentTitle,
+                      })
+                    }
+                  >
+                    所属内容
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() =>
+                      onPageChange('author-library', {
+                        eventId: comment.eventId,
+                        keyword: comment.contentAuthor,
+                        includeKOL: comment.contentAuthorType === 'KOL',
+                      })
+                    }
+                  >
+                    作者详情
+                  </Button>
                   <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setSelectedComment(comment)}>证据详情</Button>
                 </div>
               </div>
@@ -359,10 +407,50 @@ export default function CommentLibraryPage({ onPageChange }: CommentLibraryPageP
                 <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
                   <p className="font-medium text-blue-900">证据追溯</p>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><Filter className="h-4 w-4" />所属内容</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><Users className="h-4 w-4" />作者详情</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><BarChart3 className="h-4 w-4" />所属事件</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><Network className="h-4 w-4" />关系视图</Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('content-library', {
+                          eventId: selectedComment.eventId,
+                          contentId: selectedComment.contentId,
+                          keyword: selectedComment.contentTitle,
+                        })
+                      }
+                    >
+                      <Filter className="h-4 w-4" />
+                      所属内容
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('author-library', {
+                          eventId: selectedComment.eventId,
+                          keyword: selectedComment.contentAuthor,
+                          includeKOL: selectedComment.contentAuthorType === 'KOL',
+                        })
+                      }
+                    >
+                      <Users className="h-4 w-4" />
+                      作者详情
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => jumpToPage('event-library', { eventId: selectedComment.eventId })}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      所属事件
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => jumpToPage('event-library', { eventId: selectedComment.eventId })}
+                    >
+                      <Network className="h-4 w-4" />
+                      关系视图
+                    </Button>
                   </div>
                 </div>
               </div>

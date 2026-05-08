@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3,
@@ -6,8 +6,8 @@ import {
   FileText,
   Filter,
   MessageSquare,
+  Network,
   Search,
-  ShieldAlert,
   Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -37,9 +37,14 @@ import {
   sortOptions,
   type KOLItem,
 } from './data/kolLibraryData';
+import type { AssetNavigationContext, AssetPageChangeHandler } from './assetNavigation';
+import AssetFilterField from './AssetFilterField';
+import KOLRelationViewDialog from './KOLRelationViewDialog';
+import { getEventStoryFocus } from './eventVocStrategy';
 
 interface KolLibraryPageProps {
-  onPageChange: (page: string) => void;
+  onPageChange: AssetPageChangeHandler;
+  navigationContext?: AssetNavigationContext;
 }
 
 type SortKey = (typeof sortOptions)[number]['value'];
@@ -53,20 +58,36 @@ function fanThreshold(label: string) {
   return 0;
 }
 
-export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
-  const [selectedEventId, setSelectedEventId] = useState('EVT-2026-001');
-  const [keyword, setKeyword] = useState('');
+function getKolUseCase(kol: KOLItem, eventType: string) {
+  const scenario = getEventStoryFocus(eventType).scenario;
+  const riskText = kol.riskScore >= 0.45 ? '需控制争议放大' : '风险可控';
+  if (scenario === '营销事件') {
+    if (kol.effectiveEngagementRate >= 0.35) return `优先用于精准投放和种草转化，${riskText}。`;
+    return `适合品牌声量补充，投放前需验证目标人群匹配度，${riskText}。`;
+  }
+
+  if (kol.roleTags.includes('高证据型') || kol.roleTags.includes('证据型')) {
+    return `适合作为证据解释或问题澄清节点，${riskText}。`;
+  }
+  return `适合监测舆情扩散路径，不建议直接作为回应主节点，${riskText}。`;
+}
+
+export default function KolLibraryPage({ onPageChange, navigationContext }: KolLibraryPageProps) {
+  const [selectedEventId, setSelectedEventId] = useState(navigationContext?.eventId ?? 'EVT-2026-001');
+  const [keyword, setKeyword] = useState(navigationContext?.keyword ?? '');
   const [platform, setPlatform] = useState<(typeof platformOptions)[number]>('全部平台');
   const [domain, setDomain] = useState<(typeof domainOptions)[number]>('全部领域');
   const [authorType, setAuthorType] = useState<(typeof authorTypeOptions)[number]>('全部类型');
   const [fansRange, setFansRange] = useState<(typeof fansRangeOptions)[number]>('全部粉丝');
   const [sortBy, setSortBy] = useState<SortKey>('totalEngagement');
   const [selectedKOL, setSelectedKOL] = useState<KOLItem | null>(null);
+  const [relationKOL, setRelationKOL] = useState<KOLItem | null>(null);
 
   const selectedEvent = useMemo(
     () => eventLibraryData.find((event) => event.id === selectedEventId) ?? eventLibraryData[0],
     [selectedEventId]
   );
+  const selectedEventFocus = useMemo(() => getEventStoryFocus(selectedEvent.type), [selectedEvent.type]);
 
   const list = useMemo(() => {
     const minFans = fanThreshold(fansRange);
@@ -94,6 +115,24 @@ export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
     const highIntent = list.filter((item) => item.roleTags.includes('高意向触发型')).length;
     return { totalKOL, postedKOL, totalEngagement, totalComments, highEngagement, highRisk, highIntent };
   }, [list]);
+
+  useEffect(() => {
+    setSelectedEventId(navigationContext?.eventId ?? 'EVT-2026-001');
+    setKeyword(navigationContext?.keyword ?? '');
+    setSelectedKOL(
+      navigationContext?.kolId
+        ? kolLibraryData.find((item) => item.id === navigationContext.kolId) ?? null
+        : null
+    );
+  }, [navigationContext]);
+
+  const jumpToPage = (
+    page: 'content-library' | 'comment-library' | 'author-library',
+    context?: AssetNavigationContext
+  ) => {
+    setSelectedKOL(null);
+    onPageChange(page, context);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f7f9fc] via-[#f4f6fb] to-[#edf2f7] p-6">
@@ -134,6 +173,15 @@ export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
               <p>时间范围：<span className="font-medium text-blue-950">{selectedEvent.startDate} ~ {selectedEvent.endDate}</span></p>
               <p>状态：<Badge className="bg-emerald-100 text-emerald-700">{selectedEvent.status}</Badge></p>
             </div>
+            <div className="mt-3 rounded-xl border border-blue-100 bg-white/70 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={selectedEventFocus.scenario === '营销事件' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}>
+                  {selectedEventFocus.scenario}
+                </Badge>
+                <span className="font-medium text-blue-950">{selectedEventFocus.coreQuestion}</span>
+              </div>
+              <p className="mt-1 text-xs text-blue-800">KOL库在这里不做达人榜，而是判断“谁吸引了什么人，以及适合承担什么传播/解释角色”。</p>
+            </div>
           </div>
         </motion.section>
 
@@ -148,18 +196,18 @@ export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
         </section>
 
         <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <div className="xl:col-span-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <AssetFilterField label="搜索" className="xl:col-span-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索KOL昵称" className="pl-10" />
               </div>
-            </div>
-            <Select value={platform} onValueChange={(v) => setPlatform(v as (typeof platformOptions)[number])}><SelectTrigger><SelectValue placeholder="平台" /></SelectTrigger><SelectContent>{platformOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={domain} onValueChange={(v) => setDomain(v as (typeof domainOptions)[number])}><SelectTrigger><SelectValue placeholder="领域" /></SelectTrigger><SelectContent>{domainOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={authorType} onValueChange={(v) => setAuthorType(v as (typeof authorTypeOptions)[number])}><SelectTrigger><SelectValue placeholder="作者类型" /></SelectTrigger><SelectContent>{authorTypeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={fansRange} onValueChange={(v) => setFansRange(v as (typeof fansRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="粉丝区间" /></SelectTrigger><SelectContent>{fansRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}><SelectTrigger><SelectValue placeholder="排序" /></SelectTrigger><SelectContent>{sortOptions.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent></Select>
+            </AssetFilterField>
+            <AssetFilterField label="平台"><Select value={platform} onValueChange={(v) => setPlatform(v as (typeof platformOptions)[number])}><SelectTrigger><SelectValue placeholder="平台" /></SelectTrigger><SelectContent>{platformOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="领域"><Select value={domain} onValueChange={(v) => setDomain(v as (typeof domainOptions)[number])}><SelectTrigger><SelectValue placeholder="领域" /></SelectTrigger><SelectContent>{domainOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="作者类型"><Select value={authorType} onValueChange={(v) => setAuthorType(v as (typeof authorTypeOptions)[number])}><SelectTrigger><SelectValue placeholder="作者类型" /></SelectTrigger><SelectContent>{authorTypeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="粉丝区间"><Select value={fansRange} onValueChange={(v) => setFansRange(v as (typeof fansRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="粉丝区间" /></SelectTrigger><SelectContent>{fansRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="排序方式"><Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}><SelectTrigger><SelectValue placeholder="排序" /></SelectTrigger><SelectContent>{sortOptions.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent></Select></AssetFilterField>
           </div>
         </section>
 
@@ -195,13 +243,45 @@ export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
                 <p>评论者心智 Top3：{kol.mindsetTop3.join(' / ')}</p>
                 <p className="mt-1">评论者阶段 Top3：{kol.stageTop3.join(' / ')}</p>
                 <p className="mt-1">评论者意向 Top3：{kol.intentionTop3.join(' / ')}</p>
+                <div className="mt-3 rounded-lg border border-white bg-white p-2 text-sm text-gray-700">
+                  <p className="text-xs font-medium text-gray-500">建议使用方式</p>
+                  <p className="mt-1">{getKolUseCase(kol, selectedEvent.type)}</p>
+                </div>
               </div>
 
               <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
                 <p className="text-xs text-gray-500">{kol.summary}</p>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs">查看内容</Button>
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs">查看评论</Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() =>
+                      onPageChange('content-library', {
+                        eventId: kol.eventId,
+                        kolId: kol.id,
+                        keyword: kol.nickname,
+                        includeKOL: true,
+                      })
+                    }
+                  >
+                    查看内容
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() =>
+                      onPageChange('comment-library', {
+                        eventId: kol.eventId,
+                        kolId: kol.id,
+                        keyword: kol.nickname,
+                        includeKOL: true,
+                      })
+                    }
+                  >
+                    查看评论
+                  </Button>
                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setSelectedKOL(kol)}>查看详情</Button>
                 </div>
               </div>
@@ -252,6 +332,11 @@ export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <p className="font-medium text-gray-800">投放/响应建议</p>
+                  <p className="mt-2 text-gray-700">{getKolUseCase(selectedKOL, selectedEvent.type)}</p>
+                </div>
+
                 <div className="rounded-xl border border-gray-200 p-3">
                   <p className="font-medium text-gray-800">代表性评论样本</p>
                   <div className="mt-2 space-y-2">
@@ -267,10 +352,61 @@ export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
                 <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
                   <p className="font-medium text-blue-900">快捷跳转</p>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><FileText className="h-4 w-4" />内容库</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><MessageSquare className="h-4 w-4" />评论库</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><Users className="h-4 w-4" />作者详情</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><ShieldAlert className="h-4 w-4" />风险追踪</Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('content-library', {
+                          eventId: selectedKOL.eventId,
+                          kolId: selectedKOL.id,
+                          keyword: selectedKOL.nickname,
+                          includeKOL: true,
+                        })
+                      }
+                    >
+                      <FileText className="h-4 w-4" />
+                      内容库
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('comment-library', {
+                          eventId: selectedKOL.eventId,
+                          kolId: selectedKOL.id,
+                          keyword: selectedKOL.nickname,
+                          includeKOL: true,
+                        })
+                      }
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      评论库
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('author-library', {
+                          eventId: selectedKOL.eventId,
+                          keyword: selectedKOL.nickname,
+                          includeKOL: true,
+                        })
+                      }
+                    >
+                      <Users className="h-4 w-4" />
+                      作者详情
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => {
+                        setRelationKOL(selectedKOL);
+                        setSelectedKOL(null);
+                      }}
+                    >
+                      <Network className="h-4 w-4" />
+                      关系视图
+                    </Button>
                   </div>
                 </div>
 
@@ -283,6 +419,14 @@ export default function KolLibraryPage({ onPageChange }: KolLibraryPageProps) {
           )}
         </SheetContent>
       </Sheet>
+
+      <KOLRelationViewDialog
+        open={Boolean(relationKOL)}
+        kol={relationKOL}
+        event={selectedEvent ?? null}
+        onOpenChange={(open) => !open && setRelationKOL(null)}
+        onPageChange={onPageChange}
+      />
     </div>
   );
 }

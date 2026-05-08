@@ -1,28 +1,4 @@
-export type EventStatus = '进行中' | '已结束' | '归档';
-export type EventRiskLevel = '高' | '中' | '低';
-
-export interface EventLibraryItem {
-  id: string;
-  name: string;
-  description: string;
-  type: '新品上市' | '质量争议' | '服务体验' | '品牌传播' | '竞品对比';
-  brand: string;
-  model: string;
-  keywords: string[];
-  startDate: string;
-  endDate: string;
-  status: EventStatus;
-  platforms: string[];
-  contentCount: number;
-  commentCount: number;
-  authorCount: number;
-  kolCount: number;
-  heat: number;
-  growth: number;
-  riskLevel: EventRiskLevel;
-  updatedAt: string;
-  topics: string[];
-}
+import type { EventLibraryItem } from '@/types/eventAsset';
 
 export const eventLibraryData: EventLibraryItem[] = [
   {
@@ -46,6 +22,9 @@ export const eventLibraryData: EventLibraryItem[] = [
     riskLevel: '高',
     updatedAt: '2026-03-08',
     topics: ['续航真实性', '低温电池表现', '官方解释可信度'],
+    targetAudience: '车主、准车主、冬季长途用户',
+    businessOwner: '产品 / 公关 / 售后',
+    storyGoal: '判断冬测争议是否构成真实产品风险，并沉淀高置信车主证据。',
   },
   {
     id: 'EVT-2026-002',
@@ -68,6 +47,9 @@ export const eventLibraryData: EventLibraryItem[] = [
     riskLevel: '中',
     updatedAt: '2026-03-07',
     topics: ['智能座舱体验', '空间表现', '价格竞争力'],
+    targetAudience: '准车主、试驾用户、家庭增购用户',
+    businessOwner: '市场 / 销售 / 产品',
+    storyGoal: '验证上市传播是否打穿目标人群，并沉淀可复用KOL/KOC组合。',
   },
   {
     id: 'EVT-2026-003',
@@ -90,6 +72,9 @@ export const eventLibraryData: EventLibraryItem[] = [
     riskLevel: '中',
     updatedAt: '2026-02-22',
     topics: ['预约等待', '配件周期', '服务标准一致性'],
+    targetAudience: '车主、售后用户、区域门店用户',
+    businessOwner: '售后 / 区域运营',
+    storyGoal: '识别服务体验的集中痛点和高置信门店样本，输出响应优先级。',
   },
   {
     id: 'EVT-2025-117',
@@ -112,6 +97,9 @@ export const eventLibraryData: EventLibraryItem[] = [
     riskLevel: '低',
     updatedAt: '2026-01-31',
     topics: ['城市NOA稳定性', '硬件冗余', '用户体感差异'],
+    targetAudience: '竞品对比用户、技术偏好型准车主',
+    businessOwner: '产品 / 市场',
+    storyGoal: '识别竞品对比中用户真正关注的技术命题和转化阻碍。',
   },
   {
     id: 'EVT-2026-004',
@@ -134,6 +122,9 @@ export const eventLibraryData: EventLibraryItem[] = [
     riskLevel: '中',
     updatedAt: '2026-02-16',
     topics: ['排队体验', '补能覆盖', '高速服务区体验'],
+    targetAudience: '车主、长途出行用户、观望用户',
+    businessOwner: '补能运营 / 售后 / 公关',
+    storyGoal: '判断补能网络体验是否外溢为品牌风险，并定位高发场景。',
   },
   {
     id: 'EVT-2026-005',
@@ -156,6 +147,9 @@ export const eventLibraryData: EventLibraryItem[] = [
     riskLevel: '低',
     updatedAt: '2026-03-08',
     topics: ['联名话题记忆点', '品牌年轻化', '内容二次传播'],
+    targetAudience: '泛兴趣用户、年轻消费群体、潜在试驾用户',
+    businessOwner: '市场 / 品牌',
+    storyGoal: '判断联名传播是否形成可延续记忆点，并识别二创扩散节点。',
   },
 ];
 

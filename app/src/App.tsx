@@ -8,13 +8,18 @@ import MostDayActive from './components/MostDayActive';
 import RepeatCustomerRate from './components/RepeatCustomerRate';
 import BestSellingProducts from './components/BestSellingProducts';
 import AIAssistant from './components/AIAssistant';
+import type { AssetNavigationContext, AssetPageChangeHandler } from './components/assets/assetNavigation';
 
 const VocViewPage = lazy(() => import('./components/voc/VocViewPage'));
+const DataAccessPage = lazy(() => import('./components/data-access/DataAccessPage'));
+const DataImportPage = lazy(() => import('./components/data-access/DataImportPage'));
+const DataCalcPage = lazy(() => import('./components/data-access/DataCalcPage'));
 const EventLibraryPage = lazy(() => import('./components/assets/EventLibraryPage'));
 const ContentLibraryPage = lazy(() => import('./components/assets/ContentLibraryPage'));
 const CommentLibraryPage = lazy(() => import('./components/assets/CommentLibraryPage'));
 const KolLibraryPage = lazy(() => import('./components/assets/KolLibraryPage'));
 const AuthorLibraryPage = lazy(() => import('./components/assets/AuthorLibraryPage'));
+const CompetitorLibraryPage = lazy(() => import('./components/assets/CompetitorLibraryPage'));
 
 const statsData = [
   { title: '管理工作台', value: 44670, change: 24.4, comparison: '较上周期增长 8,760条', type: 'volume' as const, suffix: '' },
@@ -25,9 +30,11 @@ const statsData = [
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [assetNavigationContext, setAssetNavigationContext] = useState<AssetNavigationContext>({});
 
-  const handlePageChange = (page: string) => {
+  const handlePageChange: AssetPageChangeHandler = (page, context = {}) => {
     setCurrentPage(page);
+    setAssetNavigationContext(context);
   };
 
   return (
@@ -41,16 +48,36 @@ function App() {
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-gray-500">页面加载中...</div>}>
           {currentPage === 'voc' ? (
             <VocViewPage />
+          ) : currentPage === 'data-access' ? (
+            <DataAccessPage onPageChange={handlePageChange} />
+          ) : currentPage === 'data-import' ? (
+            <DataImportPage onPageChange={handlePageChange} />
+          ) : currentPage === 'data-calc' ? (
+            <DataCalcPage onPageChange={handlePageChange} />
           ) : currentPage === 'event-library' ? (
-            <EventLibraryPage />
+            <EventLibraryPage onPageChange={handlePageChange} />
           ) : currentPage === 'content-library' ? (
-            <ContentLibraryPage onPageChange={handlePageChange} />
+            <ContentLibraryPage
+              onPageChange={handlePageChange}
+              navigationContext={assetNavigationContext}
+            />
           ) : currentPage === 'comment-library' ? (
-            <CommentLibraryPage onPageChange={handlePageChange} />
+            <CommentLibraryPage
+              onPageChange={handlePageChange}
+              navigationContext={assetNavigationContext}
+            />
           ) : currentPage === 'kol-library' ? (
-            <KolLibraryPage onPageChange={handlePageChange} />
+            <KolLibraryPage
+              onPageChange={handlePageChange}
+              navigationContext={assetNavigationContext}
+            />
           ) : currentPage === 'author-library' ? (
-            <AuthorLibraryPage onPageChange={handlePageChange} />
+            <AuthorLibraryPage
+              onPageChange={handlePageChange}
+              navigationContext={assetNavigationContext}
+            />
+          ) : currentPage === 'competitor-library' ? (
+            <CompetitorLibraryPage />
           ) : (
             <>
               {/* Header */}

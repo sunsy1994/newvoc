@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ElementType } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -17,22 +17,26 @@ import {
   Crown,
   Car,
   BookOpen,
-  UserRound
+  UserRound,
+  CarFront,
+  FolderOpenDot,
+  Workflow
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import type { AssetPage, AssetPageChangeHandler } from './assets/assetNavigation';
 
 interface MenuItem {
-  icon: React.ElementType;
+  icon: ElementType;
   label: string;
   badge?: number;
-  page?: string;
+  page?: AssetPage;
 }
 
 interface SubMenuItem {
   label: string;
-  icon: React.ElementType;
-  page?: string;
+  icon: ElementType;
+  page?: AssetPage;
 }
 
 const mainMenuItems: MenuItem[] = [
@@ -49,11 +53,17 @@ const analysisSubItems: SubMenuItem[] = [
   { label: '评论库', icon: FileText, page: 'comment-library' },
   { label: 'KOL库', icon: Users, page: 'kol-library' },
   { label: '作者库', icon: UserRound, page: 'author-library' },
+  { label: '竞品资产库', icon: CarFront, page: 'competitor-library' },
 ];
 
 const otherMenuItems: MenuItem[] = [
-  { icon: Share2, label: '渠道监测' },
+  { icon: Share2, label: '数据接入', page: 'data-access' },
   { icon: Star, label: '品牌口碑' },
+];
+
+const dataAccessSubItems: SubMenuItem[] = [
+  { label: '数据导入', icon: FolderOpenDot, page: 'data-import' },
+  { label: '数据计算', icon: Workflow, page: 'data-calc' },
 ];
 
 const bottomMenuItems: MenuItem[] = [
@@ -63,11 +73,12 @@ const bottomMenuItems: MenuItem[] = [
 
 interface SidebarProps {
   currentPage: string;
-  onPageChange: (page: string) => void;
+  onPageChange: AssetPageChangeHandler;
 }
 
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const [analysisOpen, setAnalysisOpen] = useState(true);
+  const [dataAccessOpen, setDataAccessOpen] = useState(true);
 
   return (
     <motion.aside
@@ -169,17 +180,74 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
         {/* Other Menu Items */}
         <nav className="mt-4 px-3 space-y-1">
           {otherMenuItems.map((item, index) => (
-            <motion.a
+            <motion.div
               key={item.label}
-              href="#"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: (index + mainMenuItems.length) * 0.05 + 0.3 }}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors duration-150"
+              className="space-y-1"
             >
-              <item.icon className="w-5 h-5" />
-              <span>{item.label}</span>
-            </motion.a>
+              {item.page === 'data-access' ? (
+                <>
+                  <button
+                    onClick={() => {
+                      onPageChange('data-access');
+                      setDataAccessOpen((prev) => !prev);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 ${
+                      currentPage === item.page || currentPage === 'data-import' || currentPage === 'data-calc'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </div>
+                    <motion.div animate={{ rotate: dataAccessOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                      <ChevronDown className="w-4 h-4" />
+                    </motion.div>
+                  </button>
+
+                  <AnimatePresence>
+                    {dataAccessOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="ml-8 space-y-1">
+                          {dataAccessSubItems.map((subItem) => (
+                            <button
+                              key={subItem.label}
+                              onClick={() => subItem.page && onPageChange(subItem.page)}
+                              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors duration-150 ${
+                                currentPage === subItem.page
+                                  ? 'bg-blue-50 text-blue-600'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              <subItem.icon className="w-4 h-4" />
+                              <span>{subItem.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              ) : (
+                <a
+                  href="#"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors duration-150"
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                </a>
+              )}
+            </motion.div>
           ))}
         </nav>
 

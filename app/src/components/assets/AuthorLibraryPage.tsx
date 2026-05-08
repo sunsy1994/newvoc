@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3,
@@ -39,9 +39,12 @@ import {
   timeRangeOptions,
   type AuthorLibraryItem,
 } from './data/authorLibraryData';
+import type { AssetNavigationContext, AssetPageChangeHandler } from './assetNavigation';
+import AssetFilterField from './AssetFilterField';
 
 interface AuthorLibraryPageProps {
-  onPageChange: (page: string) => void;
+  onPageChange: AssetPageChangeHandler;
+  navigationContext?: AssetNavigationContext;
 }
 
 type SortKey = (typeof sortOptions)[number]['value'];
@@ -51,16 +54,18 @@ function confidenceBadge(value: number) {
   return value >= 0.85 ? 'bg-emerald-100 text-emerald-700' : value >= 0.7 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700';
 }
 
-export default function AuthorLibraryPage({ onPageChange }: AuthorLibraryPageProps) {
-  const [selectedEventId, setSelectedEventId] = useState('EVT-2026-001');
-  const [keyword, setKeyword] = useState('');
+export default function AuthorLibraryPage({ onPageChange, navigationContext }: AuthorLibraryPageProps) {
+  const [selectedEventId, setSelectedEventId] = useState(navigationContext?.eventId ?? 'EVT-2026-001');
+  const [keyword, setKeyword] = useState(navigationContext?.keyword ?? '');
   const [platform, setPlatform] = useState<(typeof platformOptions)[number]>('全部平台');
   const [authorType, setAuthorType] = useState<(typeof authorTypeOptions)[number]>('全部作者类型');
   const [stage, setStage] = useState<(typeof stageOptions)[number]>('全部阶段');
   const [timeRange, setTimeRange] = useState<(typeof timeRangeOptions)[number]>('事件全周期');
   const [contentType, setContentType] = useState<(typeof contentTypeOptions)[number]>('全部内容类型');
   const [sentiment, setSentiment] = useState<(typeof sentimentOptions)[number]>('全部情绪');
-  const [includeKOL, setIncludeKOL] = useState<'默认排除KOL' | '包含KOL'>('默认排除KOL');
+  const [includeKOL, setIncludeKOL] = useState<'默认排除KOL' | '包含KOL'>(
+    navigationContext?.includeKOL ? '包含KOL' : '默认排除KOL'
+  );
   const [sortBy, setSortBy] = useState<SortKey>('posts');
   const [selectedAuthor, setSelectedAuthor] = useState<AuthorLibraryItem | null>(null);
 
@@ -100,6 +105,25 @@ export default function AuthorLibraryPage({ onPageChange }: AuthorLibraryPagePro
     const highTestDrive = list.filter((item) => item.stageTag === '试驾' && item.stageConfidence >= 0.85).length;
     return { totalAuthors, postedAuthors, highEvidence, highEngagement, highControversy, highOwner, highTestDrive };
   }, [list]);
+
+  useEffect(() => {
+    setSelectedEventId(navigationContext?.eventId ?? 'EVT-2026-001');
+    setKeyword(navigationContext?.keyword ?? '');
+    setIncludeKOL(navigationContext?.includeKOL ? '包含KOL' : '默认排除KOL');
+    setSelectedAuthor(
+      navigationContext?.authorId
+        ? authorLibraryData.find((item) => item.id === navigationContext.authorId) ?? null
+        : null
+    );
+  }, [navigationContext]);
+
+  const jumpToPage = (
+    page: 'content-library' | 'comment-library' | 'event-library',
+    context?: AssetNavigationContext
+  ) => {
+    setSelectedAuthor(null);
+    onPageChange(page, context);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f7f9fc] via-[#f4f6fb] to-[#edf2f7] p-6">
@@ -152,21 +176,21 @@ export default function AuthorLibraryPage({ onPageChange }: AuthorLibraryPagePro
         </section>
 
         <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <div className="xl:col-span-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <AssetFilterField label="搜索" className="xl:col-span-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索作者昵称" className="pl-10" />
               </div>
-            </div>
-            <Select value={platform} onValueChange={(v) => setPlatform(v as (typeof platformOptions)[number])}><SelectTrigger><SelectValue placeholder="平台" /></SelectTrigger><SelectContent>{platformOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={authorType} onValueChange={(v) => setAuthorType(v as (typeof authorTypeOptions)[number])}><SelectTrigger><SelectValue placeholder="作者类型" /></SelectTrigger><SelectContent>{authorTypeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={stage} onValueChange={(v) => setStage(v as (typeof stageOptions)[number])}><SelectTrigger><SelectValue placeholder="阶段标签" /></SelectTrigger><SelectContent>{stageOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={timeRange} onValueChange={(v) => setTimeRange(v as (typeof timeRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="发布时间" /></SelectTrigger><SelectContent>{timeRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={includeKOL} onValueChange={(v) => setIncludeKOL(v as '默认排除KOL' | '包含KOL')}><SelectTrigger><SelectValue placeholder="是否KOL" /></SelectTrigger><SelectContent><SelectItem value="默认排除KOL">默认排除KOL</SelectItem><SelectItem value="包含KOL">包含KOL</SelectItem></SelectContent></Select>
-            <Select value={contentType} onValueChange={(v) => setContentType(v as (typeof contentTypeOptions)[number])}><SelectTrigger><SelectValue placeholder="内容类型" /></SelectTrigger><SelectContent>{contentTypeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={sentiment} onValueChange={(v) => setSentiment(v as (typeof sentimentOptions)[number])}><SelectTrigger><SelectValue placeholder="情绪倾向" /></SelectTrigger><SelectContent>{sentimentOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}><SelectTrigger><SelectValue placeholder="排序" /></SelectTrigger><SelectContent>{sortOptions.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent></Select>
+            </AssetFilterField>
+            <AssetFilterField label="平台"><Select value={platform} onValueChange={(v) => setPlatform(v as (typeof platformOptions)[number])}><SelectTrigger><SelectValue placeholder="平台" /></SelectTrigger><SelectContent>{platformOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="作者类型"><Select value={authorType} onValueChange={(v) => setAuthorType(v as (typeof authorTypeOptions)[number])}><SelectTrigger><SelectValue placeholder="作者类型" /></SelectTrigger><SelectContent>{authorTypeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="阶段标签"><Select value={stage} onValueChange={(v) => setStage(v as (typeof stageOptions)[number])}><SelectTrigger><SelectValue placeholder="阶段标签" /></SelectTrigger><SelectContent>{stageOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="时间范围"><Select value={timeRange} onValueChange={(v) => setTimeRange(v as (typeof timeRangeOptions)[number])}><SelectTrigger><SelectValue placeholder="发布时间" /></SelectTrigger><SelectContent>{timeRangeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="KOL范围"><Select value={includeKOL} onValueChange={(v) => setIncludeKOL(v as '默认排除KOL' | '包含KOL')}><SelectTrigger><SelectValue placeholder="是否KOL" /></SelectTrigger><SelectContent><SelectItem value="默认排除KOL">默认排除KOL</SelectItem><SelectItem value="包含KOL">包含KOL</SelectItem></SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="内容类型"><Select value={contentType} onValueChange={(v) => setContentType(v as (typeof contentTypeOptions)[number])}><SelectTrigger><SelectValue placeholder="内容类型" /></SelectTrigger><SelectContent>{contentTypeOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="情绪倾向"><Select value={sentiment} onValueChange={(v) => setSentiment(v as (typeof sentimentOptions)[number])}><SelectTrigger><SelectValue placeholder="情绪倾向" /></SelectTrigger><SelectContent>{sentimentOptions.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></AssetFilterField>
+            <AssetFilterField label="排序方式"><Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}><SelectTrigger><SelectValue placeholder="排序" /></SelectTrigger><SelectContent>{sortOptions.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent></Select></AssetFilterField>
           </div>
         </section>
 
@@ -211,8 +235,36 @@ export default function AuthorLibraryPage({ onPageChange }: AuthorLibraryPagePro
               <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
                 <p className="text-xs text-gray-500">{author.aiSummary}</p>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs">查看内容</Button>
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs">查看评论</Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() =>
+                      onPageChange('content-library', {
+                        eventId: author.eventId,
+                        authorId: author.id,
+                        keyword: author.nickname,
+                        includeKOL: author.isKOL,
+                      })
+                    }
+                  >
+                    查看内容
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() =>
+                      onPageChange('comment-library', {
+                        eventId: author.eventId,
+                        authorId: author.id,
+                        keyword: author.nickname,
+                        includeKOL: author.isKOL,
+                      })
+                    }
+                  >
+                    查看评论
+                  </Button>
                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setSelectedAuthor(author)}>查看详情</Button>
                 </div>
               </div>
@@ -285,10 +337,58 @@ export default function AuthorLibraryPage({ onPageChange }: AuthorLibraryPagePro
                 <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
                   <p className="font-medium text-blue-900">快捷跳转</p>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><FileText className="h-4 w-4" />内容详情</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><MessageSquare className="h-4 w-4" />评论库</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><BarChart3 className="h-4 w-4" />事件详情</Button>
-                    <Button variant="outline" className="justify-start gap-2 bg-white"><ShieldCheck className="h-4 w-4" />证据追踪</Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('content-library', {
+                          eventId: selectedAuthor.eventId,
+                          authorId: selectedAuthor.id,
+                          keyword: selectedAuthor.nickname,
+                          includeKOL: selectedAuthor.isKOL,
+                        })
+                      }
+                    >
+                      <FileText className="h-4 w-4" />
+                      内容详情
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('comment-library', {
+                          eventId: selectedAuthor.eventId,
+                          authorId: selectedAuthor.id,
+                          keyword: selectedAuthor.nickname,
+                          includeKOL: selectedAuthor.isKOL,
+                        })
+                      }
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      评论库
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() => jumpToPage('event-library', { eventId: selectedAuthor.eventId })}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      事件详情
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 bg-white"
+                      onClick={() =>
+                        jumpToPage('comment-library', {
+                          eventId: selectedAuthor.eventId,
+                          keyword: selectedAuthor.nickname,
+                          includeKOL: selectedAuthor.isKOL,
+                        })
+                      }
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      证据追踪
+                    </Button>
                   </div>
                 </div>
 

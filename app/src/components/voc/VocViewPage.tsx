@@ -2,24 +2,12 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Bell, BookOpen, Search, Settings } from 'lucide-react';
 import DepartmentTabs from './DepartmentTabs';
-import StoryLineList from './StoryLineList';
-import DepartmentCharts from './DepartmentCharts';
-import AIReportButton from './market/AIReportButton';
-import AIReportModal from './market/AIReportModal';
-import MarketDashboard from './market/MarketDashboard';
-import ProductDashboard from './product/ProductDashboard';
-import { aiReportData } from './market/data/marketChartData';
-import { productAiReportData } from './product/data/productChartData';
+import EventDataBackedPanel from './EventDataBackedPanel';
 
 export default function VocViewPage() {
   const [selectedDepartment, setSelectedDepartment] = useState(0);
-  const [isAIReportOpen, setIsAIReportOpen] = useState(false);
 
-  const isMarketDepartment = selectedDepartment === 0;
   const isProductDepartment = selectedDepartment === 1;
-  const shouldShowAIButton = isMarketDepartment || isProductDepartment;
-  const currentAIReportData = isProductDepartment ? productAiReportData : aiReportData;
-  const currentAIReportDepartment: 'market' | 'product' = isProductDepartment ? 'product' : 'market';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9fc] via-[#f4f6fb] to-[#eef2f7] p-6">
@@ -82,31 +70,12 @@ export default function VocViewPage() {
               <button className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                 Export report
               </button>
-              {shouldShowAIButton && (
-                <AIReportButton onClick={() => setIsAIReportOpen(true)} />
-              )}
             </div>
           </div>
         </motion.div>
 
-        <AIReportModal
-          isOpen={isAIReportOpen}
-          onClose={() => setIsAIReportOpen(false)}
-          data={currentAIReportData}
-          department={currentAIReportDepartment}
-        />
-
         <main className="mx-auto max-w-7xl">
-          {isMarketDepartment ? (
-            <MarketDashboard />
-          ) : isProductDepartment ? (
-            <ProductDashboard />
-          ) : (
-            <div className="space-y-6">
-              <StoryLineList selectedIndex={selectedDepartment} />
-              <DepartmentCharts selectedIndex={selectedDepartment} />
-            </div>
-          )}
+          <EventDataBackedPanel selectedDepartment={selectedDepartment} />
         </main>
       </div>
     </div>

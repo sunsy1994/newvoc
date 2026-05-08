@@ -1,8 +1,8 @@
 -- AutoVOC 数据资产 Schema v1
 -- 范围：仅覆盖第一阶段「VOC看事件」最小可落地数据链路。
 -- 原则：
--- 1. 你上传原始事实数据：事件、内容、评论。
--- 2. 系统生成关系表：事件-内容关系。
+-- 1. 你上传原始事实数据：事件、内容、作者、评论。
+-- 2. 系统生成关系表：事件-内容关系、作者-内容关系。
 -- 3. ETL 生成 ADS 汇总表：事件总览、事件趋势、内容排行。
 -- 4. 第一版不包含用户旅程、竞品、标签事实、订单/成交/复购等后续能力。
 
@@ -50,11 +50,6 @@ CREATE TABLE IF NOT EXISTS data_asset.dwd_content (
   source_url       TEXT NOT NULL,
   title            TEXT NOT NULL,
   content_text     TEXT,
-  author_id        VARCHAR(64),
-  author_name      VARCHAR(255) NOT NULL,
-  author_type      VARCHAR(64),
-  is_kol           BOOLEAN DEFAULT FALSE,
-  fans_cnt         BIGINT DEFAULT 0,
   content_type     VARCHAR(64),
   media_form       VARCHAR(64),
   published_at     TIMESTAMP NOT NULL,
@@ -75,13 +70,8 @@ COMMENT ON COLUMN data_asset.dwd_content.platform IS '平台。你上传，如�
 COMMENT ON COLUMN data_asset.dwd_content.source_url IS '原始链接。你上传，用于追溯内容来源。';
 COMMENT ON COLUMN data_asset.dwd_content.title IS '内容标题。你上传；如果原平台无标题，可用正文前若干字生成。';
 COMMENT ON COLUMN data_asset.dwd_content.content_text IS '内容正文。你上传，可为空；用于后续标签、摘要、主题分析。';
-COMMENT ON COLUMN data_asset.dwd_content.author_id IS '作者ID。你上传，可为空；为空时系统可按平台+作者名生成临时ID。';
-COMMENT ON COLUMN data_asset.dwd_content.author_name IS '作者名称。你上传，如账号昵称、媒体名、官方号名称。';
-COMMENT ON COLUMN data_asset.dwd_content.author_type IS '作者类型。你上传，可为空；如官方、媒体、KOL、KOC、经销商、普通用户。';
-COMMENT ON COLUMN data_asset.dwd_content.is_kol IS '是否KOL。你上传，可为空时默认 false；第一版用于粗略统计KOL内容。';
-COMMENT ON COLUMN data_asset.dwd_content.fans_cnt IS '作者粉丝数。你上传，可为空时默认0。';
-COMMENT ON COLUMN data_asset.dwd_content.content_type IS '内容类型。你上传，可为空；如测评、体验、新闻、官方公告、经销商促销。';
-COMMENT ON COLUMN data_asset.dwd_content.media_form IS '媒介形态。你上传，可为空；如短视频、图文、直播切片、长文。';
+COMMENT ON COLUMN data_asset.dwd_content.content_type IS '内容类型。你上传，可为空；第一版枚举：官方内容、媒体内容、达人内容、用户内容、经销商内容。';
+COMMENT ON COLUMN data_asset.dwd_content.media_form IS '媒介形态。你上传，可为空；第一版枚举：视频、图文、直播、其他。';
 COMMENT ON COLUMN data_asset.dwd_content.published_at IS '发布时间。你上传，用于趋势分析。';
 COMMENT ON COLUMN data_asset.dwd_content.like_cnt IS '点赞数。你上传，可为空时默认0。';
 COMMENT ON COLUMN data_asset.dwd_content.comment_cnt IS '平台显示评论数。你上传，可为空时默认0；不等同于导入评论明细数。';
@@ -91,6 +81,31 @@ COMMENT ON COLUMN data_asset.dwd_content.view_cnt IS '播放/阅读/浏览数。
 COMMENT ON COLUMN data_asset.dwd_content.engagement_total IS '综合互动量。系统生成，公式：点赞数 + 评论数 + 分享数 + 收藏数。';
 COMMENT ON COLUMN data_asset.dwd_content.created_time IS '记录创建时间。系统生成。';
 COMMENT ON COLUMN data_asset.dwd_content.updated_time IS '记录更新时间。系统生成或导入时更新。';
+
+CREATE TABLE IF NOT EXISTS data_asset.dwd_author (
+  author_id       VARCHAR(64) PRIMARY KEY,
+  platform        VARCHAR(64) NOT NULL,
+  author_name     VARCHAR(255) NOT NULL,
+  author_home_url TEXT,
+  author_type     VARCHAR(64),
+  is_kol          BOOLEAN DEFAULT FALSE,
+  fans_cnt        BIGINT DEFAULT 0,
+  author_desc     TEXT,
+  created_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE data_asset.dwd_author IS '作者标准明细表。存储内容作者、媒体号、达人号、经销商号等账号资产。';
+COMMENT ON COLUMN data_asset.dwd_author.author_id IS '作者ID。你上传，主键，要求在系统内稳定不重复；如果没有平台作者ID，可用平台+作者名生成。';
+COMMENT ON COLUMN data_asset.dwd_author.platform IS '作者所在平台。你上传，如抖音、快手、小红书、微博、B站、懂车帝等。';
+COMMENT ON COLUMN data_asset.dwd_author.author_name IS '作者名称。你上传，如账号昵称、媒体名、官方号名称。';
+COMMENT ON COLUMN data_asset.dwd_author.author_home_url IS '作者主页链接。你上传，可为空，用于追溯账号来源。';
+COMMENT ON COLUMN data_asset.dwd_author.author_type IS '作者类型。你上传，可为空；第一版枚举：官方号、媒体号、达人、经销商、普通用户、其他。';
+COMMENT ON COLUMN data_asset.dwd_author.is_kol IS '是否KOL。你单独维护，可为空时默认 false；这是作者资产属性，不属于帖子本身。';
+COMMENT ON COLUMN data_asset.dwd_author.fans_cnt IS '作者粉丝数。你单独维护，可为空时默认0；表示作者最新或采集时粉丝快照。';
+COMMENT ON COLUMN data_asset.dwd_author.author_desc IS '作者简介。你上传，可为空。';
+COMMENT ON COLUMN data_asset.dwd_author.created_time IS '记录创建时间。系统生成。';
+COMMENT ON COLUMN data_asset.dwd_author.updated_time IS '记录更新时间。系统生成或导入时更新。';
 
 CREATE TABLE IF NOT EXISTS data_asset.dwd_comment (
   comment_id          VARCHAR(64) PRIMARY KEY,
@@ -149,6 +164,22 @@ COMMENT ON COLUMN data_asset.rel_event_content.match_score IS '匹配置信度�
 COMMENT ON COLUMN data_asset.rel_event_content.is_primary_event IS '是否为内容主事件。第一版默认 true。';
 COMMENT ON COLUMN data_asset.rel_event_content.created_time IS '关系创建时间。系统生成。';
 
+CREATE TABLE IF NOT EXISTS data_asset.rel_author_content (
+  author_id    VARCHAR(64) NOT NULL REFERENCES data_asset.dwd_author(author_id),
+  content_id   VARCHAR(64) NOT NULL REFERENCES data_asset.dwd_content(content_id),
+  platform     VARCHAR(64),
+  published_at TIMESTAMP,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (author_id, content_id)
+);
+
+COMMENT ON TABLE data_asset.rel_author_content IS '作者-内容关系表。表示哪个作者发布了哪条内容，第一版由内容上传模板中的作者字段自动生成。';
+COMMENT ON COLUMN data_asset.rel_author_content.author_id IS '作者ID，关联 dwd_author.author_id。';
+COMMENT ON COLUMN data_asset.rel_author_content.content_id IS '内容ID，关联 dwd_content.content_id。';
+COMMENT ON COLUMN data_asset.rel_author_content.platform IS '平台。来自内容或作者数据，用于辅助查询。';
+COMMENT ON COLUMN data_asset.rel_author_content.published_at IS '内容发布时间。来自 dwd_content.published_at，便于按作者追踪内容时间线。';
+COMMENT ON COLUMN data_asset.rel_author_content.created_time IS '关系创建时间。系统生成。';
+
 -- =========================================================
 -- ADS：应用汇总层
 -- =========================================================
@@ -186,8 +217,8 @@ COMMENT ON COLUMN data_asset.ads_event_overview.event_status IS '事件状态。
 COMMENT ON COLUMN data_asset.ads_event_overview.platform_list IS '平台列表。ETL生成，事件相关内容覆盖的平台去重列表。';
 COMMENT ON COLUMN data_asset.ads_event_overview.content_cnt IS '内容数。ETL生成，公式：count(distinct content_id)。';
 COMMENT ON COLUMN data_asset.ads_event_overview.comment_cnt IS '评论明细数。ETL生成，公式：count(distinct comment_id)。';
-COMMENT ON COLUMN data_asset.ads_event_overview.author_cnt IS '作者数。ETL生成，公式：count(distinct author_id 或 author_name)。';
-COMMENT ON COLUMN data_asset.ads_event_overview.kol_content_cnt IS 'KOL内容数。ETL生成，公式：count(content where is_kol=true)。';
+COMMENT ON COLUMN data_asset.ads_event_overview.author_cnt IS '作者数。ETL生成，公式：基于 rel_author_content count(distinct author_id)。';
+COMMENT ON COLUMN data_asset.ads_event_overview.kol_content_cnt IS 'KOL内容数。ETL生成，公式：内容关联作者中 dwd_author.is_kol=true 的内容数。';
 COMMENT ON COLUMN data_asset.ads_event_overview.total_engagement IS '总互动量。ETL生成，公式：sum(dwd_content.engagement_total)。';
 COMMENT ON COLUMN data_asset.ads_event_overview.top_platform_json IS '平台分布TopN。ETL生成，JSON数组，元素包含 label 和 value。';
 COMMENT ON COLUMN data_asset.ads_event_overview.top_author_json IS '作者分布TopN。ETL生成，JSON数组，元素包含 label 和 value。';
@@ -240,8 +271,8 @@ COMMENT ON COLUMN data_asset.ads_event_content_rank.rank_type IS '排行类型�
 COMMENT ON COLUMN data_asset.ads_event_content_rank.rank_no IS '排名序号。ETL生成，从1开始。';
 COMMENT ON COLUMN data_asset.ads_event_content_rank.platform IS '平台。来自 dwd_content。';
 COMMENT ON COLUMN data_asset.ads_event_content_rank.title IS '内容标题。来自 dwd_content。';
-COMMENT ON COLUMN data_asset.ads_event_content_rank.author_name IS '作者名称。来自 dwd_content。';
-COMMENT ON COLUMN data_asset.ads_event_content_rank.is_kol IS '是否KOL内容。来自 dwd_content.is_kol。';
+COMMENT ON COLUMN data_asset.ads_event_content_rank.author_name IS '作者名称。ETL通过 rel_author_content 关联 dwd_author 生成。';
+COMMENT ON COLUMN data_asset.ads_event_content_rank.is_kol IS '是否KOL内容。ETL通过 rel_author_content 关联 dwd_author.is_kol 生成。';
 COMMENT ON COLUMN data_asset.ads_event_content_rank.published_at IS '发布时间。来自 dwd_content。';
 COMMENT ON COLUMN data_asset.ads_event_content_rank.engagement_total IS '综合互动量。来自 dwd_content.engagement_total。';
 COMMENT ON COLUMN data_asset.ads_event_content_rank.comment_cnt IS '平台显示评论数。来自 dwd_content.comment_cnt。';
@@ -269,11 +300,11 @@ CREATE TABLE IF NOT EXISTS data_asset.import_template (
 
 COMMENT ON TABLE data_asset.import_template IS '导入模板元数据表。记录每类上传模板的字段要求。';
 COMMENT ON COLUMN data_asset.import_template.template_id IS '模板ID。系统维护，主键。';
-COMMENT ON COLUMN data_asset.import_template.source_key IS '数据源类型编码。系统维护，如 event、content、comment。';
-COMMENT ON COLUMN data_asset.import_template.source_name IS '数据源名称。系统维护，如事件数据、内容数据、评论数据。';
+COMMENT ON COLUMN data_asset.import_template.source_key IS '数据源类型编码。系统维护，如 event、content、author、comment。';
+COMMENT ON COLUMN data_asset.import_template.source_name IS '数据源名称。系统维护，如事件数据、内容数据、作者数据、评论数据。';
 COMMENT ON COLUMN data_asset.import_template.file_name IS '模板文件名。系统维护。';
 COMMENT ON COLUMN data_asset.import_template.file_format IS '模板文件格式。系统维护，如 xlsx、csv。';
-COMMENT ON COLUMN data_asset.import_template.target_table IS '目标落库表。系统维护，如 dwd_event、dwd_content、dwd_comment。';
+COMMENT ON COLUMN data_asset.import_template.target_table IS '目标落库表。系统维护，如 dwd_event、dwd_content、dwd_author、dwd_comment。';
 COMMENT ON COLUMN data_asset.import_template.description IS '模板说明。系统维护。';
 COMMENT ON COLUMN data_asset.import_template.required_fields_json IS '必填字段列表。系统维护，JSON数组。';
 COMMENT ON COLUMN data_asset.import_template.optional_fields_json IS '可选字段列表。系统维护，JSON数组。';
@@ -374,9 +405,10 @@ COMMENT ON COLUMN data_asset.calc_task_run.created_time IS '运行记录创建�
 -- =========================================================
 
 CREATE INDEX IF NOT EXISTS idx_dwd_content_event_id ON data_asset.dwd_content(event_id);
-CREATE INDEX IF NOT EXISTS idx_dwd_content_author_id ON data_asset.dwd_content(author_id);
 CREATE INDEX IF NOT EXISTS idx_dwd_content_published_at ON data_asset.dwd_content(published_at);
+CREATE INDEX IF NOT EXISTS idx_dwd_author_platform_name ON data_asset.dwd_author(platform, author_name);
 CREATE INDEX IF NOT EXISTS idx_dwd_comment_content_id ON data_asset.dwd_comment(content_id);
 CREATE INDEX IF NOT EXISTS idx_dwd_comment_published_at ON data_asset.dwd_comment(published_at);
 CREATE INDEX IF NOT EXISTS idx_rel_event_content_content_id ON data_asset.rel_event_content(content_id);
+CREATE INDEX IF NOT EXISTS idx_rel_author_content_content_id ON data_asset.rel_author_content(content_id);
 CREATE INDEX IF NOT EXISTS idx_ads_event_content_rank_event_type ON data_asset.ads_event_content_rank(event_id, rank_type);

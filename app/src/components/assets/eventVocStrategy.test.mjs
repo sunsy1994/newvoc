@@ -35,12 +35,21 @@ assert.equal(productRiskFocus.coreQuestion, '这个问题是真风险，还是�
 assert.ok(productRiskFocus.analysisPath.includes('证据强度与高置信样本'));
 
 const marketingMetrics = strategy.getEventMetricSet('品牌传播');
-assert.ok(marketingMetrics.primaryMetrics.includes('官方主张拉通率'));
+assert.ok(marketingMetrics.primaryMetrics.includes('主命题Top'));
 assert.ok(marketingMetrics.primaryMetrics.includes('有效互动率'));
+assert.ok(!marketingMetrics.primaryMetrics.includes('投放ROI'));
 
 const riskMetrics = strategy.getEventMetricSet('质量争议');
 assert.ok(riskMetrics.primaryMetrics.includes('证据强度'));
 assert.ok(riskMetrics.primaryMetrics.includes('风险等级'));
+
+const departmentStories = strategy.getSupportedDepartmentStories();
+assert.deepEqual(
+  departmentStories.map((item) => item.department),
+  ['市场部', '产品部', '销售部', '售后部', '公关部']
+);
+assert.ok(departmentStories.find((item) => item.department === '销售部').stories.includes('价格感知'));
+assert.ok(departmentStories.find((item) => item.department === '售后部').deferred.includes('服务网络差异'));
 
 const readiness = strategy.getDataReadinessChecklist();
 assert.deepEqual(

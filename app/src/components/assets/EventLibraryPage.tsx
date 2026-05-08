@@ -57,6 +57,7 @@ import {
   getEventMetricSet,
   getEventStoryFocus,
   getEventStrategySummary,
+  getSupportedDepartmentStories,
 } from './eventVocStrategy';
 
 type SortKey = 'updatedAt' | 'contentCount' | 'commentCount' | 'authorCount' | 'heat' | 'growth';
@@ -156,6 +157,7 @@ export default function EventLibraryPage({ onPageChange }: EventLibraryPageProps
   }, [events]);
 
   const readinessChecklist = useMemo(() => getDataReadinessChecklist(), []);
+  const departmentStories = useMemo(() => getSupportedDepartmentStories(), []);
 
   const handlePageJump = (page: 'content-library' | 'comment-library' | 'author-library') => {
     if (!selectedEvent || !onPageChange) return;
@@ -298,6 +300,29 @@ export default function EventLibraryPage({ onPageChange }: EventLibraryPageProps
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900">部门视角落地验证</p>
+              <p className="text-xs text-gray-500">只保留现有事件、内容、评论、作者和KOL结构能支撑的故事线</p>
+            </div>
+            <Badge variant="outline">避免泛化指标</Badge>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-5">
+            {departmentStories.map((item) => (
+              <div key={item.department} className="rounded-2xl border border-gray-100 bg-gray-50/70 p-3">
+                <p className="text-sm font-semibold text-gray-900">{item.department}</p>
+                <div className="mt-2 space-y-1">
+                  {item.stories.map((story) => (
+                    <p key={story} className="text-xs text-gray-700">可做：{story}</p>
+                  ))}
+                </div>
+                <p className="mt-3 line-clamp-2 text-[11px] text-gray-500">暂缓：{item.deferred.join(' / ')}</p>
+              </div>
+            ))}
           </div>
         </section>
 

@@ -18,6 +18,7 @@ import {
   Car,
   BookOpen,
   UserRound,
+  Route,
   CarFront,
   FolderOpenDot,
   Workflow
@@ -42,6 +43,7 @@ interface SubMenuItem {
 const mainMenuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: '管理工作台', page: 'dashboard' },
   { icon: BookOpen, label: 'VOC看事件', page: 'voc' },
+  { icon: Route, label: 'VOC看用户', page: 'customer-journey' },
   { icon: MessageSquare, label: '供应商反馈', badge: 46 },
   { icon: Megaphone, label: '事件传播分析' },
   { icon: Users, label: 'KOL分析' },

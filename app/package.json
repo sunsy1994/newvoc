@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:asset-strategy": "node src/components/assets/eventVocStrategy.test.mjs",
+    "test:customer-journey": "node src/components/voc/customer-journey/customerJourneyApi.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

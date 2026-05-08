@@ -11,6 +11,7 @@ import AIAssistant from './components/AIAssistant';
 import type { AssetNavigationContext, AssetPageChangeHandler } from './components/assets/assetNavigation';
 
 const VocViewPage = lazy(() => import('./components/voc/VocViewPage'));
+const CustomerJourneyPage = lazy(() => import('./components/voc/customer-journey/CustomerJourneyPage'));
 const DataAccessPage = lazy(() => import('./components/data-access/DataAccessPage'));
 const DataImportPage = lazy(() => import('./components/data-access/DataImportPage'));
 const DataCalcPage = lazy(() => import('./components/data-access/DataCalcPage'));
@@ -48,6 +49,8 @@ function App() {
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-gray-500">页面加载中...</div>}>
           {currentPage === 'voc' ? (
             <VocViewPage />
+          ) : currentPage === 'customer-journey' ? (
+            <CustomerJourneyPage />
           ) : currentPage === 'data-access' ? (
             <DataAccessPage onPageChange={handlePageChange} />
           ) : currentPage === 'data-import' ? (

@@ -1,6 +1,7 @@
 export type AssetPage =
   | 'dashboard'
   | 'voc'
+  | 'customer-journey'
   | 'data-access'
   | 'data-import'
   | 'data-calc'

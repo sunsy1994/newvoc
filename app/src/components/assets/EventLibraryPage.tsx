@@ -278,7 +278,7 @@ export default function EventLibraryPage({ onPageChange }: EventLibraryPageProps
               <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
                 <p className="text-xs text-orange-700">产品舆情事件</p>
                 <p className="mt-2 text-2xl font-semibold text-orange-950">{summary.productRiskCount}</p>
-                <p className="mt-2 text-sm text-orange-900">看问题是真风险还是局部噪音，并追溯高置信用户原声证据。</p>
+                <p className="mt-2 text-sm text-orange-900">看问题是真风险还是局部噪音，并追溯车相关用户原声证据。</p>
               </div>
             </div>
           </div>

@@ -24,7 +24,7 @@ export const eventLibraryData: EventLibraryItem[] = [
     topics: ['续航真实性', '低温电池表现', '官方解释可信度'],
     targetAudience: '车主、准车主、冬季长途用户',
     businessOwner: '产品 / 公关 / 售后',
-    storyGoal: '判断冬测争议是否构成真实产品风险，并沉淀高置信车主证据。',
+    storyGoal: '判断冬测争议是否构成真实产品风险，并沉淀车相关用户原声证据。',
   },
   {
     id: 'EVT-2026-002',
@@ -74,7 +74,7 @@ export const eventLibraryData: EventLibraryItem[] = [
     topics: ['预约等待', '配件周期', '服务标准一致性'],
     targetAudience: '车主、售后用户、区域门店用户',
     businessOwner: '售后 / 区域运营',
-    storyGoal: '识别服务体验的集中痛点和高置信门店样本，输出响应优先级。',
+    storyGoal: '识别服务体验的集中痛点和车相关服务原声，输出响应优先级。',
   },
   {
     id: 'EVT-2025-117',

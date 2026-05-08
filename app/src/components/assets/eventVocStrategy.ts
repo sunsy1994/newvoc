@@ -48,8 +48,8 @@ export function getEventStoryFocus(eventType: string): EventStoryFocus {
   return {
     scenario,
     coreQuestion: '这个问题是真风险，还是局部噪音？',
-    businessOutput: '判断问题是否需要产品、售后或公关响应，并沉淀高置信用户原声证据。',
-    analysisPath: ['负面扩散趋势', '问题集中度', '证据强度与高置信样本', '业务响应优先级'],
+    businessOutput: '判断问题是否需要产品、售后或公关响应，并沉淀车相关用户原声证据。',
+    analysisPath: ['负面扩散趋势', '问题标签Top', '证据强度与车相关样本', '业务响应优先级'],
   };
 }
 
@@ -66,7 +66,7 @@ export function getEventMetricSet(eventType: string): EventMetricSet {
 
   return {
     scenario,
-    primaryMetrics: ['负面率', '质疑率', '问题集中度', '证据强度', '高置信样本数', '扩散速度', '风险等级'],
+    primaryMetrics: ['负面率', '质疑率', '问题标签Top', '证据强度', '扩散速度', '关键节点'],
     decisionSignals: ['问题是否真实存在', '是否来自真实车主/试驾用户', '是否需要官方回应', '是否需要产品或售后动作'],
   };
 }
@@ -81,7 +81,7 @@ export function getDataReadinessChecklist(): DataReadinessGroup[] {
     {
       priority: 'P1',
       title: '精准营销判断数据',
-      items: ['KOL/KOC识别', 'KOL受众心智分布', 'KOL受众阶段分布', '有效互动率', '目标人群匹配度', '内容误伤率', '内容价值等级', '作者证据强度', '价格感知标签'],
+      items: ['KOL/KOC识别', 'KOL受众心智分布', 'KOL受众阶段分布', '有效互动率', '目标人群匹配度', '内容误伤率', '内容价值等级', '作者证据强度', '价格感知标签', '车相关评论标签'],
     },
     {
       priority: 'P2',
@@ -102,7 +102,7 @@ export function getSupportedDepartmentStories(): DepartmentStorySupport[] {
     {
       department: '产品部',
       stories: ['产品正负反馈Top', '配置/功能纠结点', '质量问题预警'],
-      requiredData: ['命题标签', '问题标签', '情绪标签', '证据标签', '高置信评论'],
+      requiredData: ['命题标签', '问题标签', '情绪标签', '证据标签', '车相关评论标签'],
       deferred: ['NPS估算', '具体OTA方案建议', '首批用户真实批次识别'],
     },
     {
@@ -132,5 +132,9 @@ export function getEventStrategySummary(eventType: string, modelName: string): s
     return `${modelName} 当前应优先验证传播是否打到目标用户，并把有效内容、KOL/KOC和用户心智沉淀为下一次精准投放资产。`;
   }
 
-  return `${modelName} 当前应优先核查问题证据强度、真实用户占比和扩散风险，再决定产品、售后或公关响应动作。`;
+  return `${modelName} 当前应优先核查问题证据强度、车相关评论占比和扩散迹象，再决定产品、售后或公关响应动作。`;
+}
+
+export function getEffectiveEngagementDefinition(): string {
+  return '有效互动率 = 有效评论数 / 评论总数；有效评论指探讨与车相关的评论，包含产品、价格、配置、试驾、购买、用车、售后、竞品对比等内容。';
 }

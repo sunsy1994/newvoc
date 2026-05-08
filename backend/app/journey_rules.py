@@ -10,6 +10,8 @@ JOURNEY_STAGES = [
     "复购/推荐",
 ]
 
+NEGATIVE_SENTIMENTS = {"负向", "强负面", "负面", "消极"}
+
 BUSINESS_STATUS_STAGE = {
     "留资": "留资/外呼",
     "线索": "留资/外呼",

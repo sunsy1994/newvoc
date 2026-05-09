@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS data_asset.ods_comment_upload (
   raw_row_no          INTEGER,
   raw_comment_id      VARCHAR(64),
   content_id          VARCHAR(64),
+  content_source_url  TEXT,
   platform            VARCHAR(64),
   comment_author_id   VARCHAR(64),
   comment_author_name VARCHAR(255) NOT NULL,
@@ -139,7 +140,8 @@ COMMENT ON COLUMN data_asset.ods_comment_upload.ingest_batch_id IS '导入批次
 COMMENT ON COLUMN data_asset.ods_comment_upload.source_file_name IS '来源文件名。系统记录，便于追溯。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.raw_row_no IS '原始文件行号。系统记录，便于定位错误行。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.raw_comment_id IS '原始评论ID。使用者可传；为空时标准化ETL会基于 content_id + 作者昵称 + 正文 + 时间 生成系统 comment_id。';
-COMMENT ON COLUMN data_asset.ods_comment_upload.content_id IS '所属内容ID。使用者可传；为空时后续可通过评论来源链接或人工补充匹配，第一版建议填写。';
+COMMENT ON COLUMN data_asset.ods_comment_upload.content_id IS '所属内容ID。使用者可传；可填写系统 content_id 或内容上传表中的 raw_content_id。为空时标准化ETL优先用 content_source_url 匹配内容。';
+COMMENT ON COLUMN data_asset.ods_comment_upload.content_source_url IS '所属内容原始链接。使用者上传，可为空但建议填写；标准化ETL可用 platform + content_source_url 匹配 dwd_content。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.platform IS '评论所在平台。使用者上传，可为空；为空时标准化ETL可从内容表继承。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.comment_author_id IS '评论作者ID。使用者上传，可为空；第一版不用于跨平台识别用户。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.comment_author_name IS '评论作者昵称。使用者上传，必填。';

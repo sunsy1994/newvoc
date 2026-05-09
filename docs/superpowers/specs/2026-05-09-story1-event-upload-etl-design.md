@@ -366,7 +366,61 @@
 5. 页面只展示 ADS 已经能支撑的指标。
 6. 另起一轮设计标签表，再扩展有效互动率、负面率、问题Top、价格感知等 VOC 深层指标。
 
-## 12. 自查结论
+## 12. 当前本地试跑方式
+
+已提供一个本地 ETL 脚本，用于先不依赖数据库地验证三张上传表是否能跑通 ODS -> DWD/REL -> ADS。
+
+脚本位置：
+
+- `backend/scripts/event_voc_ods_etl.py`
+
+模板输出位置：
+
+- `app/public/data-import-templates/event-voc/event_upload_template.xlsx`
+- `app/public/data-import-templates/event-voc/content_upload_template.xlsx`
+- `app/public/data-import-templates/event-voc/comment_upload_template.xlsx`
+
+同时也生成同名 `.csv` 模板。
+
+生成模板：
+
+```bash
+python backend/scripts/event_voc_ods_etl.py generate-templates
+```
+
+生成并试跑样例：
+
+```bash
+python backend/scripts/event_voc_ods_etl.py run-sample
+```
+
+样例输入输出位置：
+
+- 输入：`runs/event_voc_etl_sample/input`
+- 输出：`runs/event_voc_etl_sample/output`
+
+用真实数据试跑时，建议把三张上传文件放入一个目录，文件名使用：
+
+- `event_upload.xlsx` 或 `event_upload.csv`
+- `content_upload.xlsx` 或 `content_upload.csv`
+- `comment_upload.xlsx` 或 `comment_upload.csv`
+
+然后执行：
+
+```bash
+python backend/scripts/event_voc_ods_etl.py run --input-dir <你的输入目录> --output-dir <你的输出目录>
+```
+
+当前脚本输出：
+
+- ODS：`ods_event_upload.csv`、`ods_content_upload.csv`、`ods_comment_upload.csv`
+- DWD：`dwd_event.csv`、`dwd_content.csv`、`dwd_author.csv`、`dwd_comment.csv`
+- REL：`rel_event_content.csv`、`rel_author_content.csv`
+- ADS：`ads_event_overview.csv`、`ads_event_trend_daily.csv`、`ads_event_content_rank.csv`
+- 汇总：`event_voc_etl_result.xlsx`、`etl_summary.json`
+- 拒绝记录：`rejected_content.csv`、`rejected_comment.csv`
+
+## 13. 自查结论
 
 - 本文档只覆盖「VOC看事件」，没有引入用户旅程和竞品故事线。
 - 上传模板只反推当前 `data_access_schema.sql` 已存在的 ODS 字段；为了解决系统ID对使用者不友好，内容上传已补充 `raw_event_id`，评论上传已补充 `content_source_url`。

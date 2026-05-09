@@ -1,0 +1,2 @@
+﻿event_id,event_name,event_type,brand_name,model_name,start_time,end_time,event_status,platform_list,content_cnt,comment_cnt,author_cnt,kol_content_cnt,total_engagement,top_platform_json,top_author_json,data_lineage_json
+EVT-2026-001,A车型上市传播,新品上市,某品牌,A车型,2026-05-01,,进行中,"[""抖音""]",1,1,1,1,1662,"[{""label"": ""抖音"", ""value"": 1}]","[{""label"": ""车圈老张"", ""value"": 1}]","{""source"": [""dwd_event"", ""dwd_content"", ""dwd_author"", ""dwd_comment""]}"

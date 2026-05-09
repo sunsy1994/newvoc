@@ -1,0 +1,2 @@
+﻿event_id,stat_date,content_cnt,comment_cnt,engagement_cnt,data_lineage_json
+EVT-2026-001,2026-05-01,1,1,1689,"{""source"": [""dwd_content"", ""dwd_comment""]}"

@@ -1,0 +1,4 @@
+﻿rank_id,event_id,content_id,rank_type,rank_no,platform,title,author_name,is_kol,published_at,engagement_total,comment_cnt,source_url,data_lineage_json
+EVT-2026-001_engagement_content_3c27352171d16fda,EVT-2026-001,content_3c27352171d16fda,engagement,1,抖音,A车型上市，价格到底香不香？,车圈老张,True,2026-05-01 20:30:00,1662,318,https://example.com/post/a-001,"{""source"": [""dwd_content"", ""dwd_author""]}"
+EVT-2026-001_comment_content_3c27352171d16fda,EVT-2026-001,content_3c27352171d16fda,comment,1,抖音,A车型上市，价格到底香不香？,车圈老张,True,2026-05-01 20:30:00,1662,318,https://example.com/post/a-001,"{""source"": [""dwd_content"", ""dwd_author""]}"
+EVT-2026-001_kol_content_content_3c27352171d16fda,EVT-2026-001,content_3c27352171d16fda,kol_content,1,抖音,A车型上市，价格到底香不香？,车圈老张,True,2026-05-01 20:30:00,1662,318,https://example.com/post/a-001,"{""source"": [""dwd_content"", ""dwd_author""]}"

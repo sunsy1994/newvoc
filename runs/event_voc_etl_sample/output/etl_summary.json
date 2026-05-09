@@ -1,0 +1,16 @@
+{
+  "ods_event_upload": 1,
+  "ods_content_upload": 1,
+  "ods_comment_upload": 1,
+  "dwd_event": 1,
+  "dwd_content": 1,
+  "dwd_author": 1,
+  "dwd_comment": 1,
+  "rel_event_content": 1,
+  "rel_author_content": 1,
+  "ads_event_overview": 1,
+  "ads_event_trend_daily": 1,
+  "ads_event_content_rank": 3,
+  "rejected_content": 0,
+  "rejected_comment": 0
+}

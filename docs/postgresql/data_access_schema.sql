@@ -40,7 +40,7 @@ COMMENT ON COLUMN data_asset.ods_event_upload.ods_row_id IS 'ODS行ID。系统�
 COMMENT ON COLUMN data_asset.ods_event_upload.ingest_batch_id IS '导入批次ID。系统生成，标识这行数据来自哪一次上传。';
 COMMENT ON COLUMN data_asset.ods_event_upload.source_file_name IS '来源文件名。系统记录，便于追溯。';
 COMMENT ON COLUMN data_asset.ods_event_upload.raw_row_no IS '原始文件行号。系统记录，便于定位错误行。';
-COMMENT ON COLUMN data_asset.ods_event_upload.raw_event_id IS '原始事件ID。使用者可传；为空时标准化ETL会按事件名称等自然字段生成系统 event_id。';
+COMMENT ON COLUMN data_asset.ods_event_upload.raw_event_id IS '原始事件ID。使用者建议上传；内容上传可用同一ID归属事件。为空时标准化ETL会按事件名称等自然字段生成系统 event_id。';
 COMMENT ON COLUMN data_asset.ods_event_upload.event_name IS '事件名称。使用者上传，必填。';
 COMMENT ON COLUMN data_asset.ods_event_upload.event_type IS '事件类型。使用者上传，必填；第一版枚举：新品上市、品牌传播、价格权益、产品质量、服务体验、事故舆情、竞品对比、用户口碑、其他。';
 COMMENT ON COLUMN data_asset.ods_event_upload.brand_name IS '品牌名称。使用者上传，可为空。';
@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS data_asset.ods_content_upload (
   source_file_name VARCHAR(255),
   raw_row_no       INTEGER,
   raw_content_id   VARCHAR(64),
-  event_id         VARCHAR(64) NOT NULL,
+  raw_event_id     VARCHAR(64),
+  event_id         VARCHAR(64),
   platform         VARCHAR(64) NOT NULL,
   source_url       TEXT NOT NULL,
   title            TEXT NOT NULL,
@@ -89,7 +90,8 @@ COMMENT ON COLUMN data_asset.ods_content_upload.ingest_batch_id IS '导入批次
 COMMENT ON COLUMN data_asset.ods_content_upload.source_file_name IS '来源文件名。系统记录，便于追溯。';
 COMMENT ON COLUMN data_asset.ods_content_upload.raw_row_no IS '原始文件行号。系统记录，便于定位错误行。';
 COMMENT ON COLUMN data_asset.ods_content_upload.raw_content_id IS '原始内容ID。使用者可传；为空时标准化ETL会基于 platform + source_url 生成系统 content_id。';
-COMMENT ON COLUMN data_asset.ods_content_upload.event_id IS '所属事件ID。使用者上传，必填；对应标准事件 dwd_event.event_id。';
+COMMENT ON COLUMN data_asset.ods_content_upload.raw_event_id IS '原始事件ID。使用者上传，建议必填；填写事件上传模板中的 raw_event_id，用于把内容归属到事件。';
+COMMENT ON COLUMN data_asset.ods_content_upload.event_id IS '标准事件ID。系统可选写入或高级使用者填写；普通上传建议填写 raw_event_id，不要求知道系统 event_id。';
 COMMENT ON COLUMN data_asset.ods_content_upload.platform IS '平台。使用者上传，必填，如抖音、快手、小红书、微博、B站、懂车帝等。';
 COMMENT ON COLUMN data_asset.ods_content_upload.source_url IS '原始链接。使用者上传，必填；标准化ETL优先用 platform + source_url 做内容去重。';
 COMMENT ON COLUMN data_asset.ods_content_upload.title IS '内容标题。使用者上传，必填；如果原平台无标题，可用正文前若干字生成。';
@@ -253,7 +255,7 @@ CREATE TABLE IF NOT EXISTS data_asset.dwd_content (
 COMMENT ON TABLE data_asset.dwd_content IS '内容标准明细表。由 ods_content_upload 标准化生成，只描述帖子/视频/文章本身；作者资产通过 author_id 关联 dwd_author。';
 COMMENT ON COLUMN data_asset.dwd_content.content_id IS '内容ID。标准化ETL生成或沿用上传的 raw_content_id，主键，稳定不重复。';
 COMMENT ON COLUMN data_asset.dwd_content.content_key IS '内容自然键。标准化ETL生成，用于去重和upsert；第一版对 platform + source_url 做标准化后生成哈希。';
-COMMENT ON COLUMN data_asset.dwd_content.event_id IS '所属事件ID。来自ODS event_id，关联 dwd_event.event_id。';
+COMMENT ON COLUMN data_asset.dwd_content.event_id IS '所属事件ID。标准化ETL根据 ODS 的 raw_event_id 或 event_id 匹配生成，关联 dwd_event.event_id。';
 COMMENT ON COLUMN data_asset.dwd_content.author_id IS '作者ID。标准化ETL根据ODS作者字段生成并关联 dwd_author.author_id；可为空但建议生成。';
 COMMENT ON COLUMN data_asset.dwd_content.platform IS '平台。来自ODS。';
 COMMENT ON COLUMN data_asset.dwd_content.source_url IS '原始链接。来自ODS，是内容去重的核心自然字段。';
@@ -332,7 +334,7 @@ CREATE TABLE IF NOT EXISTS data_asset.rel_event_content (
 COMMENT ON TABLE data_asset.rel_event_content IS '事件-内容关系表。由标准化ETL根据 dwd_content.event_id 自动生成，表示哪些内容属于哪个事件。';
 COMMENT ON COLUMN data_asset.rel_event_content.event_id IS '事件ID，关联 dwd_event.event_id。';
 COMMENT ON COLUMN data_asset.rel_event_content.content_id IS '内容ID，关联 dwd_content.content_id。';
-COMMENT ON COLUMN data_asset.rel_event_content.match_type IS '匹配方式。第一版固定为 manual，表示使用者上传内容时已明确 event_id。';
+COMMENT ON COLUMN data_asset.rel_event_content.match_type IS '匹配方式。第一版固定为 manual，表示使用者上传内容时已明确 raw_event_id 或 event_id。';
 COMMENT ON COLUMN data_asset.rel_event_content.match_score IS '匹配置信度。第一版人工指定关系默认为1。';
 COMMENT ON COLUMN data_asset.rel_event_content.is_primary_event IS '是否为内容主事件。第一版默认 true。';
 COMMENT ON COLUMN data_asset.rel_event_content.created_time IS '关系创建时间。系统生成。';

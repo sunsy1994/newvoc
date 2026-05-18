@@ -55,6 +55,11 @@ Thumbs.db
 # Cache
 .cache/
 .parcel-cache/
+__pycache__/
+*.py[cod]
+
+# Office lock files
+~$*
 
 # Optional npm cache directory
 .npm

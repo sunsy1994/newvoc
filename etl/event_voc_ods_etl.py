@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -64,7 +65,7 @@ CONTENT_SPEC = TemplateSpec(
     file_stem="content_upload_template",
     columns=[
         ("原始内容ID", "raw_content_id", False, "有平台内容ID就填，没有可为空"),
-        ("原始事件ID", "raw_event_id", True, "填写事件上传模板里的原始事件ID"),
+        ("原始事件ID", "raw_event_id", False, "填写事件上传模板里的原始事件ID；也可填写标准事件ID"),
         ("标准事件ID", "event_id", False, "高级字段，普通上传可不填"),
         ("平台", "platform", True, "抖音/快手/小红书/微博/B站/懂车帝/汽车之家等"),
         ("原始链接", "source_url", True, "内容原始链接，用于去重"),
@@ -123,7 +124,7 @@ COMMENT_SPEC = TemplateSpec(
         ("所属内容原始链接", "content_source_url", True, "推荐填写内容原始链接，用于匹配帖子"),
         ("平台", "platform", False, "为空时可从内容继承"),
         ("评论作者ID", "comment_author_id", False, "第一版不做跨平台用户识别"),
-        ("评论作者昵称", "comment_author_name", True, "评论者昵称"),
+        ("评论作者昵称", "comment_author_name", False, "评论者昵称，缺失时按未知用户处理"),
         ("父评论ID", "parent_comment_id", False, "回复关系，可为空"),
         ("回复层级", "reply_level", False, "空值按1处理"),
         ("评论正文", "comment_text", True, "VOC原文"),
@@ -187,8 +188,22 @@ def clean_optional(value: Any) -> Any:
 
 
 def parse_time(value: Any) -> pd.Timestamp | pd.NaT:
-    if value is None or normalize_text(value) == "":
+    text = normalize_text(value)
+    if value is None or text == "":
         return pd.NaT
+    now = pd.Timestamp.now()
+    if text in {"刚刚", "刚才"}:
+        return now
+    if text == "昨天":
+        return now - pd.Timedelta(days=1)
+    if text == "前天":
+        return now - pd.Timedelta(days=2)
+    hour_match = re.fullmatch(r"(\d+)\s*小时前", text)
+    if hour_match:
+        return now - pd.Timedelta(hours=int(hour_match.group(1)))
+    day_match = re.fullmatch(r"(\d+)\s*天前", text)
+    if day_match:
+        return now - pd.Timedelta(days=int(day_match.group(1)))
     return pd.to_datetime(value, errors="coerce")
 
 
@@ -285,6 +300,14 @@ def validate_required(dataframe: pd.DataFrame, spec: TemplateSpec) -> list[str]:
         if missing_rows:
             row_nums = ", ".join(str(row + 2) for row in missing_rows[:10])
             errors.append(f"{spec.title} 字段 {field} 缺失，行号：{row_nums}")
+    if spec.key == "content":
+        missing_event_rows = dataframe.index[
+            (dataframe["raw_event_id"].isna() | (dataframe["raw_event_id"].astype(str).str.strip() == ""))
+            & (dataframe["event_id"].isna() | (dataframe["event_id"].astype(str).str.strip() == ""))
+        ].tolist()
+        if missing_event_rows:
+            row_nums = ", ".join(str(row + 2) for row in missing_event_rows[:10])
+            errors.append(f"{spec.title} 需要填写 raw_event_id 或 event_id 其中一个，行号：{row_nums}")
     return errors
 
 
@@ -460,7 +483,7 @@ def standardize_comments(
             rejected.append({"reason": "无法匹配内容", **row})
             continue
         content_id = content_row["content_id"]
-        comment_author_name = clean_optional(row.get("comment_author_name")) or ""
+        comment_author_name = clean_optional(row.get("comment_author_name")) or "未知用户"
         published_at = parse_time(row.get("published_at"))
         raw_comment_id = clean_optional(row.get("raw_comment_id"))
         comment_key = raw_comment_id or f"comment_{stable_hash(content_id, comment_author_name, row.get('comment_text'), published_at)}"

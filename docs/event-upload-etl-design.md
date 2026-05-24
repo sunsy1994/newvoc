@@ -99,8 +99,8 @@
 | 中文名 | 字段名 | 必填 | 示例 | 说明 |
 | --- | --- | --- | --- | --- |
 | 原始内容ID | `raw_content_id` | 选填 | `douyin_123` | 有平台内容ID就传；不传时 ETL 基于 `platform + source_url` 生成系统 `content_id`。 |
-| 原始事件ID | `raw_event_id` | 建议必填 | `EVT-2026-001` | 填事件上传模板里的 `raw_event_id`。这样使用者不需要知道系统生成的 `event_id`。 |
-| 标准事件ID | `event_id` | 选填 | `EVT-2026-001` | 高级字段。系统已返回标准 `event_id` 时可填；普通上传不用填。 |
+| 原始事件ID | `raw_event_id` | 二选一 | `EVT-2026-001` | 填事件上传模板里的 `raw_event_id`。这样使用者不需要知道系统生成的 `event_id`。 |
+| 标准事件ID | `event_id` | 二选一 | `EVT-2026-001` | 系统已返回标准 `event_id` 时可填；与 `raw_event_id` 至少填一个。 |
 | 平台 | `platform` | 必填 | `抖音` | 如抖音、快手、小红书、微博、B站、懂车帝、汽车之家等。 |
 | 原始链接 | `source_url` | 必填 | `https://...` | 内容去重的核心字段。每条内容尽量提供稳定链接。 |
 | 内容标题 | `title` | 必填 | `A车型上市，价格到底香不香？` | 原平台无标题时，可用正文前若干字生成。 |
@@ -138,7 +138,7 @@
 | 所属内容原始链接 | `content_source_url` | 建议填 | `https://.../post/...` | 推荐填写内容原始链接，ETL 可用 `platform + content_source_url` 匹配内容。 |
 | 平台 | `platform` | 选填 | `抖音` | 为空时 ETL 可从内容表继承。 |
 | 评论作者ID | `comment_author_id` | 选填 | `user_001` | 第一版不用于跨平台用户识别。 |
-| 评论作者昵称 | `comment_author_name` | 必填 | `喜欢旅行的小王` | 用于评论展示和评论去重。 |
+| 评论作者昵称 | `comment_author_name` | 建议填 | `喜欢旅行的小王` | 用于评论展示和评论去重；缺失时 ETL 用“未知用户”兜底。 |
 | 父评论ID | `parent_comment_id` | 选填 | `comment_parent_001` | 用于回复关系，第一版可以不重点使用。 |
 | 回复层级 | `reply_level` | 选填 | `1` | 空值 ETL 置 1；1 表示主评论。 |
 | 评论正文 | `comment_text` | 必填 | `这个价格如果有置换补贴就很香` | VOC 分析核心原文。 |

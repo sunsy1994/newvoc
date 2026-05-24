@@ -126,12 +126,10 @@ CREATE TABLE IF NOT EXISTS data_asset.ods_comment_upload (
   comment_author_id   VARCHAR(64),
   comment_author_name VARCHAR(255) NOT NULL,
   parent_comment_id   VARCHAR(64),
-  reply_level         INTEGER,
   comment_text        TEXT NOT NULL,
   published_at        TIMESTAMP NOT NULL,
   like_cnt            BIGINT,
   reply_cnt           BIGINT,
-  source_url          TEXT,
   raw_payload_json    JSONB,
   created_time        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -148,12 +146,10 @@ COMMENT ON COLUMN data_asset.ods_comment_upload.platform IS '评论所在平台�
 COMMENT ON COLUMN data_asset.ods_comment_upload.comment_author_id IS '评论作者ID。使用者上传，可为空；第一版不用于跨平台识别用户。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.comment_author_name IS '评论作者昵称。使用者上传，必填。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.parent_comment_id IS '父评论ID。使用者上传，可为空。';
-COMMENT ON COLUMN data_asset.ods_comment_upload.reply_level IS '回复层级。使用者上传，可为空；标准化ETL为空时置1。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.comment_text IS '评论正文。使用者上传，必填。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.published_at IS '评论发布时间。使用者上传，必填。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.like_cnt IS '评论点赞数。使用者上传，可为空；标准化ETL为空时置0。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.reply_cnt IS '评论回复数。使用者上传，可为空；标准化ETL为空时置0。';
-COMMENT ON COLUMN data_asset.ods_comment_upload.source_url IS '评论原始链接。使用者上传，可为空。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.raw_payload_json IS '原始行JSON。系统可选记录，用于保留上传文件中的完整原始字段。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.created_time IS 'ODS入库时间。系统生成。';
 
@@ -283,13 +279,11 @@ CREATE TABLE IF NOT EXISTS data_asset.dwd_comment (
   comment_author_id   VARCHAR(64),
   comment_author_name VARCHAR(255) NOT NULL,
   parent_comment_id   VARCHAR(64),
-  reply_level         INTEGER DEFAULT 1,
   comment_text        TEXT NOT NULL,
   published_at        TIMESTAMP NOT NULL,
   like_cnt            BIGINT DEFAULT 0,
   reply_cnt           BIGINT DEFAULT 0,
   interaction_cnt     BIGINT GENERATED ALWAYS AS (like_cnt + reply_cnt) STORED,
-  source_url          TEXT,
   ingest_batch_id     VARCHAR(64),
   raw_source_key      VARCHAR(64) DEFAULT 'comment_upload',
   created_time        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -304,13 +298,11 @@ COMMENT ON COLUMN data_asset.dwd_comment.platform IS '评论所在平台。来�
 COMMENT ON COLUMN data_asset.dwd_comment.comment_author_id IS '评论作者ID。来自ODS，可为空；第一版不用于跨平台识别用户。';
 COMMENT ON COLUMN data_asset.dwd_comment.comment_author_name IS '评论作者昵称。来自ODS。';
 COMMENT ON COLUMN data_asset.dwd_comment.parent_comment_id IS '父评论ID。来自ODS，可为空。';
-COMMENT ON COLUMN data_asset.dwd_comment.reply_level IS '回复层级。来自ODS，空值标准化为1；1表示主评论，2及以上表示回复。';
 COMMENT ON COLUMN data_asset.dwd_comment.comment_text IS '评论正文。来自ODS，VOC 分析的核心原文。';
 COMMENT ON COLUMN data_asset.dwd_comment.published_at IS '评论发布时间。来自ODS。';
 COMMENT ON COLUMN data_asset.dwd_comment.like_cnt IS '评论点赞数。来自ODS，upsert 时可更新为最新值。';
 COMMENT ON COLUMN data_asset.dwd_comment.reply_cnt IS '评论回复数。来自ODS，upsert 时可更新为最新值。';
 COMMENT ON COLUMN data_asset.dwd_comment.interaction_cnt IS '评论互动量。系统生成，公式：评论点赞数 + 评论回复数。';
-COMMENT ON COLUMN data_asset.dwd_comment.source_url IS '评论原始链接。来自ODS，可为空。';
 COMMENT ON COLUMN data_asset.dwd_comment.ingest_batch_id IS '最近一次写入该记录的导入批次ID。标准化ETL写入。';
 COMMENT ON COLUMN data_asset.dwd_comment.raw_source_key IS '原始来源类型。标准化ETL写入，第一版默认为 comment_upload。';
 COMMENT ON COLUMN data_asset.dwd_comment.created_time IS '标准记录首次创建时间。系统生成。';

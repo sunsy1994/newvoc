@@ -18,6 +18,15 @@ def test_list_tasks_starts_empty(tmp_path: Path) -> None:
     assert response.json() == []
 
 
+def test_home_page_serves_task_management_ui(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "任务管理" in response.text
+
+
 def test_template_download(tmp_path: Path) -> None:
     client = make_client(tmp_path)
 

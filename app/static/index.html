@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutoVOC 任务管理</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">A</span>
+      <div>
+        <strong>AutoVOC</strong>
+        <small>Event Data Ops</small>
+      </div>
+    </div>
+    <nav>
+      <a class="active" href="/">任务管理</a>
+    </nav>
+  </aside>
+
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">阶段 1 / 数据工作台</p>
+        <h1>事件 VOC 导入任务</h1>
+      </div>
+      <div class="top-actions">
+        <a href="/api/templates/event_upload_template.xlsx">事件模板</a>
+        <a href="/api/templates/content_upload_template.xlsx">内容模板</a>
+        <a href="/api/templates/comment_upload_template.xlsx">评论模板</a>
+      </div>
+    </header>
+
+    <section class="grid">
+      <section class="panel upload-panel">
+        <div class="panel-head">
+          <h2>上传原始数据</h2>
+          <span>ODS input</span>
+        </div>
+        <form id="upload-form">
+          <label>事件表<input name="event_file" type="file" accept=".xlsx,.csv" required></label>
+          <label>内容表<input name="content_file" type="file" accept=".xlsx,.csv" required></label>
+          <label>评论表<input name="comment_file" type="file" accept=".xlsx,.csv" required></label>
+          <button type="submit">创建导入批次</button>
+        </form>
+        <p id="upload-message" class="message"></p>
+      </section>
+
+      <section class="panel task-panel">
+        <div class="panel-head">
+          <h2>ETL 作业情况</h2>
+          <button id="refresh-tasks" class="ghost" type="button">刷新</button>
+        </div>
+        <div id="task-list" class="task-list"></div>
+      </section>
+    </section>
+
+    <section class="panel detail-panel">
+      <div class="panel-head">
+        <div>
+          <h2>作业结果</h2>
+          <p id="selected-task">请选择一个批次</p>
+        </div>
+        <button id="run-task" type="button" disabled>运行 ETL</button>
+      </div>
+      <div id="summary" class="summary"></div>
+      <div class="table-toolbar">
+        <select id="table-select"></select>
+        <span id="table-meta"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="data-table"></table>
+      </div>
+      <pre id="error-box" class="error-box"></pre>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -13,6 +13,7 @@
 - `schema/`：PostgreSQL 数据表设计。
 - `templates/event-voc/`：事件、内容、评论三张上传模板。
 - `etl/`：本地 ETL 脚本。
+- `app/`：FastAPI 任务管理工作台。
 - `samples/event_voc_etl_sample/`：样例输入与样例输出。
 - `docs/`：当前数据链路设计文档。
 
@@ -21,6 +22,20 @@
 ```bash
 pip install -r requirements.txt
 ```
+
+## 启动任务管理工作台
+
+```bash
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+打开：
+
+```text
+http://127.0.0.1:8000/
+```
+
+当前一级菜单为「任务管理」，支持上传事件、内容、评论三张原始文件，运行 ETL，并查看 ODS、DWD、REL、ADS、rejected 输出表。
 
 ## 生成模板
 

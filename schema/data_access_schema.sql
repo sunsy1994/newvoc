@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS data_asset.ods_comment_upload (
   content_id          VARCHAR(64),
   content_source_url  TEXT,
   platform            VARCHAR(64),
+  location            VARCHAR(128),
   comment_author_id   VARCHAR(64),
   comment_author_name VARCHAR(255) NOT NULL,
   parent_comment_id   VARCHAR(64),
@@ -143,6 +144,7 @@ COMMENT ON COLUMN data_asset.ods_comment_upload.raw_comment_id IS '原始评论I
 COMMENT ON COLUMN data_asset.ods_comment_upload.content_id IS '所属内容ID。使用者可传；可填写系统 content_id 或内容上传表中的 raw_content_id。为空时标准化ETL优先用 content_source_url 匹配内容。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.content_source_url IS '所属内容原始链接。使用者上传，可为空但建议填写；标准化ETL可用 platform + content_source_url 匹配 dwd_content。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.platform IS '评论所在平台。使用者上传，可为空；为空时标准化ETL可从内容表继承。';
+COMMENT ON COLUMN data_asset.ods_comment_upload.location IS '位置。使用者上传，可为空；表示平台显示的位置、IP属地或城市文本，不代表真实地址。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.comment_author_id IS '评论作者ID。使用者上传，可为空；第一版不用于跨平台识别用户。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.comment_author_name IS '评论作者昵称。使用者上传，必填。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.parent_comment_id IS '父评论ID。使用者上传，可为空。';
@@ -276,6 +278,7 @@ CREATE TABLE IF NOT EXISTS data_asset.dwd_comment (
   comment_key         VARCHAR(128) NOT NULL UNIQUE,
   content_id          VARCHAR(64) NOT NULL REFERENCES data_asset.dwd_content(content_id),
   platform            VARCHAR(64),
+  location            VARCHAR(128),
   comment_author_id   VARCHAR(64),
   comment_author_name VARCHAR(255) NOT NULL,
   parent_comment_id   VARCHAR(64),
@@ -295,6 +298,7 @@ COMMENT ON COLUMN data_asset.dwd_comment.comment_id IS '评论ID。标准化ETL�
 COMMENT ON COLUMN data_asset.dwd_comment.comment_key IS '评论自然键。标准化ETL生成，用于去重和upsert；第一版对 content_id + 评论作者昵称 + 评论正文 + 发布时间 做标准化后生成哈希。';
 COMMENT ON COLUMN data_asset.dwd_comment.content_id IS '所属内容ID。来自ODS或标准化ETL匹配结果，关联 dwd_content.content_id。';
 COMMENT ON COLUMN data_asset.dwd_comment.platform IS '评论所在平台。来自ODS；为空时标准化ETL可从内容表继承。';
+COMMENT ON COLUMN data_asset.dwd_comment.location IS '位置。来自ODS，表示平台显示的位置、IP属地或城市文本，用于事件评论位置分布统计，不代表真实地址。';
 COMMENT ON COLUMN data_asset.dwd_comment.comment_author_id IS '评论作者ID。来自ODS，可为空；第一版不用于跨平台识别用户。';
 COMMENT ON COLUMN data_asset.dwd_comment.comment_author_name IS '评论作者昵称。来自ODS。';
 COMMENT ON COLUMN data_asset.dwd_comment.parent_comment_id IS '父评论ID。来自ODS，可为空。';
@@ -448,6 +452,22 @@ COMMENT ON COLUMN data_asset.ads_event_content_rank.source_url IS '原始链接�
 COMMENT ON COLUMN data_asset.ads_event_content_rank.data_lineage_json IS '数据血缘。聚合ETL生成，记录来源表和公式说明。';
 COMMENT ON COLUMN data_asset.ads_event_content_rank.updated_time IS 'ADS更新时间。聚合ETL生成。';
 
+CREATE TABLE IF NOT EXISTS data_asset.ads_event_location_distribution (
+  event_id          VARCHAR(64) NOT NULL REFERENCES data_asset.dwd_event(event_id),
+  location          VARCHAR(128) NOT NULL,
+  comment_cnt       BIGINT DEFAULT 0,
+  data_lineage_json JSONB,
+  updated_time      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (event_id, location)
+);
+
+COMMENT ON TABLE data_asset.ads_event_location_distribution IS '事件评论位置分布ADS表。按事件和评论位置统计评论明细数量。';
+COMMENT ON COLUMN data_asset.ads_event_location_distribution.event_id IS '事件ID。聚合ETL通过 dwd_comment.content_id 关联 dwd_content.event_id 得到。';
+COMMENT ON COLUMN data_asset.ads_event_location_distribution.location IS '位置。来自 dwd_comment.location，表示平台显示的位置、IP属地或城市文本。';
+COMMENT ON COLUMN data_asset.ads_event_location_distribution.comment_cnt IS '评论明细数。聚合ETL生成，公式：按 event_id + location 统计 count(distinct comment_id)。';
+COMMENT ON COLUMN data_asset.ads_event_location_distribution.data_lineage_json IS '数据血缘。聚合ETL生成，记录来源表和公式说明。';
+COMMENT ON COLUMN data_asset.ads_event_location_distribution.updated_time IS 'ADS更新时间。聚合ETL生成。';
+
 -- =========================================================
 -- META：导入和计算任务元数据
 -- =========================================================
@@ -581,6 +601,7 @@ CREATE INDEX IF NOT EXISTS idx_dwd_content_author_id ON data_asset.dwd_content(a
 CREATE INDEX IF NOT EXISTS idx_dwd_content_published_at ON data_asset.dwd_content(published_at);
 CREATE INDEX IF NOT EXISTS idx_dwd_author_platform_name ON data_asset.dwd_author(platform, author_name);
 CREATE INDEX IF NOT EXISTS idx_dwd_comment_content_id ON data_asset.dwd_comment(content_id);
+CREATE INDEX IF NOT EXISTS idx_dwd_comment_location ON data_asset.dwd_comment(location);
 CREATE INDEX IF NOT EXISTS idx_dwd_comment_published_at ON data_asset.dwd_comment(published_at);
 
 CREATE INDEX IF NOT EXISTS idx_rel_event_content_content_id ON data_asset.rel_event_content(content_id);

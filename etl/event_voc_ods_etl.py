@@ -123,6 +123,7 @@ COMMENT_SPEC = TemplateSpec(
         ("所属内容ID", "content_id", False, "可填系统content_id或内容模板里的原始内容ID"),
         ("所属内容原始链接", "content_source_url", True, "推荐填写内容原始链接，用于匹配帖子"),
         ("平台", "platform", False, "为空时可从内容继承"),
+        ("位置", "location", False, "平台显示的位置/IP属地/城市，可为空"),
         ("评论作者ID", "comment_author_id", False, "第一版不做跨平台用户识别"),
         ("评论作者昵称", "comment_author_name", False, "评论者昵称，缺失时按未知用户处理"),
         ("父评论ID", "parent_comment_id", False, "回复关系，可为空"),
@@ -136,6 +137,7 @@ COMMENT_SPEC = TemplateSpec(
         "所属内容ID": "",
         "所属内容原始链接": "https://example.com/post/a-001",
         "平台": "抖音",
+        "位置": "北京",
         "评论作者ID": "",
         "评论作者昵称": "喜欢旅行的小王",
         "父评论ID": "",
@@ -492,6 +494,7 @@ def standardize_comments(
                 "comment_key": comment_key,
                 "content_id": content_id,
                 "platform": platform or content_row.get("platform"),
+                "location": clean_optional(row.get("location")),
                 "comment_author_id": clean_optional(row.get("comment_author_id")),
                 "comment_author_name": comment_author_name,
                 "parent_comment_id": clean_optional(row.get("parent_comment_id")),
@@ -512,7 +515,7 @@ def build_ads(
     dwd_content: pd.DataFrame,
     dwd_author: pd.DataFrame,
     dwd_comment: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     content_enriched = dwd_content.copy()
     if not dwd_author.empty and not content_enriched.empty:
         content_enriched = content_enriched.merge(
@@ -633,7 +636,29 @@ def build_ads(
                     }
                 )
     rank = pd.DataFrame(rank_rows)
-    return pd.DataFrame(overview_rows), trend, rank
+
+    if not dwd_comment.empty and not dwd_content.empty and "location" in dwd_comment.columns:
+        location_base = dwd_comment.merge(dwd_content[["content_id", "event_id"]], on="content_id", how="left")
+        location_base["location"] = location_base["location"].map(clean_optional)
+        location_base = location_base.dropna(subset=["event_id", "location"])
+        if not location_base.empty:
+            location_distribution = (
+                location_base.groupby(["event_id", "location"], as_index=False)
+                .agg(comment_cnt=("comment_id", "nunique"))
+                .sort_values(["event_id", "comment_cnt", "location"], ascending=[True, False, True])
+            )
+            location_distribution["data_lineage_json"] = json.dumps(
+                {"source": ["dwd_comment", "dwd_content"], "formula": "count(distinct comment_id) by event_id, location"},
+                ensure_ascii=False,
+            )
+        else:
+            location_distribution = pd.DataFrame(
+                columns=["event_id", "location", "comment_cnt", "data_lineage_json"]
+            )
+    else:
+        location_distribution = pd.DataFrame(columns=["event_id", "location", "comment_cnt", "data_lineage_json"])
+
+    return pd.DataFrame(overview_rows), trend, rank, location_distribution
 
 
 def run_etl(input_dir: Path, output_dir: Path) -> dict[str, int]:
@@ -658,7 +683,12 @@ def run_etl(input_dir: Path, output_dir: Path) -> dict[str, int]:
         ingest_batch_id,
     )
     dwd_comment, rejected_comment = standardize_comments(ods_comment, dwd_content, ingest_batch_id)
-    ads_overview, ads_trend_daily, ads_content_rank = build_ads(dwd_event, dwd_content, dwd_author, dwd_comment)
+    ads_overview, ads_trend_daily, ads_content_rank, ads_location_distribution = build_ads(
+        dwd_event,
+        dwd_content,
+        dwd_author,
+        dwd_comment,
+    )
 
     outputs = {
         "ods_event_upload": ods_event,
@@ -673,6 +703,7 @@ def run_etl(input_dir: Path, output_dir: Path) -> dict[str, int]:
         "ads_event_overview": ads_overview,
         "ads_event_trend_daily": ads_trend_daily,
         "ads_event_content_rank": ads_content_rank,
+        "ads_event_location_distribution": ads_location_distribution,
         "rejected_content": rejected_content,
         "rejected_comment": rejected_comment,
     }

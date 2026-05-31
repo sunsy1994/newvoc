@@ -137,6 +137,7 @@
 | 所属内容ID | `content_id` | 选填 | `CONTENT-001` | 可填写系统 `content_id`，也可填写内容上传模板里的 `raw_content_id`。不知道ID时可以不填。 |
 | 所属内容原始链接 | `content_source_url` | 建议填 | `https://.../post/...` | 推荐填写内容原始链接，ETL 可用 `platform + content_source_url` 匹配内容。 |
 | 平台 | `platform` | 选填 | `抖音` | 为空时 ETL 可从内容表继承。 |
+| 位置 | `location` | 选填 | `北京` | 平台显示的位置、IP属地或城市文本，用于事件评论位置分布统计，不代表真实地址。 |
 | 评论作者ID | `comment_author_id` | 选填 | `user_001` | 第一版不用于跨平台用户识别。 |
 | 评论作者昵称 | `comment_author_name` | 建议填 | `喜欢旅行的小王` | 用于评论展示和评论去重；缺失时 ETL 用“未知用户”兜底。 |
 | 父评论ID | `parent_comment_id` | 选填 | `comment_parent_001` | 用于回复关系，第一版可以不重点使用。 |
@@ -307,6 +308,20 @@
 - 问题内容排行：需要 `issue_tag`。
 - 有效互动内容排行：需要 `is_vehicle_related_comment`。
 
+### 7.4 评论位置分布
+
+目标表：`ads_event_location_distribution`
+
+| 指标 | 字段 | 公式 | 当前是否可做 |
+| --- | --- | --- | --- |
+| 位置 | `location` | 来自 `dwd_comment.location` | 可做 |
+| 位置评论数 | `comment_cnt` | 按 `event_id + location` 统计 `count(distinct comment_id)` | 可做 |
+
+注意：
+
+- 位置只使用平台显示的位置、IP属地或城市文本，不做真实地址识别。
+- 没有填写位置的评论不进入位置分布统计，但仍保留在评论明细和其他指标里。
+
 ## 8. 当前 schema 能支撑的首批页面/报告指标
 
 首批可以直接做：
@@ -323,6 +338,7 @@
 | 趋势分析 | 内容/评论日趋势 | `ads_event_trend_daily` | 按日期展示上传数据分布。 |
 | 内容排行 | 高互动内容 | `ads_event_content_rank` | 可回跳原始链接。 |
 | 内容排行 | KOL内容排行 | `ads_event_content_rank` | 基于作者是否KOL。 |
+| 评论分析 | 位置分布 | `ads_event_location_distribution` | 按平台显示位置统计评论明细数。 |
 
 ## 9. 需要补标注后才能做的指标
 
@@ -414,7 +430,7 @@ python etl/event_voc_ods_etl.py run --input-dir <你的输入目录> --output-di
 - ODS：`ods_event_upload.csv`、`ods_content_upload.csv`、`ods_comment_upload.csv`
 - DWD：`dwd_event.csv`、`dwd_content.csv`、`dwd_author.csv`、`dwd_comment.csv`
 - REL：`rel_event_content.csv`、`rel_author_content.csv`
-- ADS：`ads_event_overview.csv`、`ads_event_trend_daily.csv`、`ads_event_content_rank.csv`
+- ADS：`ads_event_overview.csv`、`ads_event_trend_daily.csv`、`ads_event_content_rank.csv`、`ads_event_location_distribution.csv`
 - 汇总：`event_voc_etl_result.xlsx`、`etl_summary.json`
 - 拒绝记录：`rejected_content.csv`、`rejected_comment.csv`
 

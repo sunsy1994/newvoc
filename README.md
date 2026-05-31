@@ -53,4 +53,4 @@ python etl/event_voc_ods_etl.py run --input-dir <你的输入目录> --output-di
 - ODS：原始上传表。
 - DWD：事件、内容、作者、评论标准明细。
 - REL：事件-内容、作者-内容关系。
-- ADS：事件总览、日趋势、内容排行。
+- ADS：事件总览、日趋势、内容排行、评论位置分布。

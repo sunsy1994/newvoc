@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 
 def utc_now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 class TaskStore:
@@ -17,7 +17,7 @@ class TaskStore:
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
 
     def create_task(self, input_files: dict[str, str]) -> dict[str, Any]:
-        batch_id = f"batch_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
+        batch_id = f"batch_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
         now = utc_now_iso()
         task = {
             "batch_id": batch_id,

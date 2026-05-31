@@ -15,6 +15,8 @@ const scriptMeta = document.querySelector("#script-meta");
 const scriptMessage = document.querySelector("#script-message");
 const backupList = document.querySelector("#backup-list");
 const testScriptButton = document.querySelector("#test-script");
+const subnavItems = document.querySelectorAll(".subnav-item");
+const workbenchViews = document.querySelectorAll(".workbench-view");
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -150,6 +152,19 @@ tableSelect.addEventListener("change", () => {
 });
 
 document.querySelector("#refresh-tasks").addEventListener("click", loadTasks);
+
+function activateView(viewId) {
+  for (const view of workbenchViews) {
+    view.classList.toggle("active", view.id === viewId);
+  }
+  for (const item of subnavItems) {
+    item.classList.toggle("active", item.dataset.viewTarget === viewId);
+  }
+}
+
+for (const item of subnavItems) {
+  item.addEventListener("click", () => activateView(item.dataset.viewTarget));
+}
 
 function renderFlow(nodes) {
   flowList.innerHTML = nodes.map(node => {

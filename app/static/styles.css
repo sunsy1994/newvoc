@@ -97,6 +97,35 @@ h2 { margin-bottom: 0; font-size: 17px; }
   flex-wrap: wrap;
 }
 
+.subnav {
+  display: flex;
+  gap: 8px;
+  margin: -8px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.subnav-item {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 12px 14px;
+}
+
+.subnav-item.active {
+  color: var(--accent-dark);
+  border-bottom-color: var(--accent);
+  background: #eef8f6;
+}
+
+.workbench-view {
+  display: none;
+}
+
+.workbench-view.active {
+  display: block;
+}
+
 .top-actions a,
 button {
   border: 1px solid var(--accent);
@@ -245,7 +274,7 @@ input, select {
 
 .flow-panel,
 .script-panel {
-  margin-top: 18px;
+  margin-top: 0;
 }
 
 .flow-list {

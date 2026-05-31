@@ -53,15 +53,18 @@ body {
   margin-top: 2px;
 }
 
-nav a {
+.main-nav-item {
   display: block;
+  width: 100%;
   padding: 12px 14px;
   color: #cbd5e1;
-  text-decoration: none;
+  text-align: left;
+  background: transparent;
+  border: 0;
   border-left: 3px solid transparent;
 }
 
-nav a.active {
+.main-nav-item.active {
   color: #fff;
   background: rgba(255,255,255,.08);
   border-left-color: #5eead4;
@@ -104,7 +107,16 @@ h2 { margin-bottom: 0; font-size: 17px; }
   border-bottom: 1px solid var(--line);
 }
 
-.subnav-item {
+.main-view {
+  display: none;
+}
+
+.main-view.active {
+  display: block;
+}
+
+.subnav-item,
+.asset-tab {
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
@@ -112,7 +124,8 @@ h2 { margin-bottom: 0; font-size: 17px; }
   padding: 12px 14px;
 }
 
-.subnav-item.active {
+.subnav-item.active,
+.asset-tab.active {
   color: var(--accent-dark);
   border-bottom-color: var(--accent);
   background: #eef8f6;
@@ -354,6 +367,21 @@ input, select {
   justify-content: space-between;
   gap: 14px;
   margin-top: 10px;
+}
+
+.asset-panel {
+  margin-top: 0;
+}
+
+.asset-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.asset-search input {
+  width: 320px;
+  margin-top: 0;
 }
 
 table {

@@ -45,6 +45,19 @@ http://127.0.0.1:8000/
 - 保存脚本前自动备份到 `runtime/script_backups/`。
 - 用当前选中的批次试跑脚本。
 
+## 资产库
+
+一级菜单「资产库」面向业务使用者，只展示业务字段，不展示底层技术字段。
+
+当前包含：
+
+- 事件资产
+- 内容资产
+- 评论资产
+- 作者KOL资产
+
+数据来自 PostgreSQL 的 `data_asset` schema，主要使用 DWD/ADS 层结果。
+
 ## PostgreSQL 落库
 
 默认连接本地 PostgreSQL：

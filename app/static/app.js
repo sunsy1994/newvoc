@@ -15,8 +15,17 @@ const scriptMeta = document.querySelector("#script-meta");
 const scriptMessage = document.querySelector("#script-message");
 const backupList = document.querySelector("#backup-list");
 const testScriptButton = document.querySelector("#test-script");
+const mainNavItems = document.querySelectorAll(".main-nav-item");
+const mainViews = document.querySelectorAll(".main-view");
 const subnavItems = document.querySelectorAll(".subnav-item");
 const workbenchViews = document.querySelectorAll(".workbench-view");
+const assetTabs = document.querySelectorAll(".asset-tab");
+const assetTitle = document.querySelector("#asset-title");
+const assetMeta = document.querySelector("#asset-meta");
+const assetTable = document.querySelector("#asset-table");
+const assetSearchForm = document.querySelector("#asset-search-form");
+const assetSearchInput = document.querySelector("#asset-search-input");
+let currentAssetKey = "events";
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -162,6 +171,22 @@ function activateView(viewId) {
   }
 }
 
+function activateMainView(viewId) {
+  for (const view of mainViews) {
+    view.classList.toggle("active", view.id === viewId);
+  }
+  for (const item of mainNavItems) {
+    item.classList.toggle("active", item.dataset.mainTarget === viewId);
+  }
+  if (viewId === "asset-library-view") {
+    loadAsset(currentAssetKey);
+  }
+}
+
+for (const item of mainNavItems) {
+  item.addEventListener("click", () => activateMainView(item.dataset.mainTarget));
+}
+
 for (const item of subnavItems) {
   item.addEventListener("click", () => activateView(item.dataset.viewTarget));
 }
@@ -232,10 +257,47 @@ document.querySelector("#test-script").addEventListener("click", async () => {
   await selectTask(task.batch_id);
 });
 
+function renderAssetTable(payload) {
+  assetTitle.textContent = payload.label;
+  assetMeta.textContent = `${payload.total} 条资产，当前预览前 50 条`;
+  const head = `<thead><tr>${payload.columns.map(column => `<th>${column.label}</th>`).join("")}</tr></thead>`;
+  const rows = payload.rows.map(row => `
+    <tr>${payload.columns.map(column => {
+      const value = row[column.key] ?? "";
+      if (column.key.endsWith("_url") || column.key === "source_url") {
+        return `<td>${value ? `<a href="${value}" target="_blank" rel="noreferrer">打开链接</a>` : ""}</td>`;
+      }
+      return `<td>${value}</td>`;
+    }).join("")}</tr>
+  `).join("");
+  assetTable.innerHTML = `${head}<tbody>${rows}</tbody>`;
+}
+
+async function loadAsset(assetKey = currentAssetKey) {
+  currentAssetKey = assetKey;
+  for (const tab of assetTabs) {
+    tab.classList.toggle("active", tab.dataset.assetKey === assetKey);
+  }
+  const query = assetSearchInput.value.trim();
+  const suffix = query ? `?q=${encodeURIComponent(query)}&limit=50` : "?limit=50";
+  const payload = await api(`/api/assets/${assetKey}${suffix}`);
+  renderAssetTable(payload);
+}
+
+for (const tab of assetTabs) {
+  tab.addEventListener("click", () => loadAsset(tab.dataset.assetKey));
+}
+
+assetSearchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadAsset(currentAssetKey);
+});
+
 async function boot() {
   await loadTasks();
   await loadFlow();
   await loadScript();
+  await loadAsset();
 }
 
 boot();

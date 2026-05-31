@@ -16,22 +16,24 @@
       </div>
     </div>
     <nav>
-      <a class="active" href="/">任务管理</a>
+      <button class="main-nav-item active" type="button" data-main-target="task-workbench-view">任务管理</button>
+      <button class="main-nav-item" type="button" data-main-target="asset-library-view">资产库</button>
     </nav>
   </aside>
 
   <main class="shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">阶段 1 / 数据工作台</p>
-        <h1>事件 VOC 导入任务</h1>
-      </div>
-      <div class="top-actions">
-        <a href="/api/templates/event_upload_template.xlsx">事件模板</a>
-        <a href="/api/templates/content_upload_template.xlsx">内容模板</a>
-        <a href="/api/templates/comment_upload_template.xlsx">评论模板</a>
-      </div>
-    </header>
+    <section class="main-view active" id="task-workbench-view">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">阶段 1 / 数据工作台</p>
+          <h1>事件 VOC 导入任务</h1>
+        </div>
+        <div class="top-actions">
+          <a href="/api/templates/event_upload_template.xlsx">事件模板</a>
+          <a href="/api/templates/content_upload_template.xlsx">内容模板</a>
+          <a href="/api/templates/comment_upload_template.xlsx">评论模板</a>
+        </div>
+      </header>
 
     <nav class="subnav" aria-label="任务管理子菜单">
       <button class="subnav-item active" type="button" data-view-target="import-view">导入任务</button>
@@ -114,6 +116,38 @@
         <div class="script-footer">
           <p id="script-message" class="message"></p>
           <div id="backup-list" class="backup-list"></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="main-view" id="asset-library-view">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">阶段 2 / 业务资产库</p>
+          <h1>资产库</h1>
+        </div>
+      </header>
+
+      <nav class="subnav" aria-label="资产库子菜单">
+        <button class="asset-tab active" type="button" data-asset-key="events">事件资产</button>
+        <button class="asset-tab" type="button" data-asset-key="contents">内容资产</button>
+        <button class="asset-tab" type="button" data-asset-key="comments">评论资产</button>
+        <button class="asset-tab" type="button" data-asset-key="authors">作者KOL资产</button>
+      </nav>
+
+      <section class="panel asset-panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="asset-title">事件资产</h2>
+            <p id="asset-meta">展示业务字段，不展示底层技术字段。</p>
+          </div>
+          <form id="asset-search-form" class="asset-search">
+            <input id="asset-search-input" type="search" placeholder="搜索事件、平台、标题、作者、评论">
+            <button type="submit">搜索</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table id="asset-table"></table>
         </div>
       </section>
     </section>

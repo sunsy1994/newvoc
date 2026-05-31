@@ -29,3 +29,16 @@ def test_task_management_uses_submenu_views() -> None:
     assert 'data-view-target="script-view"' in html
     assert 'class="workbench-view active" id="import-view"' in html
     assert "activateView" in script
+
+
+def test_asset_library_ui_is_present() -> None:
+    html = Path("app/static/index.html").read_text(encoding="utf-8")
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+
+    assert "资产库" in html
+    assert 'id="asset-library-view"' in html
+    assert 'data-asset-key="events"' in html
+    assert 'data-asset-key="contents"' in html
+    assert 'data-asset-key="comments"' in html
+    assert 'data-asset-key="authors"' in html
+    assert "/api/assets/" in script

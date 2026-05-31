@@ -83,6 +83,27 @@ def test_script_test_run_requires_existing_batch(tmp_path: Path) -> None:
     assert response.status_code == 404
 
 
+def test_asset_api_returns_business_assets(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_list_assets(asset_key, q=None, limit=50, offset=0):
+        return {
+            "asset": asset_key,
+            "label": "事件资产",
+            "total": 1,
+            "columns": [{"key": "event_name", "label": "事件名称"}],
+            "rows": [{"event_name": "上市事件"}],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_assets", fake_list_assets)
+
+    response = client.get("/api/assets/events?q=上市")
+
+    assert response.status_code == 200
+    assert response.json()["columns"][0]["label"] == "事件名称"
+    assert response.json()["rows"][0]["event_name"] == "上市事件"
+
+
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     monkeypatch.setattr(

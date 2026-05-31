@@ -10,6 +10,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app.config import TEMPLATE_DIR
+from app.services.asset_library import list_assets
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
 from app.services.script_manager import ScriptManager
@@ -77,6 +78,14 @@ def save_upload(upload_file: UploadFile, target: Path) -> None:
 @router.get("/api/tasks")
 def list_tasks(request: Request) -> list[dict]:
     return get_store(request).list_tasks()
+
+
+@router.get("/api/assets/{asset_key}")
+def get_assets(asset_key: str, q: str | None = None, limit: int = 50, offset: int = 0) -> dict:
+    try:
+        return list_assets(asset_key, q=q, limit=limit, offset=offset)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Asset not found")
 
 
 @router.get("/api/etl/flow")

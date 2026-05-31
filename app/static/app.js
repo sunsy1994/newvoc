@@ -115,12 +115,13 @@ async function loadTable(batchId, tableName) {
 
 document.querySelector("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const uploadForm = event.currentTarget;
   uploadMessage.textContent = "正在上传...";
-  const formData = new FormData(event.currentTarget);
+  const formData = new FormData(uploadForm);
   try {
     const task = await api("/api/tasks/upload", { method: "POST", body: formData });
     uploadMessage.textContent = `已创建批次：${task.batch_id}`;
-    event.currentTarget.reset();
+    uploadForm.reset();
     await loadTasks();
     await selectTask(task.batch_id);
   } catch (error) {

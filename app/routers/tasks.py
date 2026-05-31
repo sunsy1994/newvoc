@@ -5,11 +5,14 @@ from pathlib import Path
 from typing import Annotated
 
 import pandas as pd
+from pydantic import BaseModel
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app.config import TEMPLATE_DIR
+from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
+from app.services.script_manager import ScriptManager
 from app.services.task_store import TaskStore
 
 
@@ -44,8 +47,20 @@ ALLOWED_TEMPLATES = {
 router = APIRouter()
 
 
+class ScriptSaveRequest(BaseModel):
+    content: str
+
+
+class ScriptTestRunRequest(BaseModel):
+    batch_id: str
+
+
 def get_store(request: Request) -> TaskStore:
     return request.app.state.task_store
+
+
+def get_script_manager(request: Request) -> ScriptManager:
+    return request.app.state.script_manager
 
 
 def upload_suffix(upload_file: UploadFile) -> str:
@@ -62,6 +77,36 @@ def save_upload(upload_file: UploadFile, target: Path) -> None:
 @router.get("/api/tasks")
 def list_tasks(request: Request) -> list[dict]:
     return get_store(request).list_tasks()
+
+
+@router.get("/api/etl/flow")
+def get_etl_flow(request: Request, batch_id: str | None = None) -> dict:
+    summary = None
+    if batch_id:
+        try:
+            summary = get_store(request).get_task(batch_id).get("summary", {})
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Task not found")
+    return {"nodes": build_flow_nodes(summary)}
+
+
+@router.get("/api/etl/script")
+def get_etl_script(request: Request) -> dict:
+    return get_script_manager(request).read_script()
+
+
+@router.put("/api/etl/script")
+def save_etl_script(request: Request, payload: ScriptSaveRequest) -> dict:
+    return get_script_manager(request).save_script(payload.content)
+
+
+@router.post("/api/etl/script/test-run")
+def test_run_etl_script(request: Request, payload: ScriptTestRunRequest) -> dict:
+    try:
+        get_store(request).get_task(payload.batch_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return EtlRunner(get_store(request), get_script_manager(request).script_path).run_task(payload.batch_id)
 
 
 @router.post("/api/tasks/upload")
@@ -89,7 +134,7 @@ def upload_task(
 @router.post("/api/tasks/{batch_id}/run")
 def run_task(request: Request, batch_id: str) -> dict:
     try:
-        return EtlRunner(get_store(request)).run_task(batch_id)
+        return EtlRunner(get_store(request), get_script_manager(request).script_path).run_task(batch_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Task not found")
 

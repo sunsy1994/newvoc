@@ -75,6 +75,36 @@
       </div>
       <pre id="error-box" class="error-box"></pre>
     </section>
+
+    <section class="panel flow-panel">
+      <div class="panel-head">
+        <div>
+          <h2>ETL 清理流程</h2>
+          <p>从原始上传到 PostgreSQL 落库的处理链路</p>
+        </div>
+        <button id="refresh-flow" class="ghost" type="button">刷新流程</button>
+      </div>
+      <div id="flow-list" class="flow-list"></div>
+    </section>
+
+    <section class="panel script-panel">
+      <div class="panel-head">
+        <div>
+          <h2>脚本维护</h2>
+          <p id="script-meta">读取脚本中...</p>
+        </div>
+        <div class="script-actions">
+          <button id="reload-script" class="ghost" type="button">重新读取</button>
+          <button id="save-script" type="button">保存并备份</button>
+          <button id="test-script" class="ghost" type="button" disabled>用选中批次试跑</button>
+        </div>
+      </div>
+      <textarea id="script-editor" spellcheck="false"></textarea>
+      <div class="script-footer">
+        <p id="script-message" class="message"></p>
+        <div id="backup-list" class="backup-list"></div>
+      </div>
+    </section>
   </main>
   <script src="/static/app.js"></script>
 </body>

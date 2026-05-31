@@ -37,6 +37,14 @@ http://127.0.0.1:8000/
 
 当前一级菜单为「任务管理」，支持上传事件、内容、评论三张原始文件，运行 ETL，并查看 ODS、DWD、REL、ADS、rejected 输出表。
 
+工作台还支持 ETL 过程透明化：
+
+- 查看从上传文件到 PostgreSQL 落库的清理流程。
+- 查看每个节点的输入表、输出表、核心规则和脚本函数。
+- 查看并编辑 `etl/event_voc_ods_etl.py`。
+- 保存脚本前自动备份到 `runtime/script_backups/`。
+- 用当前选中的批次试跑脚本。
+
 ## PostgreSQL 落库
 
 默认连接本地 PostgreSQL：

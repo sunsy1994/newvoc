@@ -10,6 +10,18 @@ def make_client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(tasks_dir=tmp_path / "tasks"))
 
 
+def make_client_with_script(tmp_path: Path) -> TestClient:
+    script_path = tmp_path / "event_voc_ods_etl.py"
+    script_path.write_text("def run_etl():\n    pass\n", encoding="utf-8")
+    return TestClient(
+        create_app(
+            tasks_dir=tmp_path / "tasks",
+            script_path=script_path,
+            script_backup_dir=tmp_path / "backups",
+        )
+    )
+
+
 def test_list_tasks_starts_empty(tmp_path: Path) -> None:
     client = make_client(tmp_path)
 
@@ -35,6 +47,40 @@ def test_template_download(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.headers["content-disposition"].startswith("attachment;")
+
+
+def test_etl_flow_api_enriches_selected_batch(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    task = client.app.state.task_store.create_task(input_files={})
+    client.app.state.task_store.update_task(task["batch_id"], summary={"dwd_comment": 19})
+
+    response = client.get(f"/api/etl/flow?batch_id={task['batch_id']}")
+
+    assert response.status_code == 200
+    nodes = response.json()["nodes"]
+    comment_node = next(node for node in nodes if node["id"] == "standardize_comment")
+    assert comment_node["metrics"]["dwd_comment"] == 19
+
+
+def test_script_api_reads_and_saves_with_backup(tmp_path: Path) -> None:
+    client = make_client_with_script(tmp_path)
+
+    read_response = client.get("/api/etl/script")
+    assert read_response.status_code == 200
+    assert "def run_etl" in read_response.json()["content"]
+
+    save_response = client.put("/api/etl/script", json={"content": "print('new script')\n"})
+    assert save_response.status_code == 200
+    assert save_response.json()["content"] == "print('new script')\n"
+    assert save_response.json()["backups"]
+
+
+def test_script_test_run_requires_existing_batch(tmp_path: Path) -> None:
+    client = make_client_with_script(tmp_path)
+
+    response = client.post("/api/etl/script/test-run", json={"batch_id": "missing"})
+
+    assert response.status_code == 404
 
 
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:

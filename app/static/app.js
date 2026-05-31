@@ -9,6 +9,12 @@ const tableMeta = document.querySelector("#table-meta");
 const dataTable = document.querySelector("#data-table");
 const errorBox = document.querySelector("#error-box");
 const uploadMessage = document.querySelector("#upload-message");
+const flowList = document.querySelector("#flow-list");
+const scriptEditor = document.querySelector("#script-editor");
+const scriptMeta = document.querySelector("#script-meta");
+const scriptMessage = document.querySelector("#script-message");
+const backupList = document.querySelector("#backup-list");
+const testScriptButton = document.querySelector("#test-script");
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -75,11 +81,13 @@ async function selectTask(batchId) {
   const task = await api(`/api/tasks/${batchId}`);
   selectedTask.textContent = `${task.batch_id} / ${statusLabel(task.status)}`;
   runButton.disabled = task.status === "running";
+  testScriptButton.disabled = task.status === "running";
   renderSummary(task.summary);
   errorBox.style.display = task.error_message ? "block" : "none";
   errorBox.textContent = task.error_message || "";
   await loadTasks();
   await loadTables(batchId);
+  await loadFlow();
 }
 
 async function loadTables(batchId) {
@@ -143,4 +151,76 @@ tableSelect.addEventListener("change", () => {
 
 document.querySelector("#refresh-tasks").addEventListener("click", loadTasks);
 
-loadTasks();
+function renderFlow(nodes) {
+  flowList.innerHTML = nodes.map(node => {
+    const metrics = Object.entries(node.metrics || {}).map(([key, value]) => `<span class="chip metric-chip">${key}: ${value}</span>`).join("");
+    const outputs = node.output_tables.map(item => `<span class="chip">${item}</span>`).join("");
+    return `
+      <article class="flow-node">
+        <small>${String(node.order).padStart(2, "0")} / ${node.function_name}</small>
+        <strong>${node.title}</strong>
+        <p>${node.desc}</p>
+        <div class="flow-tags">${outputs}</div>
+        <p>${node.rules.join("；")}</p>
+        <div class="flow-metrics">${metrics || '<span class="chip">暂无批次指标</span>'}</div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadFlow() {
+  const suffix = selectedBatchId ? `?batch_id=${selectedBatchId}` : "";
+  const payload = await api(`/api/etl/flow${suffix}`);
+  renderFlow(payload.nodes);
+}
+
+function renderBackups(backups) {
+  backupList.innerHTML = (backups || []).slice(0, 5).map(backup => `<span class="chip">${backup.name}</span>`).join("");
+}
+
+async function loadScript() {
+  const payload = await api("/api/etl/script");
+  scriptEditor.value = payload.content;
+  scriptMeta.textContent = `${payload.path} / ${(payload.size / 1024).toFixed(1)} KB / ${payload.updated_at}`;
+  renderBackups(payload.backups);
+}
+
+document.querySelector("#refresh-flow").addEventListener("click", loadFlow);
+
+document.querySelector("#reload-script").addEventListener("click", loadScript);
+
+document.querySelector("#save-script").addEventListener("click", async () => {
+  scriptMessage.textContent = "保存中...";
+  try {
+    const payload = await api("/api/etl/script", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: scriptEditor.value }),
+    });
+    scriptMessage.textContent = "已保存，旧脚本已备份。";
+    scriptMeta.textContent = `${payload.path} / ${(payload.size / 1024).toFixed(1)} KB / ${payload.updated_at}`;
+    renderBackups(payload.backups);
+  } catch (error) {
+    scriptMessage.textContent = error.message;
+  }
+});
+
+document.querySelector("#test-script").addEventListener("click", async () => {
+  if (!selectedBatchId) return;
+  scriptMessage.textContent = "试跑中...";
+  const task = await api("/api/etl/script/test-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ batch_id: selectedBatchId }),
+  });
+  scriptMessage.textContent = task.status === "success" ? "试跑成功，结果已更新。" : "试跑失败，请查看错误信息。";
+  await selectTask(task.batch_id);
+});
+
+async function boot() {
+  await loadTasks();
+  await loadFlow();
+  await loadScript();
+}
+
+boot();

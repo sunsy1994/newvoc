@@ -42,3 +42,13 @@ def test_asset_library_ui_is_present() -> None:
     assert 'data-asset-key="comments"' in html
     assert 'data-asset-key="authors"' in html
     assert "/api/assets/" in script
+
+
+def test_asset_library_is_not_nested_inside_task_workbench() -> None:
+    html = Path("app/static/index.html").read_text(encoding="utf-8")
+    task_start = html.index('id="task-workbench-view"')
+    asset_start = html.index('id="asset-library-view"')
+    between = html[task_start:asset_start]
+
+    assert '</section>\n\n    <section class="main-view" id="asset-library-view">' in html
+    assert between.count('<section') == between.count('</section>')

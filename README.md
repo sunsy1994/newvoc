@@ -37,6 +37,28 @@ http://127.0.0.1:8000/
 
 当前一级菜单为「任务管理」，支持上传事件、内容、评论三张原始文件，运行 ETL，并查看 ODS、DWD、REL、ADS、rejected 输出表。
 
+## PostgreSQL 落库
+
+默认连接本地 PostgreSQL：
+
+```text
+postgresql://postgres:123456@127.0.0.1:5432/postgres
+```
+
+可用 `DATABASE_URL` 环境变量覆盖。
+
+初始化建表：
+
+```bash
+python -m app.services.db_loader init
+```
+
+工作台执行 ETL 成功后会自动把本批次结果写入 `data_asset` schema。也可以手动加载某个 ETL 输出目录：
+
+```bash
+python -m app.services.db_loader load --output-dir <ETL输出目录> --batch-id <批次ID>
+```
+
 ## 生成模板
 
 ```bash

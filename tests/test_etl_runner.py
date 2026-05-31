@@ -5,7 +5,7 @@ from app.services.etl_runner import EtlRunner
 from app.services.task_store import TaskStore
 
 
-def test_run_task_updates_summary_after_success(tmp_path: Path) -> None:
+def test_run_task_updates_summary_after_success(tmp_path: Path, monkeypatch) -> None:
     store = TaskStore(tmp_path / "tasks")
     task = store.create_task(
         input_files={
@@ -16,6 +16,10 @@ def test_run_task_updates_summary_after_success(tmp_path: Path) -> None:
     )
     sample_input = Path("samples/event_voc_etl_sample/input")
     copytree(sample_input, store.input_dir(task["batch_id"]), dirs_exist_ok=True)
+    monkeypatch.setattr(
+        "app.services.etl_runner.load_etl_outputs",
+        lambda output_dir, batch_id, database_url: {"dwd_comment": 19},
+    )
 
     result = EtlRunner(store).run_task(task["batch_id"])
 
@@ -24,6 +28,7 @@ def test_run_task_updates_summary_after_success(tmp_path: Path) -> None:
     assert result["summary"]["dwd_content"] == 25
     assert result["summary"]["dwd_comment"] == 19
     assert result["summary"]["rejected_comment"] == 0
+    assert result["db_loaded"]["dwd_comment"] == 19
     assert (store.output_dir(task["batch_id"]) / "etl_summary.json").exists()
 
 

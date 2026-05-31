@@ -37,8 +37,12 @@ def test_template_download(tmp_path: Path) -> None:
     assert response.headers["content-disposition"].startswith("attachment;")
 
 
-def test_upload_run_and_preview_tables(tmp_path: Path) -> None:
+def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
+    monkeypatch.setattr(
+        "app.services.etl_runner.load_etl_outputs",
+        lambda output_dir, batch_id, database_url: {"dwd_comment": 19},
+    )
     sample_input = Path("samples/event_voc_etl_sample/input")
 
     with (
@@ -75,8 +79,12 @@ def test_upload_run_and_preview_tables(tmp_path: Path) -> None:
     assert len(payload["rows"]) == 5
 
 
-def test_upload_accepts_csv_files(tmp_path: Path) -> None:
+def test_upload_accepts_csv_files(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
+    monkeypatch.setattr(
+        "app.services.etl_runner.load_etl_outputs",
+        lambda output_dir, batch_id, database_url: {"dwd_comment": 19},
+    )
     sample_input = Path("samples/event_voc_etl_sample/input")
     csv_input = tmp_path / "csv_input"
     csv_input.mkdir()

@@ -5,6 +5,8 @@ from typing import Any
 
 from etl.event_voc_ods_etl import run_etl
 
+from app.config import DATABASE_URL
+from app.services.db_loader import load_etl_outputs
 from app.services.task_store import TaskStore, utc_now_iso
 
 
@@ -25,6 +27,11 @@ class EtlRunner:
                 input_dir=self.store.input_dir(batch_id),
                 output_dir=self.store.output_dir(batch_id),
             )
+            db_loaded = load_etl_outputs(
+                output_dir=self.store.output_dir(batch_id),
+                batch_id=batch_id,
+                database_url=DATABASE_URL,
+            )
         except Exception as exc:
             return self.store.update_task(
                 batch_id,
@@ -38,5 +45,6 @@ class EtlRunner:
             status="success",
             finished_at=utc_now_iso(),
             summary=summary,
+            db_loaded=db_loaded,
             error_message=None,
         )

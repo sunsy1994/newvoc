@@ -468,6 +468,38 @@ COMMENT ON COLUMN data_asset.ads_event_location_distribution.comment_cnt IS '评
 COMMENT ON COLUMN data_asset.ads_event_location_distribution.data_lineage_json IS '数据血缘。聚合ETL生成，记录来源表和公式说明。';
 COMMENT ON COLUMN data_asset.ads_event_location_distribution.updated_time IS 'ADS更新时间。聚合ETL生成。';
 
+CREATE TABLE IF NOT EXISTS data_asset.rejected_content (
+  batch_id     VARCHAR(64) NOT NULL,
+  row_no       INTEGER NOT NULL,
+  reason       TEXT,
+  payload_json JSONB,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (batch_id, row_no)
+);
+
+COMMENT ON TABLE data_asset.rejected_content IS '内容拒绝行表。记录标准化ETL未能进入 dwd_content 的原始行和原因。';
+COMMENT ON COLUMN data_asset.rejected_content.batch_id IS '导入批次ID。来自工作台任务批次。';
+COMMENT ON COLUMN data_asset.rejected_content.row_no IS '拒绝行序号。系统生成，从1开始。';
+COMMENT ON COLUMN data_asset.rejected_content.reason IS '拒绝原因。标准化ETL生成。';
+COMMENT ON COLUMN data_asset.rejected_content.payload_json IS '拒绝行原始数据JSON。系统生成，用于排错。';
+COMMENT ON COLUMN data_asset.rejected_content.created_time IS '记录创建时间。系统生成。';
+
+CREATE TABLE IF NOT EXISTS data_asset.rejected_comment (
+  batch_id     VARCHAR(64) NOT NULL,
+  row_no       INTEGER NOT NULL,
+  reason       TEXT,
+  payload_json JSONB,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (batch_id, row_no)
+);
+
+COMMENT ON TABLE data_asset.rejected_comment IS '评论拒绝行表。记录标准化ETL未能进入 dwd_comment 的原始行和原因。';
+COMMENT ON COLUMN data_asset.rejected_comment.batch_id IS '导入批次ID。来自工作台任务批次。';
+COMMENT ON COLUMN data_asset.rejected_comment.row_no IS '拒绝行序号。系统生成，从1开始。';
+COMMENT ON COLUMN data_asset.rejected_comment.reason IS '拒绝原因。标准化ETL生成。';
+COMMENT ON COLUMN data_asset.rejected_comment.payload_json IS '拒绝行原始数据JSON。系统生成，用于排错。';
+COMMENT ON COLUMN data_asset.rejected_comment.created_time IS '记录创建时间。系统生成。';
+
 -- =========================================================
 -- META：导入和计算任务元数据
 -- =========================================================

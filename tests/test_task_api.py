@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pandas as pd
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -72,3 +73,34 @@ def test_upload_run_and_preview_tables(tmp_path: Path) -> None:
     payload = table_response.json()
     assert "location" in payload["columns"]
     assert len(payload["rows"]) == 5
+
+
+def test_upload_accepts_csv_files(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    sample_input = Path("samples/event_voc_etl_sample/input")
+    csv_input = tmp_path / "csv_input"
+    csv_input.mkdir()
+    for name in ["event_upload", "content_upload", "comment_upload"]:
+        dataframe = pd.read_excel(sample_input / f"{name}.xlsx")
+        dataframe.to_csv(csv_input / f"{name}.csv", index=False, encoding="utf-8-sig")
+
+    with (
+        (csv_input / "event_upload.csv").open("rb") as event_file,
+        (csv_input / "content_upload.csv").open("rb") as content_file,
+        (csv_input / "comment_upload.csv").open("rb") as comment_file,
+    ):
+        upload_response = client.post(
+            "/api/tasks/upload",
+            files={
+                "event_file": ("event_upload.csv", event_file, "text/csv"),
+                "content_file": ("content_upload.csv", content_file, "text/csv"),
+                "comment_file": ("comment_upload.csv", comment_file, "text/csv"),
+            },
+        )
+
+    batch_id = upload_response.json()["batch_id"]
+    run_response = client.post(f"/api/tasks/{batch_id}/run")
+
+    assert run_response.status_code == 200
+    assert run_response.json()["status"] == "success"
+    assert run_response.json()["summary"]["dwd_comment"] == 19

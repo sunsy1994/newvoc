@@ -48,6 +48,11 @@ def get_store(request: Request) -> TaskStore:
     return request.app.state.task_store
 
 
+def upload_suffix(upload_file: UploadFile) -> str:
+    suffix = Path(upload_file.filename or "").suffix.lower()
+    return suffix if suffix in {".xlsx", ".csv"} else ".xlsx"
+
+
 def save_upload(upload_file: UploadFile, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("wb") as output:
@@ -75,9 +80,9 @@ def upload_task(
         }
     )
     input_dir = store.input_dir(task["batch_id"])
-    save_upload(event_file, input_dir / "event_upload.xlsx")
-    save_upload(content_file, input_dir / "content_upload.xlsx")
-    save_upload(comment_file, input_dir / "comment_upload.xlsx")
+    save_upload(event_file, input_dir / f"event_upload{upload_suffix(event_file)}")
+    save_upload(content_file, input_dir / f"content_upload{upload_suffix(content_file)}")
+    save_upload(comment_file, input_dir / f"comment_upload{upload_suffix(comment_file)}")
     return task
 
 

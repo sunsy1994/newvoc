@@ -41,7 +41,12 @@ def test_asset_library_ui_is_present() -> None:
     assert 'data-asset-key="contents"' in html
     assert 'data-asset-key="comments"' in html
     assert 'data-asset-key="authors"' in html
+    assert 'data-asset-key="kols"' in html
+    assert 'data-asset-key="comment_users"' in html
+    assert "KOL资产" in html
+    assert "评论用户资产" in html
     assert "/api/assets/" in script
+    assert "资产库加载失败" in script
 
 
 def test_asset_library_is_not_nested_inside_task_workbench() -> None:

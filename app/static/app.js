@@ -280,8 +280,14 @@ async function loadAsset(assetKey = currentAssetKey) {
   }
   const query = assetSearchInput.value.trim();
   const suffix = query ? `?q=${encodeURIComponent(query)}&limit=50` : "?limit=50";
-  const payload = await api(`/api/assets/${assetKey}${suffix}`);
-  renderAssetTable(payload);
+  try {
+    const payload = await api(`/api/assets/${assetKey}${suffix}`);
+    renderAssetTable(payload);
+  } catch (error) {
+    assetTitle.textContent = "资产库加载失败";
+    assetMeta.textContent = "请确认 PostgreSQL 已启动，且 DATABASE_URL 指向正确的本地数据库。";
+    assetTable.innerHTML = `<tbody><tr><td>${error.message}</td></tr></tbody>`;
+  }
 }
 
 for (const tab of assetTabs) {

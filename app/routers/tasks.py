@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from typing import Annotated
 
+import psycopg
 import pandas as pd
 from pydantic import BaseModel
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
@@ -86,6 +87,8 @@ def get_assets(asset_key: str, q: str | None = None, limit: int = 50, offset: in
         return list_assets(asset_key, q=q, limit=limit, offset=offset)
     except KeyError:
         raise HTTPException(status_code=404, detail="Asset not found")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 
 
 @router.get("/api/etl/flow")

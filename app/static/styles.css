@@ -116,7 +116,8 @@ h2 { margin-bottom: 0; font-size: 17px; }
 }
 
 .subnav-item,
-.asset-tab {
+.asset-tab,
+.competitor-tab {
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
@@ -125,7 +126,8 @@ h2 { margin-bottom: 0; font-size: 17px; }
 }
 
 .subnav-item.active,
-.asset-tab.active {
+.asset-tab.active,
+.competitor-tab.active {
   color: var(--accent-dark);
   border-bottom-color: var(--accent);
   background: #eef8f6;
@@ -135,8 +137,13 @@ h2 { margin-bottom: 0; font-size: 17px; }
   display: none;
 }
 
-.workbench-view.active {
+.workbench-view.active,
+.competitor-view.active {
   display: block;
+}
+
+.competitor-view {
+  display: none;
 }
 
 .top-actions a,
@@ -382,6 +389,30 @@ input, select {
 .asset-search input {
   width: 320px;
   margin-top: 0;
+}
+
+.competitor-work-head {
+  align-items: flex-start;
+}
+
+.competitor-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(130px, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+  width: min(100%, 980px);
+}
+
+.competitor-filters input,
+.competitor-filters select {
+  margin-top: 0;
+}
+
+.quick-ranges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -4px 0 12px;
 }
 
 table {

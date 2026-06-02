@@ -639,3 +639,87 @@ CREATE INDEX IF NOT EXISTS idx_dwd_comment_published_at ON data_asset.dwd_commen
 CREATE INDEX IF NOT EXISTS idx_rel_event_content_content_id ON data_asset.rel_event_content(content_id);
 CREATE INDEX IF NOT EXISTS idx_rel_author_content_content_id ON data_asset.rel_author_content(content_id);
 CREATE INDEX IF NOT EXISTS idx_ads_event_content_rank_event_type ON data_asset.ads_event_content_rank(event_id, rank_type);
+
+-- =========================================================
+-- COMPETITOR：竞品动态
+-- 说明：承接每周抖音竞品账号采集形成的账号表、作品底表和后续周报归档。
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS data_asset.competitor_account (
+  account_id       VARCHAR(128) PRIMARY KEY,
+  account_key      VARCHAR(128) NOT NULL UNIQUE,
+  account_name     VARCHAR(255) NOT NULL,
+  account_home_url TEXT,
+  account_type     VARCHAR(64),
+  is_official      BOOLEAN DEFAULT FALSE,
+  brand_name       VARCHAR(128),
+  is_enabled       BOOLEAN DEFAULT TRUE,
+  remark           TEXT,
+  created_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE data_asset.competitor_account IS '竞品账号表。来自用户维护的抖音竞品账号作者表，用于管理竞品官方号、经销商号等账号资产。';
+COMMENT ON COLUMN data_asset.competitor_account.account_id IS '竞品账号ID。系统根据账号主页URL或账号名称生成，主键。';
+COMMENT ON COLUMN data_asset.competitor_account.account_key IS '竞品账号自然键。用于去重和 upsert。';
+COMMENT ON COLUMN data_asset.competitor_account.account_name IS '账号名称。来自作者表。';
+COMMENT ON COLUMN data_asset.competitor_account.account_home_url IS '账号主页URL。来自作者表，优先用于账号去重。';
+COMMENT ON COLUMN data_asset.competitor_account.account_type IS '账号类型。来自作者表，如官方、经销商等。';
+COMMENT ON COLUMN data_asset.competitor_account.is_official IS '是否官方号。来自作者表。';
+COMMENT ON COLUMN data_asset.competitor_account.brand_name IS '品牌。来自作者表。';
+COMMENT ON COLUMN data_asset.competitor_account.is_enabled IS '是否启用采集。来自作者表。';
+COMMENT ON COLUMN data_asset.competitor_account.remark IS '备注。来自作者表。';
+
+CREATE TABLE IF NOT EXISTS data_asset.competitor_work (
+  work_id              VARCHAR(128) PRIMARY KEY,
+  work_key             VARCHAR(128) NOT NULL UNIQUE,
+  title                TEXT,
+  author_name          VARCHAR(255),
+  brand_name           VARCHAR(128),
+  account_type         VARCHAR(64),
+  is_official          BOOLEAN DEFAULT FALSE,
+  home_like_cnt        BIGINT DEFAULT 0,
+  interaction_like_cnt BIGINT DEFAULT 0,
+  comment_cnt          BIGINT DEFAULT 0,
+  favorite_cnt         BIGINT DEFAULT 0,
+  share_cnt            BIGINT DEFAULT 0,
+  published_at         TIMESTAMP,
+  is_pinned            BOOLEAN DEFAULT FALSE,
+  video_url            TEXT,
+  cover_url            TEXT,
+  topic_tags           TEXT,
+  source_file          TEXT,
+  first_seen_at        TIMESTAMP,
+  last_seen_at         TIMESTAMP,
+  run_id               VARCHAR(64),
+  created_time         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE data_asset.competitor_work IS '竞品作品底表。来自每周抖音竞品内容采集沉淀的大作品底表，用于按发布时间筛选竞品动态。';
+COMMENT ON COLUMN data_asset.competitor_work.work_id IS '作品ID。优先来自抖音作品ID，主键。';
+COMMENT ON COLUMN data_asset.competitor_work.work_key IS '作品自然键。用于去重和 upsert。';
+COMMENT ON COLUMN data_asset.competitor_work.title IS '作品标题或正文摘要。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.author_name IS '作者账号名称。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.brand_name IS '品牌。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.account_type IS '账号类型。来自作品底表，如官方、经销商等。';
+COMMENT ON COLUMN data_asset.competitor_work.is_official IS '是否官方号。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.home_like_cnt IS '首页点赞数。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.interaction_like_cnt IS '互动点赞数。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.comment_cnt IS '评论数。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.favorite_cnt IS '收藏数。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.share_cnt IS '分享数。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.published_at IS '发布时间。用于按一周、一个月或自定义日期范围筛选竞品动态。';
+COMMENT ON COLUMN data_asset.competitor_work.is_pinned IS '是否置顶。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.video_url IS '视频链接。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.cover_url IS '封面图URL。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.topic_tags IS '话题标签。来自作品底表。';
+COMMENT ON COLUMN data_asset.competitor_work.source_file IS '来源文件。来自采集脚本生成的中间文件名。';
+COMMENT ON COLUMN data_asset.competitor_work.first_seen_at IS '首次发现时间。表示系统第一次采集到该作品的时间。';
+COMMENT ON COLUMN data_asset.competitor_work.last_seen_at IS '最近更新时间。表示系统最近一次更新该作品互动数据的时间。';
+COMMENT ON COLUMN data_asset.competitor_work.run_id IS '采集运行ID。来自采集脚本。';
+
+CREATE INDEX IF NOT EXISTS idx_competitor_account_brand_type ON data_asset.competitor_account(brand_name, account_type);
+CREATE INDEX IF NOT EXISTS idx_competitor_work_brand_type ON data_asset.competitor_work(brand_name, account_type);
+CREATE INDEX IF NOT EXISTS idx_competitor_work_author ON data_asset.competitor_work(author_name);
+CREATE INDEX IF NOT EXISTS idx_competitor_work_published_at ON data_asset.competitor_work(published_at);

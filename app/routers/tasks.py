@@ -12,6 +12,11 @@ from fastapi.responses import FileResponse
 
 from app.config import TEMPLATE_DIR
 from app.services.asset_library import list_assets
+from app.services.competitor_library import (
+    get_competitor_options,
+    list_competitor_accounts,
+    list_competitor_works,
+)
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
 from app.services.script_manager import ScriptManager
@@ -87,6 +92,48 @@ def get_assets(asset_key: str, q: str | None = None, limit: int = 50, offset: in
         return list_assets(asset_key, q=q, limit=limit, offset=offset)
     except KeyError:
         raise HTTPException(status_code=404, detail="Asset not found")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/competitors/accounts")
+def get_competitor_accounts(q: str | None = None, limit: int = 50, offset: int = 0) -> dict:
+    try:
+        return list_competitor_accounts(q=q, limit=limit, offset=offset)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/competitors/works")
+def get_competitor_works(
+    q: str | None = None,
+    brand_name: str | None = None,
+    account_name: str | None = None,
+    account_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    try:
+        return list_competitor_works(
+            q=q,
+            brand_name=brand_name,
+            account_name=account_name,
+            account_type=account_type,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+        )
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/competitors/options")
+def get_competitor_filter_options() -> dict:
+    try:
+        return get_competitor_options()
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 

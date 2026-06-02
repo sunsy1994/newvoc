@@ -104,6 +104,34 @@ def test_asset_api_returns_business_assets(tmp_path: Path, monkeypatch) -> None:
     assert response.json()["rows"][0]["event_name"] == "上市事件"
 
 
+def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_list_competitor_works(**kwargs):
+        captured.update(kwargs)
+        return {
+            "asset": "competitor_works",
+            "label": "竞品作品库",
+            "total": 0,
+            "columns": [],
+            "rows": [],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_competitor_works", fake_list_competitor_works)
+
+    response = client.get(
+        "/api/competitors/works?q=途观&brand_name=上汽大众&account_type=经销商&start_date=2026-05-01&end_date=2026-05-31"
+    )
+
+    assert response.status_code == 200
+    assert captured["q"] == "途观"
+    assert captured["brand_name"] == "上汽大众"
+    assert captured["account_type"] == "经销商"
+    assert captured["start_date"] == "2026-05-01"
+    assert captured["end_date"] == "2026-05-31"
+
+
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     monkeypatch.setattr(

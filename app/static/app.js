@@ -25,6 +25,22 @@ const assetMeta = document.querySelector("#asset-meta");
 const assetTable = document.querySelector("#asset-table");
 const assetSearchForm = document.querySelector("#asset-search-form");
 const assetSearchInput = document.querySelector("#asset-search-input");
+const competitorTabs = document.querySelectorAll(".competitor-tab");
+const competitorViews = document.querySelectorAll(".competitor-view");
+const competitorAccountTitle = document.querySelector("#competitor-account-title");
+const competitorAccountMeta = document.querySelector("#competitor-account-meta");
+const competitorAccountTable = document.querySelector("#competitor-account-table");
+const competitorAccountSearchForm = document.querySelector("#competitor-account-search-form");
+const competitorAccountSearchInput = document.querySelector("#competitor-account-search-input");
+const competitorWorkTitle = document.querySelector("#competitor-work-title");
+const competitorWorkMeta = document.querySelector("#competitor-work-meta");
+const competitorWorkTable = document.querySelector("#competitor-work-table");
+const competitorWorkFilterForm = document.querySelector("#competitor-work-filter-form");
+const competitorWorkSearchInput = document.querySelector("#competitor-work-search-input");
+const competitorBrandFilter = document.querySelector("#competitor-brand-filter");
+const competitorAccountTypeFilter = document.querySelector("#competitor-account-type-filter");
+const competitorStartDate = document.querySelector("#competitor-start-date");
+const competitorEndDate = document.querySelector("#competitor-end-date");
 let currentAssetKey = "events";
 
 async function api(path, options = {}) {
@@ -181,6 +197,11 @@ function activateMainView(viewId) {
   if (viewId === "asset-library-view") {
     loadAsset(currentAssetKey);
   }
+  if (viewId === "competitor-activity-view") {
+    loadCompetitorAccounts();
+    loadCompetitorOptions();
+    loadCompetitorWorks();
+  }
 }
 
 for (const item of mainNavItems) {
@@ -298,6 +319,117 @@ assetSearchForm.addEventListener("submit", (event) => {
   event.preventDefault();
   loadAsset(currentAssetKey);
 });
+
+function renderBusinessTable(table, payload) {
+  const head = `<thead><tr>${payload.columns.map(column => `<th>${column.label}</th>`).join("")}</tr></thead>`;
+  const rows = payload.rows.map(row => `
+    <tr>${payload.columns.map(column => {
+      const value = row[column.key] ?? "";
+      if (column.key.endsWith("_url") || column.key === "video_url") {
+        return `<td>${value ? `<a href="${value}" target="_blank" rel="noreferrer">打开链接</a>` : ""}</td>`;
+      }
+      return `<td>${value}</td>`;
+    }).join("")}</tr>
+  `).join("");
+  table.innerHTML = `${head}<tbody>${rows}</tbody>`;
+}
+
+function activateCompetitorView(viewId) {
+  for (const view of competitorViews) {
+    view.classList.toggle("active", view.id === viewId);
+  }
+  for (const tab of competitorTabs) {
+    tab.classList.toggle("active", tab.dataset.competitorTarget === viewId);
+  }
+  if (viewId === "competitor-accounts-view") {
+    loadCompetitorAccounts();
+  }
+  if (viewId === "competitor-works-view") {
+    loadCompetitorOptions();
+    loadCompetitorWorks();
+  }
+}
+
+for (const tab of competitorTabs) {
+  tab.addEventListener("click", () => activateCompetitorView(tab.dataset.competitorTarget));
+}
+
+async function loadCompetitorAccounts() {
+  const query = competitorAccountSearchInput.value.trim();
+  const suffix = query ? `?q=${encodeURIComponent(query)}&limit=50` : "?limit=50";
+  try {
+    const payload = await api(`/api/competitors/accounts${suffix}`);
+    competitorAccountTitle.textContent = payload.label;
+    competitorAccountMeta.textContent = `${payload.total} 个账号，当前预览前 50 个`;
+    renderBusinessTable(competitorAccountTable, payload);
+  } catch (error) {
+    competitorAccountTitle.textContent = "竞品账号库加载失败";
+    competitorAccountMeta.textContent = "请确认 PostgreSQL 已启动，且竞品账号表已入库。";
+    competitorAccountTable.innerHTML = `<tbody><tr><td>${error.message}</td></tr></tbody>`;
+  }
+}
+
+async function loadCompetitorOptions() {
+  try {
+    const payload = await api("/api/competitors/options");
+    const currentBrand = competitorBrandFilter.value;
+    const currentType = competitorAccountTypeFilter.value;
+    competitorBrandFilter.innerHTML = '<option value="">全部品牌</option>' +
+      payload.brands.map(item => `<option value="${item}">${item}</option>`).join("");
+    competitorAccountTypeFilter.innerHTML = '<option value="">全部账号类型</option>' +
+      payload.account_types.map(item => `<option value="${item}">${item}</option>`).join("");
+    competitorBrandFilter.value = currentBrand;
+    competitorAccountTypeFilter.value = currentType;
+  } catch {
+    // 过滤项加载失败不阻断作品库主体展示。
+  }
+}
+
+async function loadCompetitorWorks() {
+  const params = new URLSearchParams({ limit: "50" });
+  if (competitorWorkSearchInput.value.trim()) params.set("q", competitorWorkSearchInput.value.trim());
+  if (competitorBrandFilter.value) params.set("brand_name", competitorBrandFilter.value);
+  if (competitorAccountTypeFilter.value) params.set("account_type", competitorAccountTypeFilter.value);
+  if (competitorStartDate.value) params.set("start_date", competitorStartDate.value);
+  if (competitorEndDate.value) params.set("end_date", competitorEndDate.value);
+  try {
+    const payload = await api(`/api/competitors/works?${params.toString()}`);
+    competitorWorkTitle.textContent = payload.label;
+    competitorWorkMeta.textContent = `${payload.total} 条作品，当前预览前 50 条`;
+    renderBusinessTable(competitorWorkTable, payload);
+  } catch (error) {
+    competitorWorkTitle.textContent = "竞品作品库加载失败";
+    competitorWorkMeta.textContent = "请确认 PostgreSQL 已启动，且竞品作品表已入库。";
+    competitorWorkTable.innerHTML = `<tbody><tr><td>${error.message}</td></tr></tbody>`;
+  }
+}
+
+competitorAccountSearchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadCompetitorAccounts();
+});
+
+competitorWorkFilterForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadCompetitorWorks();
+});
+
+for (const button of document.querySelectorAll(".competitor-range")) {
+  button.addEventListener("click", () => {
+    const days = Number(button.dataset.days || 0);
+    if (!days) {
+      competitorStartDate.value = "";
+      competitorEndDate.value = "";
+    } else {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - days + 1);
+      competitorStartDate.value = start.toISOString().slice(0, 10);
+      competitorEndDate.value = end.toISOString().slice(0, 10);
+    }
+    loadCompetitorWorks();
+  });
+}
 
 async function boot() {
   await loadTasks();

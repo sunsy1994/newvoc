@@ -49,6 +49,19 @@ def test_asset_library_ui_is_present() -> None:
     assert "资产库加载失败" in script
 
 
+def test_competitor_activity_ui_is_present() -> None:
+    html = Path("app/static/index.html").read_text(encoding="utf-8")
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+
+    assert 'data-main-target="competitor-activity-view"' in html
+    assert "竞品动态" in html
+    assert 'data-competitor-target="competitor-accounts-view"' in html
+    assert 'data-competitor-target="competitor-works-view"' in html
+    assert 'id="competitor-start-date"' in html
+    assert 'id="competitor-end-date"' in html
+    assert "/api/competitors/works" in script
+
+
 def test_asset_library_is_not_nested_inside_task_workbench() -> None:
     html = Path("app/static/index.html").read_text(encoding="utf-8")
     task_start = html.index('id="task-workbench-view"')

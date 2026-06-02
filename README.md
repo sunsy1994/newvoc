@@ -60,6 +60,26 @@ http://127.0.0.1:8000/
 
 数据来自 PostgreSQL 的 `data_asset` schema，主要使用 DWD/ADS 层结果。
 
+## 竞品动态
+
+一级菜单「竞品动态」用于承接抖音竞品账号采集形成的账号表和历史作品底表。
+
+当前包含：
+
+- 竞品账号库：展示账号名称、品牌、账号类型、是否官方号、是否启用、账号主页和备注。
+- 竞品作品库：展示历史作品，并支持按发布时间选择一周、一个月、几天或自定义日期范围。
+
+竞品 Excel 入库：
+
+```bash
+python -m app.services.competitor_library load --accounts "accounts (2).xlsx" --works "works_base (7).xlsx"
+```
+
+数据会写入 PostgreSQL 的：
+
+- `data_asset.competitor_account`
+- `data_asset.competitor_work`
+
 ## PostgreSQL 落库
 
 默认连接本地 PostgreSQL：

@@ -18,6 +18,7 @@
     <nav>
       <button class="main-nav-item active" type="button" data-main-target="task-workbench-view">任务管理</button>
       <button class="main-nav-item" type="button" data-main-target="asset-library-view">资产库</button>
+      <button class="main-nav-item" type="button" data-main-target="competitor-activity-view">竞品动态</button>
     </nav>
   </aside>
 
@@ -152,6 +153,70 @@
         <div class="table-wrap">
           <table id="asset-table"></table>
         </div>
+      </section>
+    </section>
+
+    <section class="main-view" id="competitor-activity-view">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">阶段 3 / 竞品内容情报</p>
+          <h1>竞品动态</h1>
+        </div>
+      </header>
+
+      <nav class="subnav" aria-label="竞品动态子菜单">
+        <button class="competitor-tab active" type="button" data-competitor-target="competitor-accounts-view">竞品账号库</button>
+        <button class="competitor-tab" type="button" data-competitor-target="competitor-works-view">竞品作品库</button>
+      </nav>
+
+      <section class="competitor-view active" id="competitor-accounts-view">
+        <section class="panel asset-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="competitor-account-title">竞品账号库</h2>
+              <p id="competitor-account-meta">展示已维护的抖音竞品账号资产。</p>
+            </div>
+            <form id="competitor-account-search-form" class="asset-search">
+              <input id="competitor-account-search-input" type="search" placeholder="搜索品牌、账号、账号类型">
+              <button type="submit">搜索</button>
+            </form>
+          </div>
+          <div class="table-wrap">
+            <table id="competitor-account-table"></table>
+          </div>
+        </section>
+      </section>
+
+      <section class="competitor-view" id="competitor-works-view">
+        <section class="panel asset-panel">
+          <div class="panel-head competitor-work-head">
+            <div>
+              <h2 id="competitor-work-title">竞品作品库</h2>
+              <p id="competitor-work-meta">按发布时间筛选历史竞品作品。</p>
+            </div>
+            <form id="competitor-work-filter-form" class="competitor-filters">
+              <input id="competitor-work-search-input" type="search" placeholder="搜索标题、作者、话题">
+              <select id="competitor-brand-filter">
+                <option value="">全部品牌</option>
+              </select>
+              <select id="competitor-account-type-filter">
+                <option value="">全部账号类型</option>
+              </select>
+              <input id="competitor-start-date" type="date" aria-label="开始日期">
+              <input id="competitor-end-date" type="date" aria-label="结束日期">
+              <button type="submit">筛选</button>
+            </form>
+          </div>
+          <div class="quick-ranges" aria-label="快捷时间范围">
+            <button class="ghost competitor-range" type="button" data-days="7">近7天</button>
+            <button class="ghost competitor-range" type="button" data-days="30">近30天</button>
+            <button class="ghost competitor-range" type="button" data-days="90">近90天</button>
+            <button class="ghost competitor-range" type="button" data-days="">全部</button>
+          </div>
+          <div class="table-wrap">
+            <table id="competitor-work-table"></table>
+          </div>
+        </section>
       </section>
     </section>
   </main>

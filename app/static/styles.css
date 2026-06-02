@@ -280,6 +280,7 @@ input, select {
   align-items: center;
   gap: 14px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .table-toolbar select {
@@ -413,6 +414,20 @@ input, select {
   gap: 8px;
   flex-wrap: wrap;
   margin: -4px 0 12px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pager button {
+  min-width: 76px;
 }
 
 table {

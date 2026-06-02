@@ -201,11 +201,18 @@ def build_like_pattern(query: str) -> str:
     return f"%{text}%"
 
 
-def list_assets(asset_key: str, q: str | None = None, limit: int = 50, offset: int = 0, database_url: str = DATABASE_URL) -> dict[str, Any]:
+def list_assets(
+    asset_key: str,
+    q: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    database_url: str = DATABASE_URL,
+    max_limit: int = 200,
+) -> dict[str, Any]:
     if asset_key not in ASSET_DEFINITIONS:
         raise KeyError(asset_key)
     definition = ASSET_DEFINITIONS[asset_key]
-    limit = max(1, min(limit, 200))
+    limit = max(1, min(limit, max_limit))
     offset = max(0, offset)
     where_clauses = []
     params: list[Any] = []

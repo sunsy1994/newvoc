@@ -279,8 +279,9 @@ def list_competitor_accounts(
     limit: int = 50,
     offset: int = 0,
     database_url: str = DATABASE_URL,
+    max_limit: int = 200,
 ) -> dict[str, Any]:
-    limit = max(1, min(limit, 200))
+    limit = max(1, min(limit, max_limit))
     offset = max(0, offset)
     where_sql = ""
     params: list[Any] = []
@@ -316,8 +317,9 @@ def list_competitor_works(
     limit: int = 50,
     offset: int = 0,
     database_url: str = DATABASE_URL,
+    max_limit: int = 200,
 ) -> dict[str, Any]:
-    limit = max(1, min(limit, 200))
+    limit = max(1, min(limit, max_limit))
     offset = max(0, offset)
     where_sql, params = build_work_filters(q, brand_name, account_name, account_type, start_date, end_date)
     with psycopg.connect(database_url, row_factory=dict_row) as conn:

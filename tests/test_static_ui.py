@@ -62,6 +62,26 @@ def test_competitor_activity_ui_is_present() -> None:
     assert "/api/competitors/works" in script
 
 
+def test_tables_have_pagination_and_export_controls() -> None:
+    html = Path("app/static/index.html").read_text(encoding="utf-8")
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+
+    for element_id in [
+        "table-pager",
+        "asset-pager",
+        "competitor-account-pager",
+        "competitor-work-pager",
+        "export-table",
+        "export-asset",
+        "export-competitor-accounts",
+        "export-competitor-works",
+    ]:
+        assert f'id="{element_id}"' in html
+
+    assert "renderPager" in script
+    assert "/export" in script
+
+
 def test_asset_library_is_not_nested_inside_task_workbench() -> None:
     html = Path("app/static/index.html").read_text(encoding="utf-8")
     task_start = html.index('id="task-workbench-view"')

@@ -7,6 +7,8 @@ const summaryBox = document.querySelector("#summary");
 const tableSelect = document.querySelector("#table-select");
 const tableMeta = document.querySelector("#table-meta");
 const dataTable = document.querySelector("#data-table");
+const tablePager = document.querySelector("#table-pager");
+const exportTableButton = document.querySelector("#export-table");
 const errorBox = document.querySelector("#error-box");
 const uploadMessage = document.querySelector("#upload-message");
 const flowList = document.querySelector("#flow-list");
@@ -25,6 +27,8 @@ const assetMeta = document.querySelector("#asset-meta");
 const assetTable = document.querySelector("#asset-table");
 const assetSearchForm = document.querySelector("#asset-search-form");
 const assetSearchInput = document.querySelector("#asset-search-input");
+const assetPager = document.querySelector("#asset-pager");
+const exportAssetButton = document.querySelector("#export-asset");
 const competitorTabs = document.querySelectorAll(".competitor-tab");
 const competitorViews = document.querySelectorAll(".competitor-view");
 const competitorAccountTitle = document.querySelector("#competitor-account-title");
@@ -32,6 +36,8 @@ const competitorAccountMeta = document.querySelector("#competitor-account-meta")
 const competitorAccountTable = document.querySelector("#competitor-account-table");
 const competitorAccountSearchForm = document.querySelector("#competitor-account-search-form");
 const competitorAccountSearchInput = document.querySelector("#competitor-account-search-input");
+const competitorAccountPager = document.querySelector("#competitor-account-pager");
+const exportCompetitorAccountsButton = document.querySelector("#export-competitor-accounts");
 const competitorWorkTitle = document.querySelector("#competitor-work-title");
 const competitorWorkMeta = document.querySelector("#competitor-work-meta");
 const competitorWorkTable = document.querySelector("#competitor-work-table");
@@ -41,7 +47,14 @@ const competitorBrandFilter = document.querySelector("#competitor-brand-filter")
 const competitorAccountTypeFilter = document.querySelector("#competitor-account-type-filter");
 const competitorStartDate = document.querySelector("#competitor-start-date");
 const competitorEndDate = document.querySelector("#competitor-end-date");
+const competitorWorkPager = document.querySelector("#competitor-work-pager");
+const exportCompetitorWorksButton = document.querySelector("#export-competitor-works");
 let currentAssetKey = "events";
+const pageSize = 50;
+const tableState = { offset: 0, total: 0 };
+const assetState = { offset: 0, total: 0 };
+const competitorAccountState = { offset: 0, total: 0 };
+const competitorWorkState = { offset: 0, total: 0 };
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -50,6 +63,32 @@ async function api(path, options = {}) {
     throw new Error(detail || `HTTP ${response.status}`);
   }
   return response.json();
+}
+
+function renderPager(container, state, onPageChange) {
+  const totalPages = Math.max(1, Math.ceil(state.total / pageSize));
+  const currentPage = Math.floor(state.offset / pageSize) + 1;
+  const canPrev = state.offset > 0;
+  const canNext = state.offset + pageSize < state.total;
+  container.innerHTML = `
+    <button class="ghost pager-prev" type="button" ${canPrev ? "" : "disabled"}>上一页</button>
+    <span>第 ${currentPage} / ${totalPages} 页，共 ${state.total} 条</span>
+    <button class="ghost pager-next" type="button" ${canNext ? "" : "disabled"}>下一页</button>
+  `;
+  container.querySelector(".pager-prev").addEventListener("click", () => {
+    if (!canPrev) return;
+    state.offset = Math.max(0, state.offset - pageSize);
+    onPageChange();
+  });
+  container.querySelector(".pager-next").addEventListener("click", () => {
+    if (!canNext) return;
+    state.offset += pageSize;
+    onPageChange();
+  });
+}
+
+function downloadExcel(path) {
+  window.location.href = path;
 }
 
 function statusLabel(status) {
@@ -121,6 +160,8 @@ async function loadTables(batchId) {
   tableSelect.innerHTML = "";
   dataTable.innerHTML = "";
   tableMeta.textContent = "";
+  tablePager.innerHTML = "";
+  exportTableButton.disabled = true;
   try {
     const payload = await api(`/api/tasks/${batchId}/tables`);
     for (const table of payload.tables) {
@@ -130,6 +171,7 @@ async function loadTables(batchId) {
       tableSelect.appendChild(option);
     }
     if (payload.tables.length) {
+      tableState.offset = 0;
       await loadTable(batchId, payload.tables[0]);
     }
   } catch {
@@ -139,13 +181,18 @@ async function loadTables(batchId) {
 
 async function loadTable(batchId, tableName) {
   if (!tableName) return;
-  const payload = await api(`/api/tasks/${batchId}/tables/${tableName}?limit=50`);
-  tableMeta.textContent = `${payload.total} 行，当前预览前 50 行`;
+  const payload = await api(`/api/tasks/${batchId}/tables/${tableName}?limit=${pageSize}&offset=${tableState.offset}`);
+  tableState.total = payload.total;
+  const startRow = payload.total ? tableState.offset + 1 : 0;
+  const endRow = Math.min(tableState.offset + pageSize, payload.total);
+  tableMeta.textContent = `${payload.total} 行，当前显示 ${startRow}-${endRow} 行`;
+  exportTableButton.disabled = false;
   const head = `<thead><tr>${payload.columns.map(column => `<th>${column}</th>`).join("")}</tr></thead>`;
   const rows = payload.rows.map(row => `
     <tr>${payload.columns.map(column => `<td>${row[column] ?? ""}</td>`).join("")}</tr>
   `).join("");
   dataTable.innerHTML = `${head}<tbody>${rows}</tbody>`;
+  renderPager(tablePager, tableState, () => loadTable(batchId, tableName));
 }
 
 document.querySelector("#upload-form").addEventListener("submit", async (event) => {
@@ -173,7 +220,13 @@ runButton.addEventListener("click", async () => {
 });
 
 tableSelect.addEventListener("change", () => {
+  tableState.offset = 0;
   loadTable(selectedBatchId, tableSelect.value);
+});
+
+exportTableButton.addEventListener("click", () => {
+  if (!selectedBatchId || !tableSelect.value) return;
+  downloadExcel(`/api/tasks/${selectedBatchId}/tables/${tableSelect.value}/export`);
 });
 
 document.querySelector("#refresh-tasks").addEventListener("click", loadTasks);
@@ -280,18 +333,12 @@ document.querySelector("#test-script").addEventListener("click", async () => {
 
 function renderAssetTable(payload) {
   assetTitle.textContent = payload.label;
-  assetMeta.textContent = `${payload.total} 条资产，当前预览前 50 条`;
-  const head = `<thead><tr>${payload.columns.map(column => `<th>${column.label}</th>`).join("")}</tr></thead>`;
-  const rows = payload.rows.map(row => `
-    <tr>${payload.columns.map(column => {
-      const value = row[column.key] ?? "";
-      if (column.key.endsWith("_url") || column.key === "source_url") {
-        return `<td>${value ? `<a href="${value}" target="_blank" rel="noreferrer">打开链接</a>` : ""}</td>`;
-      }
-      return `<td>${value}</td>`;
-    }).join("")}</tr>
-  `).join("");
-  assetTable.innerHTML = `${head}<tbody>${rows}</tbody>`;
+  assetState.total = payload.total;
+  const startRow = payload.total ? assetState.offset + 1 : 0;
+  const endRow = Math.min(assetState.offset + pageSize, payload.total);
+  assetMeta.textContent = `${payload.total} 条资产，当前显示 ${startRow}-${endRow} 条`;
+  renderBusinessTable(assetTable, payload);
+  renderPager(assetPager, assetState, () => loadAsset(currentAssetKey));
 }
 
 async function loadAsset(assetKey = currentAssetKey) {
@@ -299,10 +346,10 @@ async function loadAsset(assetKey = currentAssetKey) {
   for (const tab of assetTabs) {
     tab.classList.toggle("active", tab.dataset.assetKey === assetKey);
   }
-  const query = assetSearchInput.value.trim();
-  const suffix = query ? `?q=${encodeURIComponent(query)}&limit=50` : "?limit=50";
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(assetState.offset) });
+  if (assetSearchInput.value.trim()) params.set("q", assetSearchInput.value.trim());
   try {
-    const payload = await api(`/api/assets/${assetKey}${suffix}`);
+    const payload = await api(`/api/assets/${assetKey}?${params.toString()}`);
     renderAssetTable(payload);
   } catch (error) {
     assetTitle.textContent = "资产库加载失败";
@@ -312,12 +359,23 @@ async function loadAsset(assetKey = currentAssetKey) {
 }
 
 for (const tab of assetTabs) {
-  tab.addEventListener("click", () => loadAsset(tab.dataset.assetKey));
+  tab.addEventListener("click", () => {
+    assetState.offset = 0;
+    loadAsset(tab.dataset.assetKey);
+  });
 }
 
 assetSearchForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  assetState.offset = 0;
   loadAsset(currentAssetKey);
+});
+
+exportAssetButton.addEventListener("click", () => {
+  const params = new URLSearchParams();
+  if (assetSearchInput.value.trim()) params.set("q", assetSearchInput.value.trim());
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  downloadExcel(`/api/assets/${currentAssetKey}/export${suffix}`);
 });
 
 function renderBusinessTable(table, payload) {
@@ -355,13 +413,17 @@ for (const tab of competitorTabs) {
 }
 
 async function loadCompetitorAccounts() {
-  const query = competitorAccountSearchInput.value.trim();
-  const suffix = query ? `?q=${encodeURIComponent(query)}&limit=50` : "?limit=50";
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(competitorAccountState.offset) });
+  if (competitorAccountSearchInput.value.trim()) params.set("q", competitorAccountSearchInput.value.trim());
   try {
-    const payload = await api(`/api/competitors/accounts${suffix}`);
+    const payload = await api(`/api/competitors/accounts?${params.toString()}`);
+    competitorAccountState.total = payload.total;
+    const startRow = payload.total ? competitorAccountState.offset + 1 : 0;
+    const endRow = Math.min(competitorAccountState.offset + pageSize, payload.total);
     competitorAccountTitle.textContent = payload.label;
-    competitorAccountMeta.textContent = `${payload.total} 个账号，当前预览前 50 个`;
+    competitorAccountMeta.textContent = `${payload.total} 个账号，当前显示 ${startRow}-${endRow} 个`;
     renderBusinessTable(competitorAccountTable, payload);
+    renderPager(competitorAccountPager, competitorAccountState, loadCompetitorAccounts);
   } catch (error) {
     competitorAccountTitle.textContent = "竞品账号库加载失败";
     competitorAccountMeta.textContent = "请确认 PostgreSQL 已启动，且竞品账号表已入库。";
@@ -386,7 +448,7 @@ async function loadCompetitorOptions() {
 }
 
 async function loadCompetitorWorks() {
-  const params = new URLSearchParams({ limit: "50" });
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(competitorWorkState.offset) });
   if (competitorWorkSearchInput.value.trim()) params.set("q", competitorWorkSearchInput.value.trim());
   if (competitorBrandFilter.value) params.set("brand_name", competitorBrandFilter.value);
   if (competitorAccountTypeFilter.value) params.set("account_type", competitorAccountTypeFilter.value);
@@ -394,9 +456,13 @@ async function loadCompetitorWorks() {
   if (competitorEndDate.value) params.set("end_date", competitorEndDate.value);
   try {
     const payload = await api(`/api/competitors/works?${params.toString()}`);
+    competitorWorkState.total = payload.total;
+    const startRow = payload.total ? competitorWorkState.offset + 1 : 0;
+    const endRow = Math.min(competitorWorkState.offset + pageSize, payload.total);
     competitorWorkTitle.textContent = payload.label;
-    competitorWorkMeta.textContent = `${payload.total} 条作品，当前预览前 50 条`;
+    competitorWorkMeta.textContent = `${payload.total} 条作品，当前显示 ${startRow}-${endRow} 条`;
     renderBusinessTable(competitorWorkTable, payload);
+    renderPager(competitorWorkPager, competitorWorkState, loadCompetitorWorks);
   } catch (error) {
     competitorWorkTitle.textContent = "竞品作品库加载失败";
     competitorWorkMeta.textContent = "请确认 PostgreSQL 已启动，且竞品作品表已入库。";
@@ -406,12 +472,32 @@ async function loadCompetitorWorks() {
 
 competitorAccountSearchForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  competitorAccountState.offset = 0;
   loadCompetitorAccounts();
 });
 
 competitorWorkFilterForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  competitorWorkState.offset = 0;
   loadCompetitorWorks();
+});
+
+exportCompetitorAccountsButton.addEventListener("click", () => {
+  const params = new URLSearchParams();
+  if (competitorAccountSearchInput.value.trim()) params.set("q", competitorAccountSearchInput.value.trim());
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  downloadExcel(`/api/competitors/accounts/export${suffix}`);
+});
+
+exportCompetitorWorksButton.addEventListener("click", () => {
+  const params = new URLSearchParams();
+  if (competitorWorkSearchInput.value.trim()) params.set("q", competitorWorkSearchInput.value.trim());
+  if (competitorBrandFilter.value) params.set("brand_name", competitorBrandFilter.value);
+  if (competitorAccountTypeFilter.value) params.set("account_type", competitorAccountTypeFilter.value);
+  if (competitorStartDate.value) params.set("start_date", competitorStartDate.value);
+  if (competitorEndDate.value) params.set("end_date", competitorEndDate.value);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  downloadExcel(`/api/competitors/works/export${suffix}`);
 });
 
 for (const button of document.querySelectorAll(".competitor-range")) {
@@ -427,6 +513,7 @@ for (const button of document.querySelectorAll(".competitor-range")) {
       competitorStartDate.value = start.toISOString().slice(0, 10);
       competitorEndDate.value = end.toISOString().slice(0, 10);
     }
+    competitorWorkState.offset = 0;
     loadCompetitorWorks();
   });
 }

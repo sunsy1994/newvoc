@@ -132,6 +132,75 @@ def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monke
     assert captured["end_date"] == "2026-05-31"
 
 
+def test_asset_export_returns_excel_file(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_list_assets(asset_key, q=None, limit=50, offset=0, max_limit=200):
+        return {
+            "asset": asset_key,
+            "label": "事件资产",
+            "total": 1,
+            "columns": [{"key": "event_name", "label": "事件名称"}],
+            "rows": [{"event_name": "上市事件"}],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_assets", fake_list_assets)
+
+    response = client.get("/api/assets/events/export?q=上市")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    assert "attachment;" in response.headers["content-disposition"]
+    assert response.content.startswith(b"PK")
+
+
+def test_competitor_work_export_passes_current_filters(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_list_competitor_works(**kwargs):
+        captured.update(kwargs)
+        return {
+            "asset": "competitor_works",
+            "label": "竞品作品库",
+            "total": 1,
+            "columns": [{"key": "title", "label": "标题"}],
+            "rows": [{"title": "本周新增"}],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_competitor_works", fake_list_competitor_works)
+
+    response = client.get(
+        "/api/competitors/works/export?q=途观&brand_name=上汽大众&account_type=经销商&start_date=2026-05-01&end_date=2026-05-31"
+    )
+
+    assert response.status_code == 200
+    assert captured["q"] == "途观"
+    assert captured["brand_name"] == "上汽大众"
+    assert captured["account_type"] == "经销商"
+    assert captured["start_date"] == "2026-05-01"
+    assert captured["end_date"] == "2026-05-31"
+    assert captured["limit"] > 1000
+    assert response.content.startswith(b"PK")
+
+
+def test_task_table_export_returns_excel_file(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    task = client.app.state.task_store.create_task(input_files={})
+    output_dir = client.app.state.task_store.output_dir(task["batch_id"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame([{"comment_id": "c1", "location": "北京"}]).to_csv(
+        output_dir / "dwd_comment.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    response = client.get(f"/api/tasks/{task['batch_id']}/tables/dwd_comment/export")
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+
+
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     monkeypatch.setattr(

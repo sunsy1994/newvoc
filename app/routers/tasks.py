@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from io import BytesIO
 import shutil
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 
 import psycopg
 import pandas as pd
 from pydantic import BaseModel
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 
 from app.config import TEMPLATE_DIR
 from app.services.asset_library import list_assets
@@ -53,6 +56,8 @@ ALLOWED_TEMPLATES = {
 
 router = APIRouter()
 
+EXPORT_LIMIT = 100_000
+
 
 class ScriptSaveRequest(BaseModel):
     content: str
@@ -81,9 +86,44 @@ def save_upload(upload_file: UploadFile, target: Path) -> None:
         shutil.copyfileobj(upload_file.file, output)
 
 
+def excel_response(dataframe: pd.DataFrame, filename: str) -> StreamingResponse:
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        dataframe.to_excel(writer, sheet_name="data", index=False)
+    buffer.seek(0)
+    encoded_filename = quote(filename)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
+    )
+
+
+def payload_to_dataframe(payload: dict) -> pd.DataFrame:
+    column_labels = {column["key"]: column["label"] for column in payload.get("columns", [])}
+    rows = payload.get("rows", [])
+    dataframe = pd.DataFrame(rows)
+    if dataframe.empty:
+        return pd.DataFrame(columns=list(column_labels.values()))
+    ordered_keys = [column["key"] for column in payload.get("columns", []) if column["key"] in dataframe.columns]
+    dataframe = dataframe[ordered_keys]
+    return dataframe.rename(columns=column_labels)
+
+
 @router.get("/api/tasks")
 def list_tasks(request: Request) -> list[dict]:
     return get_store(request).list_tasks()
+
+
+@router.get("/api/assets/{asset_key}/export")
+def export_assets(asset_key: str, q: str | None = None) -> StreamingResponse:
+    try:
+        payload = list_assets(asset_key, q=q, limit=EXPORT_LIMIT, offset=0, max_limit=EXPORT_LIMIT)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    return excel_response(payload_to_dataframe(payload), f"{payload['label']}.xlsx")
 
 
 @router.get("/api/assets/{asset_key}")
@@ -96,12 +136,47 @@ def get_assets(asset_key: str, q: str | None = None, limit: int = 50, offset: in
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 
 
+@router.get("/api/competitors/accounts/export")
+def export_competitor_accounts(q: str | None = None) -> StreamingResponse:
+    try:
+        payload = list_competitor_accounts(q=q, limit=EXPORT_LIMIT, offset=0, max_limit=EXPORT_LIMIT)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    return excel_response(payload_to_dataframe(payload), "竞品账号库.xlsx")
+
+
 @router.get("/api/competitors/accounts")
 def get_competitor_accounts(q: str | None = None, limit: int = 50, offset: int = 0) -> dict:
     try:
         return list_competitor_accounts(q=q, limit=limit, offset=offset)
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/competitors/works/export")
+def export_competitor_works(
+    q: str | None = None,
+    brand_name: str | None = None,
+    account_name: str | None = None,
+    account_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> StreamingResponse:
+    try:
+        payload = list_competitor_works(
+            q=q,
+            brand_name=brand_name,
+            account_name=account_name,
+            account_type=account_type,
+            start_date=start_date,
+            end_date=end_date,
+            limit=EXPORT_LIMIT,
+            offset=0,
+            max_limit=EXPORT_LIMIT,
+        )
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    return excel_response(payload_to_dataframe(payload), "竞品作品库.xlsx")
 
 
 @router.get("/api/competitors/works")
@@ -234,6 +309,17 @@ def preview_task_table(request: Request, batch_id: str, table_name: str, limit: 
         "columns": dataframe.columns.tolist(),
         "rows": page.to_dict(orient="records"),
     }
+
+
+@router.get("/api/tasks/{batch_id}/tables/{table_name}/export")
+def export_task_table(request: Request, batch_id: str, table_name: str) -> StreamingResponse:
+    if table_name not in ALLOWED_TABLES:
+        raise HTTPException(status_code=404, detail="Table not found")
+    table_path = get_store(request).output_dir(batch_id) / f"{table_name}.csv"
+    if not table_path.exists():
+        raise HTTPException(status_code=404, detail="Table not found")
+    dataframe = pd.read_csv(table_path, encoding="utf-8-sig").fillna("")
+    return excel_response(dataframe, f"{batch_id}_{table_name}.xlsx")
 
 
 @router.get("/api/templates/{template_name}")

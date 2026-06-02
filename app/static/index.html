@@ -79,10 +79,12 @@
         <div class="table-toolbar">
           <select id="table-select"></select>
           <span id="table-meta"></span>
+          <button id="export-table" class="ghost" type="button" disabled>导出Excel</button>
         </div>
         <div class="table-wrap">
           <table id="data-table"></table>
         </div>
+        <div id="table-pager" class="pager"></div>
         <pre id="error-box" class="error-box"></pre>
       </section>
     </section>
@@ -148,11 +150,13 @@
           <form id="asset-search-form" class="asset-search">
             <input id="asset-search-input" type="search" placeholder="搜索事件、平台、标题、作者、评论">
             <button type="submit">搜索</button>
+            <button id="export-asset" class="ghost" type="button">导出Excel</button>
           </form>
         </div>
         <div class="table-wrap">
           <table id="asset-table"></table>
         </div>
+        <div id="asset-pager" class="pager"></div>
       </section>
     </section>
 
@@ -179,11 +183,13 @@
             <form id="competitor-account-search-form" class="asset-search">
               <input id="competitor-account-search-input" type="search" placeholder="搜索品牌、账号、账号类型">
               <button type="submit">搜索</button>
+              <button id="export-competitor-accounts" class="ghost" type="button">导出Excel</button>
             </form>
           </div>
           <div class="table-wrap">
             <table id="competitor-account-table"></table>
           </div>
+          <div id="competitor-account-pager" class="pager"></div>
         </section>
       </section>
 
@@ -205,6 +211,7 @@
               <input id="competitor-start-date" type="date" aria-label="开始日期">
               <input id="competitor-end-date" type="date" aria-label="结束日期">
               <button type="submit">筛选</button>
+              <button id="export-competitor-works" class="ghost" type="button">导出Excel</button>
             </form>
           </div>
           <div class="quick-ranges" aria-label="快捷时间范围">
@@ -216,6 +223,7 @@
           <div class="table-wrap">
             <table id="competitor-work-table"></table>
           </div>
+          <div id="competitor-work-pager" class="pager"></div>
         </section>
       </section>
     </section>

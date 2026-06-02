@@ -82,6 +82,13 @@ def test_tables_have_pagination_and_export_controls() -> None:
     assert "/export" in script
 
 
+def test_competitor_work_filter_keeps_export_button_on_same_row() -> None:
+    styles = Path("app/static/styles.css").read_text(encoding="utf-8")
+
+    assert ".competitor-filters" in styles
+    assert "repeat(4, minmax(112px, 130px)) auto auto" in styles
+
+
 def test_asset_library_is_not_nested_inside_task_workbench() -> None:
     html = Path("app/static/index.html").read_text(encoding="utf-8")
     task_start = html.index('id="task-workbench-view"')

@@ -398,10 +398,10 @@ input, select {
 
 .competitor-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(130px, 1fr)) auto;
+  grid-template-columns: minmax(180px, 1fr) repeat(4, minmax(112px, 130px)) auto auto;
   gap: 8px;
   align-items: center;
-  width: min(100%, 980px);
+  width: min(100%, 1040px);
 }
 
 .competitor-filters input,

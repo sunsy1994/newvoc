@@ -72,6 +72,7 @@ def test_profile_maintenance_ui_is_present() -> None:
     assert 'id="export-kol-samples"' in html
     assert 'id="kol-profile-upload-form"' in html
     assert "/api/profiles/kols" in script
+    assert 'src="/static/app.js?v=' in html
 
 
 def test_tables_have_pagination_and_export_controls() -> None:

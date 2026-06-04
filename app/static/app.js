@@ -62,6 +62,16 @@ const kolProfileSearchForm = document.querySelector("#kol-profile-search-form");
 const kolProfileSearchInput = document.querySelector("#kol-profile-search-input");
 const kolProfileBatchFilter = document.querySelector("#kol-profile-batch-filter");
 const kolProfilePager = document.querySelector("#kol-profile-pager");
+const exportCommentUserSamplesButton = document.querySelector("#export-comment-user-samples");
+const commentUserProfileUploadForm = document.querySelector("#comment-user-profile-upload-form");
+const commentUserProfileUploadMessage = document.querySelector("#comment-user-profile-upload-message");
+const commentUserProfileTitle = document.querySelector("#comment-user-profile-title");
+const commentUserProfileMeta = document.querySelector("#comment-user-profile-meta");
+const commentUserProfileTable = document.querySelector("#comment-user-profile-table");
+const commentUserProfileSearchForm = document.querySelector("#comment-user-profile-search-form");
+const commentUserProfileSearchInput = document.querySelector("#comment-user-profile-search-input");
+const commentUserProfileBatchFilter = document.querySelector("#comment-user-profile-batch-filter");
+const commentUserProfilePager = document.querySelector("#comment-user-profile-pager");
 let currentAssetKey = "events";
 const pageSize = 50;
 const tableState = { offset: 0, total: 0 };
@@ -69,6 +79,7 @@ const assetState = { offset: 0, total: 0 };
 const competitorAccountState = { offset: 0, total: 0 };
 const competitorWorkState = { offset: 0, total: 0 };
 const kolProfileState = { offset: 0, total: 0 };
+const commentUserProfileState = { offset: 0, total: 0 };
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -547,6 +558,10 @@ function activateProfileView(viewId) {
     loadKolProfileBatches();
     loadKolProfiles();
   }
+  if (viewId === "comment-user-profile-view") {
+    loadCommentUserProfileBatches();
+    loadCommentUserProfiles();
+  }
 }
 
 for (const tab of profileTabs) {
@@ -610,6 +625,65 @@ kolProfileSearchForm.addEventListener("submit", (event) => {
   event.preventDefault();
   kolProfileState.offset = 0;
   loadKolProfiles();
+});
+
+async function loadCommentUserProfileBatches() {
+  try {
+    const payload = await api("/api/profiles/comment-users/batches");
+    const currentBatch = commentUserProfileBatchFilter.value;
+    commentUserProfileBatchFilter.innerHTML = '<option value="">全部批次</option>' +
+      payload.batches.map(item => `<option value="${item}">${item}</option>`).join("");
+    commentUserProfileBatchFilter.value = currentBatch;
+  } catch {
+    // 批次为空或数据库未初始化时，不阻断画像主表展示。
+  }
+}
+
+async function loadCommentUserProfiles() {
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(commentUserProfileState.offset) });
+  if (commentUserProfileSearchInput.value.trim()) params.set("q", commentUserProfileSearchInput.value.trim());
+  if (commentUserProfileBatchFilter.value) params.set("profile_batch", commentUserProfileBatchFilter.value);
+  try {
+    const payload = await api(`/api/profiles/comment-users?${params.toString()}`);
+    commentUserProfileState.total = payload.total;
+    const startRow = payload.total ? commentUserProfileState.offset + 1 : 0;
+    const endRow = Math.min(commentUserProfileState.offset + pageSize, payload.total);
+    commentUserProfileTitle.textContent = payload.label;
+    commentUserProfileMeta.textContent = `${payload.total} 条画像，当前显示 ${startRow}-${endRow} 条`;
+    renderBusinessTable(commentUserProfileTable, payload);
+    renderPager(commentUserProfilePager, commentUserProfileState, loadCommentUserProfiles);
+  } catch (error) {
+    commentUserProfileTitle.textContent = "评论用户画像加载失败";
+    commentUserProfileMeta.textContent = "请确认 PostgreSQL 已启动，且评论用户画像表已初始化。";
+    commentUserProfileTable.innerHTML = `<tbody><tr><td>${error.message}</td></tr></tbody>`;
+  }
+}
+
+exportCommentUserSamplesButton.addEventListener("click", () => {
+  downloadExcel("/api/profiles/comment-users/samples/export");
+});
+
+commentUserProfileUploadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  commentUserProfileUploadMessage.textContent = "正在上传...";
+  const formData = new FormData(commentUserProfileUploadForm);
+  try {
+    const payload = await api("/api/profiles/comment-users/upload", { method: "POST", body: formData });
+    commentUserProfileUploadMessage.textContent =
+      `已上传 ${payload.raw_loaded} 条LLM结果，生成 ${payload.profiles_loaded} 条用户画像`;
+    commentUserProfileUploadForm.reset();
+    commentUserProfileState.offset = 0;
+    await loadCommentUserProfileBatches();
+    await loadCommentUserProfiles();
+  } catch (error) {
+    commentUserProfileUploadMessage.textContent = error.message;
+  }
+});
+
+commentUserProfileSearchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  commentUserProfileState.offset = 0;
+  loadCommentUserProfiles();
 });
 
 async function boot() {

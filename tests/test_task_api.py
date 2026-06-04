@@ -276,6 +276,93 @@ def test_kol_profile_upload_returns_clear_error_for_missing_author_id(tmp_path: 
     assert "author_id" in response.json()["detail"]
 
 
+def test_comment_user_sample_export_returns_excel_file(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_export_comment_user_samples():
+        return pd.DataFrame(
+            [
+                {
+                    "comment_user_id": "comment_user_001",
+                    "platform": "douyin",
+                    "comment_author_name": "driver_a",
+                    "location": "beijing",
+                    "comment_id": "comment_001",
+                    "event_name": "launch event",
+                    "content_title": "new car",
+                    "content_author_name": "official account",
+                    "source_url": "https://example.com/post/1",
+                    "comment_text": "price is important",
+                    "published_at": "2026-05-01 10:00:00",
+                    "like_cnt": 3,
+                    "reply_cnt": 1,
+                }
+            ]
+        )
+
+    monkeypatch.setattr("app.routers.tasks.export_comment_user_profile_samples", fake_export_comment_user_samples)
+
+    response = client.get("/api/profiles/comment-users/samples/export")
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+
+
+def test_comment_user_profile_upload_calls_loader(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_load_comment_user_profiles(upload_path, source_file_name, database_url=None):
+        captured["source_file_name"] = source_file_name
+        return {"raw_loaded": 1, "profiles_loaded": 1, "label_scores_loaded": 1}
+
+    monkeypatch.setattr("app.routers.tasks.load_comment_user_profiles", fake_load_comment_user_profiles)
+    upload_path = tmp_path / "comment_user_profile.xlsx"
+    pd.DataFrame(
+        [
+            {
+                "comment_user_id": "comment_user_001",
+                "profile_batch": "prompt_v1",
+                "prompt_version": "v1",
+                "llm_result_json": '{"total_comments": 1, "valid_comments": 1, "comment_evidence_results": []}',
+            }
+        ]
+    ).to_excel(upload_path, index=False)
+
+    with upload_path.open("rb") as upload_file:
+        response = client.post(
+            "/api/profiles/comment-users/upload",
+            files={"profile_file": ("comment_user_profile.xlsx", upload_file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["profiles_loaded"] == 1
+    assert captured["source_file_name"] == "comment_user_profile.xlsx"
+
+
+def test_comment_user_profile_api_returns_profiles(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_list_comment_user_profiles(q=None, profile_batch=None, limit=50, offset=0):
+        captured.update({"q": q, "profile_batch": profile_batch, "limit": limit, "offset": offset})
+        return {
+            "asset": "comment_user_profiles",
+            "label": "comment user profiles",
+            "total": 1,
+            "columns": [{"key": "main_label", "label": "main label"}],
+            "rows": [{"main_label": "price_sensitive"}],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_comment_user_profiles", fake_list_comment_user_profiles)
+
+    response = client.get("/api/profiles/comment-users?q=price&profile_batch=prompt_v1&limit=10&offset=20")
+
+    assert response.status_code == 200
+    assert response.json()["rows"][0]["main_label"] == "price_sensitive"
+    assert captured == {"q": "price", "profile_batch": "prompt_v1", "limit": 10, "offset": 20}
+
+
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     monkeypatch.setattr(

@@ -755,3 +755,90 @@ COMMENT ON COLUMN data_asset.user_profile_kol.source_file_name IS '上传画像�
 
 CREATE INDEX IF NOT EXISTS idx_user_profile_kol_batch ON data_asset.user_profile_kol(profile_batch);
 CREATE INDEX IF NOT EXISTS idx_user_profile_kol_author ON data_asset.user_profile_kol(author_id);
+
+CREATE TABLE IF NOT EXISTS data_asset.user_profile_comment_raw (
+  raw_profile_id   BIGSERIAL PRIMARY KEY,
+  comment_user_id  VARCHAR(128) NOT NULL,
+  profile_batch    VARCHAR(128) NOT NULL DEFAULT 'default',
+  prompt_version   VARCHAR(128),
+  llm_result_json  JSONB NOT NULL,
+  source_file_name VARCHAR(255),
+  created_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (comment_user_id, profile_batch)
+);
+
+COMMENT ON TABLE data_asset.user_profile_comment_raw IS '评论用户画像LLM原始结果表。存储线下对某个评论用户全量评论打标后的原始JSON，便于回看提示词输出。';
+COMMENT ON COLUMN data_asset.user_profile_comment_raw.raw_profile_id IS '评论用户画像原始记录ID。系统生成。';
+COMMENT ON COLUMN data_asset.user_profile_comment_raw.comment_user_id IS '系统内评论用户ID。由平台、评论昵称、位置生成，来自评论样本导出文件。';
+COMMENT ON COLUMN data_asset.user_profile_comment_raw.profile_batch IS '画像批次。用于区分不同时间、不同提示词或不同实验版本的打标结果。';
+COMMENT ON COLUMN data_asset.user_profile_comment_raw.prompt_version IS '提示词版本。使用者上传，便于比较不同提示词效果。';
+COMMENT ON COLUMN data_asset.user_profile_comment_raw.llm_result_json IS 'LLM输出原始JSON。包含评论级证据、维度、标签、原因和分数。';
+COMMENT ON COLUMN data_asset.user_profile_comment_raw.source_file_name IS '上传画像结果文件名。';
+
+CREATE TABLE IF NOT EXISTS data_asset.user_profile_comment_result (
+  comment_user_profile_id BIGSERIAL PRIMARY KEY,
+  comment_user_id         VARCHAR(128) NOT NULL,
+  platform                VARCHAR(64),
+  comment_author_name     VARCHAR(255),
+  location                VARCHAR(128),
+  total_comments          BIGINT DEFAULT 0,
+  valid_comments          BIGINT DEFAULT 0,
+  main_dimension          VARCHAR(128),
+  main_label              VARCHAR(255),
+  main_score              NUMERIC(8,2),
+  label_scores_json       JSONB,
+  profile_batch           VARCHAR(128) NOT NULL DEFAULT 'default',
+  prompt_version          VARCHAR(128),
+  source_raw_profile_id   BIGINT REFERENCES data_asset.user_profile_comment_raw(raw_profile_id),
+  source_file_name        VARCHAR(255),
+  created_time            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (comment_user_id, profile_batch)
+);
+
+COMMENT ON TABLE data_asset.user_profile_comment_result IS '评论用户画像汇总表。由LLM原始结果经过Python规则汇总生成，一条记录表示某个评论用户在某个批次下的主标签和总体画像。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.comment_user_id IS '系统内评论用户ID。用于上传回灌时精准匹配评论用户。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.platform IS '平台。来自该评论用户在评论明细中的平台。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.comment_author_name IS '评论用户昵称。来自 dwd_comment.comment_author_name。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.location IS '位置。来自 dwd_comment.location，可为空。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.total_comments IS '参与画像计算的评论总数。来自LLM结果。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.valid_comments IS '有效评论数。来自LLM结果，表示可用于画像判断的评论数量。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.main_dimension IS '主标签所属维度。由Python汇总规则选取得分最高标签得到。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.main_label IS '主标签。由Python汇总规则选取得分最高标签得到。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.main_score IS '主标签分数。由Python汇总规则计算。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.label_scores_json IS '全部标签得分和证据JSON。保留每个标签的得分、置信、证据示例和原因。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.profile_batch IS '画像批次。用于对比不同提示词或不同时间的画像结果。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.prompt_version IS '提示词版本。来自上传文件。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.source_raw_profile_id IS '来源LLM原始结果ID，关联 user_profile_comment_raw.raw_profile_id。';
+COMMENT ON COLUMN data_asset.user_profile_comment_result.source_file_name IS '上传画像结果文件名。';
+
+CREATE TABLE IF NOT EXISTS data_asset.user_profile_comment_label_score (
+  comment_user_id        VARCHAR(128) NOT NULL,
+  profile_batch          VARCHAR(128) NOT NULL,
+  dimension              VARCHAR(128) NOT NULL,
+  label                  VARCHAR(255) NOT NULL,
+  final_score            NUMERIC(8,2),
+  feature_level          VARCHAR(64),
+  confidence_level       VARCHAR(64),
+  support_count          BIGINT DEFAULT 0,
+  evidence_examples_json JSONB,
+  evidence_details_json  JSONB,
+  updated_time           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (comment_user_id, profile_batch, dimension, label)
+);
+
+COMMENT ON TABLE data_asset.user_profile_comment_label_score IS '评论用户画像标签明细表。展开保存每个用户每个标签的得分、置信度和证据，支撑解释原因。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.comment_user_id IS '系统内评论用户ID。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.profile_batch IS '画像批次。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.dimension IS '标签维度。来自LLM证据JSON。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.label IS '标签名称。来自LLM证据JSON。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.final_score IS '最终得分。由Python汇总规则计算。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.feature_level IS '特征强度等级。由Python汇总规则根据得分生成。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.confidence_level IS '置信等级。由Python汇总规则根据得分和支持评论数生成。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.support_count IS '支持该标签的评论证据数量。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.evidence_examples_json IS '证据示例JSON。用于页面或导出展示简要原因。';
+COMMENT ON COLUMN data_asset.user_profile_comment_label_score.evidence_details_json IS '证据明细JSON。用于追溯每条评论、证据文本、原因和权重。';
+
+CREATE INDEX IF NOT EXISTS idx_user_profile_comment_raw_batch ON data_asset.user_profile_comment_raw(profile_batch);
+CREATE INDEX IF NOT EXISTS idx_user_profile_comment_result_batch ON data_asset.user_profile_comment_result(profile_batch);
+CREATE INDEX IF NOT EXISTS idx_user_profile_comment_result_label ON data_asset.user_profile_comment_result(main_label);

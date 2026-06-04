@@ -296,13 +296,52 @@
       </section>
 
       <section class="profile-view" id="comment-user-profile-view">
-        <section class="panel">
+        <section class="grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>评论样本导出</h2>
+                <p>导出评论用户ID和该用户所有相关评论，供线下LLM打标。</p>
+              </div>
+            </div>
+            <button id="export-comment-user-samples" type="button">导出评论样本Excel</button>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>评论画像上传</h2>
+                <p>上传 comment_user_id、批次、提示词版本和 LLM 结果JSON，系统自动汇总主标签和证据。</p>
+              </div>
+            </div>
+            <form id="comment-user-profile-upload-form">
+              <label>画像结果Excel
+                <input name="profile_file" type="file" accept=".xlsx" required>
+              </label>
+              <button type="submit">上传评论画像</button>
+            </form>
+            <p id="comment-user-profile-upload-message" class="message"></p>
+          </section>
+        </section>
+
+        <section class="panel asset-panel">
           <div class="panel-head">
             <div>
-              <h2>评论用户画像</h2>
-              <p>下一步接入评论用户评论导出和画像上传。</p>
+              <h2 id="comment-user-profile-title">评论用户画像</h2>
+              <p id="comment-user-profile-meta">展示已上传并完成规则汇总的评论用户画像。</p>
             </div>
+            <form id="comment-user-profile-search-form" class="asset-search">
+              <input id="comment-user-profile-search-input" type="search" placeholder="搜索用户ID、昵称、标签">
+              <select id="comment-user-profile-batch-filter">
+                <option value="">全部批次</option>
+              </select>
+              <button type="submit">搜索</button>
+            </form>
           </div>
+          <div class="table-wrap">
+            <table id="comment-user-profile-table"></table>
+          </div>
+          <div id="comment-user-profile-pager" class="pager"></div>
         </section>
       </section>
     </section>

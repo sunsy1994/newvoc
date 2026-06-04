@@ -24,9 +24,13 @@ from app.services.competitor_library import (
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
 from app.services.profile_library import (
+    export_comment_user_profile_samples,
     export_kol_profile_samples,
+    get_comment_user_profile_batches,
     get_kol_profile_batches,
+    list_comment_user_profiles,
     list_kol_profiles,
+    load_comment_user_profiles,
     load_kol_profiles,
 )
 from app.services.script_manager import ScriptManager
@@ -261,6 +265,49 @@ def get_kol_profiles(q: str | None = None, profile_batch: str | None = None, lim
 def get_kol_batches() -> dict:
     try:
         return {"batches": get_kol_profile_batches()}
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/profiles/comment-users/samples/export")
+def export_comment_user_samples() -> StreamingResponse:
+    try:
+        dataframe = export_comment_user_profile_samples()
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    return excel_response(dataframe, "评论用户画像样本.xlsx")
+
+
+@router.post("/api/profiles/comment-users/upload")
+def upload_comment_user_profiles(profile_file: Annotated[UploadFile, File()]) -> dict:
+    temp_path = save_temp_upload(profile_file)
+    try:
+        return load_comment_user_profiles(temp_path, source_file_name=profile_file.filename or "comment_user_profile.xlsx")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+@router.get("/api/profiles/comment-users")
+def get_comment_user_profiles(
+    q: str | None = None,
+    profile_batch: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    try:
+        return list_comment_user_profiles(q=q, profile_batch=profile_batch, limit=limit, offset=offset)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/profiles/comment-users/batches")
+def get_comment_user_batches() -> dict:
+    try:
+        return {"batches": get_comment_user_profile_batches()}
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 

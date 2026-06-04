@@ -75,6 +75,20 @@ def test_profile_maintenance_ui_is_present() -> None:
     assert 'src="/static/app.js?v=' in html
 
 
+def test_comment_user_profile_maintenance_ui_is_present() -> None:
+    html = Path("app/static/index.html").read_text(encoding="utf-8")
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+
+    assert 'data-profile-target="comment-user-profile-view"' in html
+    assert 'id="export-comment-user-samples"' in html
+    assert 'id="comment-user-profile-upload-form"' in html
+    assert 'id="comment-user-profile-table"' in html
+    assert 'id="comment-user-profile-pager"' in html
+    assert "/api/profiles/comment-users/samples/export" in script
+    assert "/api/profiles/comment-users/upload" in script
+    assert "/api/profiles/comment-users" in script
+
+
 def test_tables_have_pagination_and_export_controls() -> None:
     html = Path("app/static/index.html").read_text(encoding="utf-8")
     script = Path("app/static/app.js").read_text(encoding="utf-8")

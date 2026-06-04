@@ -241,6 +241,8 @@ def upload_kol_profiles(profile_file: Annotated[UploadFile, File()]) -> dict:
     temp_path = save_temp_upload(profile_file)
     try:
         return load_kol_profiles(temp_path, source_file_name=profile_file.filename or "kol_profile.xlsx")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
     finally:

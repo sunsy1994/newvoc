@@ -261,6 +261,21 @@ def test_kol_profile_upload_calls_loader(tmp_path: Path, monkeypatch) -> None:
     assert captured["source_file_name"] == "kol_profile.xlsx"
 
 
+def test_kol_profile_upload_returns_clear_error_for_missing_author_id(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    upload_path = tmp_path / "kol_profile_missing_author_id.xlsx"
+    pd.DataFrame([{"kol_main_type": "车型实测测评KOL"}]).to_excel(upload_path, index=False)
+
+    with upload_path.open("rb") as upload_file:
+        response = client.post(
+            "/api/profiles/kols/upload",
+            files={"profile_file": ("kol_profile_missing_author_id.xlsx", upload_file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+
+    assert response.status_code == 400
+    assert "author_id" in response.json()["detail"]
+
+
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     monkeypatch.setattr(

@@ -46,6 +46,16 @@ KOL_UPLOAD_COLUMNS = [
     "profile_batch",
 ]
 
+KOL_UPLOAD_COLUMN_ALIASES = {
+    "作者ID": "author_id",
+    "KOL主类型": "kol_main_type",
+    "内容倾向": "content_tendency",
+    "车型关注": "car_focus",
+    "判定依据": "remark",
+    "备注": "remark",
+    "画像批次": "profile_batch",
+}
+
 
 def clean_text(value: Any) -> str | None:
     if value is None:
@@ -61,6 +71,7 @@ def clean_text(value: Any) -> str | None:
 
 def prepare_kol_profile_upload(upload_path: Path, source_file_name: str | None = None) -> pd.DataFrame:
     dataframe = pd.read_excel(upload_path, dtype=object).dropna(how="all")
+    dataframe = dataframe.rename(columns=normalize_upload_columns(dataframe.columns))
     for column in KOL_UPLOAD_COLUMNS:
         if column not in dataframe.columns:
             dataframe[column] = None
@@ -85,6 +96,14 @@ def prepare_kol_profile_upload(upload_path: Path, source_file_name: str | None =
     return pd.DataFrame(rows).drop_duplicates(["author_id", "profile_batch"], keep="last")
 
 
+def normalize_upload_columns(columns: Any) -> dict[str, str]:
+    normalized = {}
+    for column in columns:
+        column_text = str(column).strip().replace("\ufeff", "")
+        normalized[column] = KOL_UPLOAD_COLUMN_ALIASES.get(column_text, column_text)
+    return normalized
+
+
 def load_kol_profiles(
     upload_path: Path,
     source_file_name: str,
@@ -93,7 +112,11 @@ def load_kol_profiles(
     init_database(database_url)
     dataframe = prepare_kol_profile_upload(upload_path, source_file_name)
     if dataframe.empty:
-        return {"loaded": 0}
+        raw_columns = [str(column).strip().replace("\ufeff", "") for column in pd.read_excel(upload_path, nrows=0).columns]
+        raise ValueError(
+            "未找到有效的 author_id。请确认上传文件包含 author_id 或 作者ID 列，且至少一行不为空。"
+            f" 当前文件列：{', '.join(raw_columns)}"
+        )
     with psycopg.connect(database_url) as conn:
         columns = dataframe.columns.tolist()
         placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in columns)

@@ -19,6 +19,7 @@
       <button class="main-nav-item active" type="button" data-main-target="task-workbench-view">任务管理</button>
       <button class="main-nav-item" type="button" data-main-target="asset-library-view">资产库</button>
       <button class="main-nav-item" type="button" data-main-target="competitor-activity-view">竞品动态</button>
+      <button class="main-nav-item" type="button" data-main-target="profile-maintenance-view">用户画像维护</button>
     </nav>
   </aside>
 
@@ -224,6 +225,84 @@
             <table id="competitor-work-table"></table>
           </div>
           <div id="competitor-work-pager" class="pager"></div>
+        </section>
+      </section>
+    </section>
+
+    <section class="main-view" id="profile-maintenance-view">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">阶段 4 / 离线打标回灌</p>
+          <h1>用户画像维护</h1>
+        </div>
+      </header>
+
+      <nav class="subnav" aria-label="用户画像维护子菜单">
+        <button class="profile-tab active" type="button" data-profile-target="kol-profile-view">KOL画像</button>
+        <button class="profile-tab" type="button" data-profile-target="comment-user-profile-view">评论用户画像</button>
+      </nav>
+
+      <section class="profile-view active" id="kol-profile-view">
+        <section class="grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>KOL样本导出</h2>
+                <p>导出系统内 KOL 的近7日发帖文本，包含 author_id。</p>
+              </div>
+            </div>
+            <label>统计天数
+              <input id="kol-sample-days" type="number" min="1" max="365" value="7">
+            </label>
+            <button id="export-kol-samples" type="button">导出样本Excel</button>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>KOL画像上传</h2>
+                <p>上传线下打标后的画像结果，按 author_id + profile_batch 更新。</p>
+              </div>
+            </div>
+            <form id="kol-profile-upload-form">
+              <label>画像结果Excel
+                <input name="profile_file" type="file" accept=".xlsx" required>
+              </label>
+              <button type="submit">上传画像</button>
+            </form>
+            <p id="kol-profile-upload-message" class="message"></p>
+          </section>
+        </section>
+
+        <section class="panel asset-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="kol-profile-title">KOL画像</h2>
+              <p id="kol-profile-meta">展示已上传的 KOL 画像结果。</p>
+            </div>
+            <form id="kol-profile-search-form" class="asset-search">
+              <input id="kol-profile-search-input" type="search" placeholder="搜索author_id、作者、类型">
+              <select id="kol-profile-batch-filter">
+                <option value="">全部批次</option>
+              </select>
+              <button type="submit">搜索</button>
+            </form>
+          </div>
+          <div class="table-wrap">
+            <table id="kol-profile-table"></table>
+          </div>
+          <div id="kol-profile-pager" class="pager"></div>
+        </section>
+      </section>
+
+      <section class="profile-view" id="comment-user-profile-view">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>评论用户画像</h2>
+              <p>下一步接入评论用户评论导出和画像上传。</p>
+            </div>
+          </div>
         </section>
       </section>
     </section>

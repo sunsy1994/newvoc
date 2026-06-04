@@ -201,6 +201,66 @@ def test_task_table_export_returns_excel_file(tmp_path: Path) -> None:
     assert response.content.startswith(b"PK")
 
 
+def test_kol_sample_export_returns_excel_file(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_export_kol_samples(days=7):
+        return pd.DataFrame(
+            [
+                {
+                    "author_id": "author_001",
+                    "platform": "抖音",
+                    "author_name": "车圈老张",
+                    "author_home_url": "https://example.com/u/1",
+                    "content_count": 2,
+                    "content_text": "近7日发帖文本",
+                    "total_engagement": 99,
+                }
+            ]
+        )
+
+    monkeypatch.setattr("app.routers.tasks.export_kol_profile_samples", fake_export_kol_samples)
+
+    response = client.get("/api/profiles/kols/samples/export?days=7")
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+
+
+def test_kol_profile_upload_calls_loader(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_load_kol_profiles(upload_path, source_file_name, database_url=None):
+        captured["source_file_name"] = source_file_name
+        return {"loaded": 1}
+
+    monkeypatch.setattr("app.routers.tasks.load_kol_profiles", fake_load_kol_profiles)
+    upload_path = tmp_path / "kol_profile.xlsx"
+    pd.DataFrame(
+        [
+            {
+                "author_id": "author_001",
+                "kol_main_type": "车型实测测评KOL",
+                "content_tendency": "偏客观实测",
+                "car_focus": "燃油车专注",
+                "remark": "近7日测评内容占比最高",
+                "profile_batch": "prompt_v1",
+            }
+        ]
+    ).to_excel(upload_path, index=False)
+
+    with upload_path.open("rb") as upload_file:
+        response = client.post(
+            "/api/profiles/kols/upload",
+            files={"profile_file": ("kol_profile.xlsx", upload_file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["loaded"] == 1
+    assert captured["source_file_name"] == "kol_profile.xlsx"
+
+
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     monkeypatch.setattr(

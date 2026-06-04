@@ -49,12 +49,26 @@ const competitorStartDate = document.querySelector("#competitor-start-date");
 const competitorEndDate = document.querySelector("#competitor-end-date");
 const competitorWorkPager = document.querySelector("#competitor-work-pager");
 const exportCompetitorWorksButton = document.querySelector("#export-competitor-works");
+const profileTabs = document.querySelectorAll(".profile-tab");
+const profileViews = document.querySelectorAll(".profile-view");
+const kolSampleDays = document.querySelector("#kol-sample-days");
+const exportKolSamplesButton = document.querySelector("#export-kol-samples");
+const kolProfileUploadForm = document.querySelector("#kol-profile-upload-form");
+const kolProfileUploadMessage = document.querySelector("#kol-profile-upload-message");
+const kolProfileTitle = document.querySelector("#kol-profile-title");
+const kolProfileMeta = document.querySelector("#kol-profile-meta");
+const kolProfileTable = document.querySelector("#kol-profile-table");
+const kolProfileSearchForm = document.querySelector("#kol-profile-search-form");
+const kolProfileSearchInput = document.querySelector("#kol-profile-search-input");
+const kolProfileBatchFilter = document.querySelector("#kol-profile-batch-filter");
+const kolProfilePager = document.querySelector("#kol-profile-pager");
 let currentAssetKey = "events";
 const pageSize = 50;
 const tableState = { offset: 0, total: 0 };
 const assetState = { offset: 0, total: 0 };
 const competitorAccountState = { offset: 0, total: 0 };
 const competitorWorkState = { offset: 0, total: 0 };
+const kolProfileState = { offset: 0, total: 0 };
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -254,6 +268,10 @@ function activateMainView(viewId) {
     loadCompetitorAccounts();
     loadCompetitorOptions();
     loadCompetitorWorks();
+  }
+  if (viewId === "profile-maintenance-view") {
+    loadKolProfileBatches();
+    loadKolProfiles();
   }
 }
 
@@ -517,6 +535,82 @@ for (const button of document.querySelectorAll(".competitor-range")) {
     loadCompetitorWorks();
   });
 }
+
+function activateProfileView(viewId) {
+  for (const view of profileViews) {
+    view.classList.toggle("active", view.id === viewId);
+  }
+  for (const tab of profileTabs) {
+    tab.classList.toggle("active", tab.dataset.profileTarget === viewId);
+  }
+  if (viewId === "kol-profile-view") {
+    loadKolProfileBatches();
+    loadKolProfiles();
+  }
+}
+
+for (const tab of profileTabs) {
+  tab.addEventListener("click", () => activateProfileView(tab.dataset.profileTarget));
+}
+
+async function loadKolProfileBatches() {
+  try {
+    const payload = await api("/api/profiles/kols/batches");
+    const currentBatch = kolProfileBatchFilter.value;
+    kolProfileBatchFilter.innerHTML = '<option value="">全部批次</option>' +
+      payload.batches.map(item => `<option value="${item}">${item}</option>`).join("");
+    kolProfileBatchFilter.value = currentBatch;
+  } catch {
+    // 批次为空或数据库未初始化时，不阻断画像主表展示。
+  }
+}
+
+async function loadKolProfiles() {
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(kolProfileState.offset) });
+  if (kolProfileSearchInput.value.trim()) params.set("q", kolProfileSearchInput.value.trim());
+  if (kolProfileBatchFilter.value) params.set("profile_batch", kolProfileBatchFilter.value);
+  try {
+    const payload = await api(`/api/profiles/kols?${params.toString()}`);
+    kolProfileState.total = payload.total;
+    const startRow = payload.total ? kolProfileState.offset + 1 : 0;
+    const endRow = Math.min(kolProfileState.offset + pageSize, payload.total);
+    kolProfileTitle.textContent = payload.label;
+    kolProfileMeta.textContent = `${payload.total} 条画像，当前显示 ${startRow}-${endRow} 条`;
+    renderBusinessTable(kolProfileTable, payload);
+    renderPager(kolProfilePager, kolProfileState, loadKolProfiles);
+  } catch (error) {
+    kolProfileTitle.textContent = "KOL画像加载失败";
+    kolProfileMeta.textContent = "请确认 PostgreSQL 已启动，且 KOL画像表已初始化。";
+    kolProfileTable.innerHTML = `<tbody><tr><td>${error.message}</td></tr></tbody>`;
+  }
+}
+
+exportKolSamplesButton.addEventListener("click", () => {
+  const days = Math.max(1, Number(kolSampleDays.value || 7));
+  downloadExcel(`/api/profiles/kols/samples/export?days=${days}`);
+});
+
+kolProfileUploadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  kolProfileUploadMessage.textContent = "正在上传...";
+  const formData = new FormData(kolProfileUploadForm);
+  try {
+    const payload = await api("/api/profiles/kols/upload", { method: "POST", body: formData });
+    kolProfileUploadMessage.textContent = `已上传 ${payload.loaded} 条KOL画像`;
+    kolProfileUploadForm.reset();
+    kolProfileState.offset = 0;
+    await loadKolProfileBatches();
+    await loadKolProfiles();
+  } catch (error) {
+    kolProfileUploadMessage.textContent = error.message;
+  }
+});
+
+kolProfileSearchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  kolProfileState.offset = 0;
+  loadKolProfiles();
+});
 
 async function boot() {
   await loadTasks();

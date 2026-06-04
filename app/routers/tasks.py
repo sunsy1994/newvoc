@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
@@ -22,6 +23,12 @@ from app.services.competitor_library import (
 )
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
+from app.services.profile_library import (
+    export_kol_profile_samples,
+    get_kol_profile_batches,
+    list_kol_profiles,
+    load_kol_profiles,
+)
 from app.services.script_manager import ScriptManager
 from app.services.task_store import TaskStore
 
@@ -108,6 +115,13 @@ def payload_to_dataframe(payload: dict) -> pd.DataFrame:
     ordered_keys = [column["key"] for column in payload.get("columns", []) if column["key"] in dataframe.columns]
     dataframe = dataframe[ordered_keys]
     return dataframe.rename(columns=column_labels)
+
+
+def save_temp_upload(upload_file: UploadFile) -> Path:
+    suffix = Path(upload_file.filename or "").suffix.lower()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix or ".xlsx") as temp_file:
+        shutil.copyfileobj(upload_file.file, temp_file)
+        return Path(temp_file.name)
 
 
 @router.get("/api/tasks")
@@ -209,6 +223,42 @@ def get_competitor_works(
 def get_competitor_filter_options() -> dict:
     try:
         return get_competitor_options()
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/profiles/kols/samples/export")
+def export_kol_samples(days: int = 7) -> StreamingResponse:
+    try:
+        dataframe = export_kol_profile_samples(days=days)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    return excel_response(dataframe, f"KOL近{days}日发帖样本.xlsx")
+
+
+@router.post("/api/profiles/kols/upload")
+def upload_kol_profiles(profile_file: Annotated[UploadFile, File()]) -> dict:
+    temp_path = save_temp_upload(profile_file)
+    try:
+        return load_kol_profiles(temp_path, source_file_name=profile_file.filename or "kol_profile.xlsx")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+@router.get("/api/profiles/kols")
+def get_kol_profiles(q: str | None = None, profile_batch: str | None = None, limit: int = 50, offset: int = 0) -> dict:
+    try:
+        return list_kol_profiles(q=q, profile_batch=profile_batch, limit=limit, offset=offset)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/profiles/kols/batches")
+def get_kol_batches() -> dict:
+    try:
+        return {"batches": get_kol_profile_batches()}
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 

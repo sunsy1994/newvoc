@@ -723,3 +723,35 @@ CREATE INDEX IF NOT EXISTS idx_competitor_account_brand_type ON data_asset.compe
 CREATE INDEX IF NOT EXISTS idx_competitor_work_brand_type ON data_asset.competitor_work(brand_name, account_type);
 CREATE INDEX IF NOT EXISTS idx_competitor_work_author ON data_asset.competitor_work(author_name);
 CREATE INDEX IF NOT EXISTS idx_competitor_work_published_at ON data_asset.competitor_work(published_at);
+
+-- =========================================================
+-- PROFILE：用户画像维护
+-- 说明：承接线下AI/Excel打标结果。底表存事实，画像表存判断。
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS data_asset.user_profile_kol (
+  kol_profile_id   BIGSERIAL PRIMARY KEY,
+  author_id        VARCHAR(64) NOT NULL REFERENCES data_asset.dwd_author(author_id),
+  kol_main_type    VARCHAR(64),
+  content_tendency VARCHAR(64),
+  car_focus        VARCHAR(64),
+  remark           TEXT,
+  profile_batch    VARCHAR(128) NOT NULL DEFAULT 'default',
+  source_file_name VARCHAR(255),
+  created_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (author_id, profile_batch)
+);
+
+COMMENT ON TABLE data_asset.user_profile_kol IS 'KOL画像表。存储线下根据KOL近7日发帖文本打标后的画像结果，一条记录表示某个KOL在某个画像批次下的结果。';
+COMMENT ON COLUMN data_asset.user_profile_kol.kol_profile_id IS 'KOL画像记录ID。系统生成。';
+COMMENT ON COLUMN data_asset.user_profile_kol.author_id IS '系统内作者ID。关联 dwd_author.author_id，上传画像时用于精准匹配KOL。';
+COMMENT ON COLUMN data_asset.user_profile_kol.kol_main_type IS 'KOL主类型。枚举：车型实测测评KOL/新车资讯爆料KOL/用车养车科普KOL/二手车KOL/导购优惠探店KOL/自驾出行生活KOL/行业宏观评论KOL/商单广告博主/综合杂谈类KOL。';
+COMMENT ON COLUMN data_asset.user_profile_kol.content_tendency IS '内容倾向。枚举：偏客观实测/偏种草营销/偏吐槽负面。';
+COMMENT ON COLUMN data_asset.user_profile_kol.car_focus IS '车型关注。枚举：燃油车专注/新能源专注/全品类通吃。';
+COMMENT ON COLUMN data_asset.user_profile_kol.remark IS '简要判定依据。建议一句话说明近7日内容占比。';
+COMMENT ON COLUMN data_asset.user_profile_kol.profile_batch IS '画像批次或提示词版本。用于对比不同prompt版本的打标效果。';
+COMMENT ON COLUMN data_asset.user_profile_kol.source_file_name IS '上传画像结果文件名。';
+
+CREATE INDEX IF NOT EXISTS idx_user_profile_kol_batch ON data_asset.user_profile_kol(profile_batch);
+CREATE INDEX IF NOT EXISTS idx_user_profile_kol_author ON data_asset.user_profile_kol(author_id);

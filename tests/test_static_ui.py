@@ -62,6 +62,18 @@ def test_competitor_activity_ui_is_present() -> None:
     assert "/api/competitors/works" in script
 
 
+def test_profile_maintenance_ui_is_present() -> None:
+    html = Path("app/static/index.html").read_text(encoding="utf-8")
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+
+    assert 'data-main-target="profile-maintenance-view"' in html
+    assert "用户画像维护" in html
+    assert 'data-profile-target="kol-profile-view"' in html
+    assert 'id="export-kol-samples"' in html
+    assert 'id="kol-profile-upload-form"' in html
+    assert "/api/profiles/kols" in script
+
+
 def test_tables_have_pagination_and_export_controls() -> None:
     html = Path("app/static/index.html").read_text(encoding="utf-8")
     script = Path("app/static/app.js").read_text(encoding="utf-8")

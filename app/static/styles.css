@@ -117,7 +117,8 @@ h2 { margin-bottom: 0; font-size: 17px; }
 
 .subnav-item,
 .asset-tab,
-.competitor-tab {
+.competitor-tab,
+.profile-tab {
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
@@ -127,7 +128,8 @@ h2 { margin-bottom: 0; font-size: 17px; }
 
 .subnav-item.active,
 .asset-tab.active,
-.competitor-tab.active {
+.competitor-tab.active,
+.profile-tab.active {
   color: var(--accent-dark);
   border-bottom-color: var(--accent);
   background: #eef8f6;
@@ -138,11 +140,13 @@ h2 { margin-bottom: 0; font-size: 17px; }
 }
 
 .workbench-view.active,
-.competitor-view.active {
+.competitor-view.active,
+.profile-view.active {
   display: block;
 }
 
-.competitor-view {
+.competitor-view,
+.profile-view {
   display: none;
 }
 
@@ -389,6 +393,11 @@ input, select {
 
 .asset-search input {
   width: 320px;
+  margin-top: 0;
+}
+
+.asset-search select {
+  width: 180px;
   margin-top: 0;
 }
 

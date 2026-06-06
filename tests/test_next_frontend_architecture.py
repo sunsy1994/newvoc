@@ -45,3 +45,31 @@ def test_frontend_navigation_components_are_small_and_data_driven() -> None:
     primary_nav = (root / "src/components/sidebar/PrimaryNav.tsx").read_text(encoding="utf-8")
     assert "navigation.map" in primary_nav
     assert "VOC看事件" not in primary_nav
+
+
+def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() -> None:
+    root = Path("frontend")
+    next_config = (root / "next.config.mjs").read_text(encoding="utf-8")
+    navigation = (root / "src/config/navigation.ts").read_text(encoding="utf-8")
+
+    assert "rewrites" in next_config
+    assert "http://127.0.0.1:8000/api/:path*" in next_config
+
+    expected_pages = [
+        "src/app/voc/events/content/page.tsx",
+        "src/app/voc/events/kol-users/page.tsx",
+        "src/app/tasks/flow/page.tsx",
+        "src/app/tasks/scripts/page.tsx",
+        "src/app/assets/contents/page.tsx",
+        "src/app/assets/comments/page.tsx",
+        "src/app/assets/authors/page.tsx",
+        "src/app/assets/kols/page.tsx",
+        "src/app/competitors/accounts/page.tsx",
+        "src/app/competitors/works/page.tsx",
+        "src/app/profiles/kols/page.tsx",
+        "src/app/profiles/comment-users/page.tsx",
+    ]
+    for page in expected_pages:
+        assert (root / page).exists()
+
+    assert "apiBaseUrl" in navigation

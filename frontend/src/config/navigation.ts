@@ -19,6 +19,8 @@ import {
 
 import type { NavigationItem } from "@/types/navigation";
 
+export const apiBaseUrl = "/api";
+
 export const navigation: NavigationItem[] = [
   {
     label: "VOC看事件",

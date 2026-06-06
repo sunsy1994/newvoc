@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+from typing import Any
+
+import psycopg
+from psycopg.rows import dict_row
+
+from app.config import DATABASE_URL
+from app.services.asset_library import build_like_pattern, normalize_row
+from app.services.profile_library import build_comment_user_id
+
+
+def list_voc_events(
+    q: str | None = None,
+    limit: int = 20,
+    database_url: str = DATABASE_URL,
+) -> dict[str, Any]:
+    limit = max(1, min(limit, 100))
+    clauses = []
+    params: list[Any] = []
+    if q and q.strip():
+        like_pattern = build_like_pattern(q)
+        clauses.append(
+            "(coalesce(event_name, '') ILIKE %s ESCAPE '\\' OR "
+            "coalesce(brand_name, '') ILIKE %s ESCAPE '\\' OR "
+            "coalesce(model_name, '') ILIKE %s ESCAPE '\\')"
+        )
+        params.extend([like_pattern, like_pattern, like_pattern])
+    where_sql = " WHERE " + " AND ".join(clauses) if clauses else ""
+    query = (
+        "SELECT event_id, event_name, event_type, brand_name, model_name, start_time, end_time, event_status, "
+        "content_cnt, comment_cnt, author_cnt, kol_content_cnt, total_engagement, top_platform_json "
+        "FROM data_asset.ads_event_overview "
+        f"{where_sql} "
+        "ORDER BY start_time DESC NULLS LAST, total_engagement DESC NULLS LAST LIMIT %s"
+    )
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, [*params, limit])
+            rows = [normalize_row(dict(row)) for row in cur.fetchall()]
+    return {"events": rows}
+
+
+def get_voc_event_detail(event_id: str, database_url: str = DATABASE_URL) -> dict[str, Any]:
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        overview = fetch_event_overview(conn, event_id)
+        top_contents = fetch_event_top_contents(conn, event_id)
+        kol_voice = fetch_event_kol_voice(conn, event_id)
+        profile_rows = fetch_latest_comment_user_profiles(conn, event_id)
+    user_profiles = summarize_user_profiles(profile_rows)
+    kol_user_matrix = summarize_kol_user_matrix(kol_voice, profile_rows)
+    return {
+        "event_id": event_id,
+        "overview": overview,
+        "top_contents": top_contents,
+        "kol_voice": kol_voice,
+        "user_profiles": user_profiles,
+        "kol_user_matrix": kol_user_matrix,
+        "asset_counts": {
+            "events": 1 if overview else 0,
+            "contents": overview.get("content_cnt", 0) if overview else 0,
+            "comments": overview.get("comment_cnt", 0) if overview else 0,
+            "kols": len(kol_voice),
+            "comment_user_profiles": sum(item["user_cnt"] for item in user_profiles),
+        },
+    }
+
+
+def fetch_event_overview(conn: psycopg.Connection, event_id: str) -> dict[str, Any]:
+    query = """
+        SELECT event_id, event_name, event_type, brand_name, model_name, start_time, end_time, event_status,
+               content_cnt, comment_cnt, author_cnt, kol_content_cnt, total_engagement,
+               top_platform_json, top_author_json, updated_time
+        FROM data_asset.ads_event_overview
+        WHERE event_id = %s
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id])
+        row = cur.fetchone()
+    return normalize_row(dict(row)) if row else {}
+
+
+def fetch_event_top_contents(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:
+    query = """
+        SELECT c.content_id, c.platform, c.title, c.content_type, c.media_form,
+               a.author_name, coalesce(a.is_kol, false) AS is_kol,
+               c.published_at, c.engagement_total, c.comment_cnt, c.source_url
+        FROM data_asset.dwd_content c
+        LEFT JOIN data_asset.dwd_author a ON c.author_id = a.author_id
+        WHERE c.event_id = %s
+        ORDER BY c.engagement_total DESC NULLS LAST, c.comment_cnt DESC NULLS LAST
+        LIMIT 30
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id])
+        return [normalize_row(dict(row)) for row in cur.fetchall()]
+
+
+def fetch_event_kol_voice(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:
+    query = """
+        WITH latest_kol_profile AS (
+          SELECT DISTINCT ON (author_id)
+                 author_id, kol_main_type, content_tendency, car_focus, remark, profile_batch, updated_time
+          FROM data_asset.user_profile_kol
+          ORDER BY author_id, updated_time DESC NULLS LAST
+        )
+        SELECT a.author_id, a.platform, a.author_name, a.author_type, a.fans_cnt, a.author_home_url,
+               p.kol_main_type, p.content_tendency, p.car_focus, p.remark,
+               count(DISTINCT c.content_id) AS content_cnt,
+               count(DISTINCT cm.comment_id) AS comment_cnt,
+               coalesce(sum(DISTINCT c.engagement_total), 0) AS total_engagement
+        FROM data_asset.dwd_content c
+        JOIN data_asset.dwd_author a ON c.author_id = a.author_id
+        LEFT JOIN latest_kol_profile p ON a.author_id = p.author_id
+        LEFT JOIN data_asset.dwd_comment cm ON c.content_id = cm.content_id
+        WHERE c.event_id = %s AND a.is_kol = true
+        GROUP BY a.author_id, a.platform, a.author_name, a.author_type, a.fans_cnt, a.author_home_url,
+                 p.kol_main_type, p.content_tendency, p.car_focus, p.remark
+        ORDER BY total_engagement DESC NULLS LAST, comment_cnt DESC NULLS LAST
+        LIMIT 30
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id])
+        return [normalize_row(dict(row)) for row in cur.fetchall()]
+
+
+def fetch_latest_comment_user_profiles(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:
+    comment_query = """
+        SELECT coalesce(cm.platform, c.platform) AS platform,
+               cm.comment_author_name,
+               cm.location,
+               c.author_id AS content_author_id
+        FROM data_asset.dwd_comment cm
+        JOIN data_asset.dwd_content c ON cm.content_id = c.content_id
+        WHERE c.event_id = %s AND coalesce(cm.comment_author_name, '') <> ''
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(comment_query, [event_id])
+        comment_rows = [normalize_row(dict(row)) for row in cur.fetchall()]
+    user_to_kols: dict[str, set[str]] = defaultdict(set)
+    for row in comment_rows:
+        comment_user_id = build_comment_user_id(row.get("platform"), row.get("comment_author_name"), row.get("location"))
+        if row.get("content_author_id"):
+            user_to_kols[comment_user_id].add(row["content_author_id"])
+    if not user_to_kols:
+        return []
+    profile_query = """
+        SELECT DISTINCT ON (comment_user_id)
+               comment_user_id, platform, comment_author_name, location,
+               main_dimension, main_label, main_score, total_comments, valid_comments,
+               profile_batch, prompt_version, updated_time
+        FROM data_asset.user_profile_comment_result
+        WHERE comment_user_id = ANY(%s)
+        ORDER BY comment_user_id, updated_time DESC NULLS LAST
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(profile_query, [list(user_to_kols.keys())])
+        profiles = [normalize_row(dict(row)) for row in cur.fetchall()]
+    for profile in profiles:
+        profile["kol_author_ids"] = sorted(user_to_kols.get(profile["comment_user_id"], set()))
+    return profiles
+
+
+def summarize_user_profiles(profile_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    counter = Counter(row.get("main_label") or "未打主标签" for row in profile_rows)
+    return [
+        {"main_label": label, "user_cnt": count}
+        for label, count in counter.most_common(20)
+    ]
+
+
+def summarize_kol_user_matrix(
+    kol_voice: list[dict[str, Any]],
+    profile_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    kol_names = {row["author_id"]: row.get("author_name", "") for row in kol_voice}
+    matrix: dict[tuple[str, str], int] = defaultdict(int)
+    for profile in profile_rows:
+        label = profile.get("main_label") or "未打主标签"
+        for author_id in profile.get("kol_author_ids", []):
+            if author_id in kol_names:
+                matrix[(author_id, label)] += 1
+    rows = [
+        {
+            "author_id": author_id,
+            "author_name": kol_names.get(author_id, ""),
+            "main_label": label,
+            "user_cnt": count,
+        }
+        for (author_id, label), count in matrix.items()
+    ]
+    rows.sort(key=lambda item: (item["author_name"], -item["user_cnt"], item["main_label"]))
+    return rows[:50]

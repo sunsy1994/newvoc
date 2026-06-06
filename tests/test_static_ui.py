@@ -49,6 +49,27 @@ def test_asset_library_ui_is_present() -> None:
     assert "资产库加载失败" in script
 
 
+def test_voc_event_business_menu_and_two_level_sidebar_are_present() -> None:
+    html = Path("app/static/index.html").read_text(encoding="utf-8")
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+    styles = Path("app/static/styles.css").read_text(encoding="utf-8")
+
+    assert 'data-main-target="voc-event-view"' in html
+    assert 'id="voc-event-view"' in html
+    assert 'data-module-target="voc-event-overview"' in html
+    assert 'data-module-target="voc-event-contents"' in html
+    assert 'data-module-target="voc-event-kol-users"' in html
+    assert 'data-module-target="voc-event-assets"' in html
+    assert 'id="voc-event-select"' in html
+    assert 'id="voc-event-kol-table"' in html
+    assert 'id="voc-event-user-profile-table"' in html
+    assert "/api/voc/events" in script
+    assert "activateModuleView" in script
+    assert ".nav-frame" in styles
+    assert ".module-sidebar" in styles
+    assert "border-radius: 24px" in styles
+
+
 def test_competitor_activity_ui_is_present() -> None:
     html = Path("app/static/index.html").read_text(encoding="utf-8")
     script = Path("app/static/app.js").read_text(encoding="utf-8")

@@ -104,6 +104,54 @@ def test_asset_api_returns_business_assets(tmp_path: Path, monkeypatch) -> None:
     assert response.json()["rows"][0]["event_name"] == "上市事件"
 
 
+def test_voc_event_api_returns_event_market_overview(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_list_voc_events(q=None, limit=20):
+        return {
+            "events": [
+                {
+                    "event_id": "event_001",
+                    "event_name": "launch event",
+                    "content_cnt": 12,
+                    "comment_cnt": 80,
+                    "kol_content_cnt": 3,
+                }
+            ]
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_voc_events", fake_list_voc_events)
+
+    response = client.get("/api/voc/events?q=launch")
+
+    assert response.status_code == 200
+    assert response.json()["events"][0]["event_id"] == "event_001"
+
+
+def test_voc_event_detail_api_returns_kol_and_user_profile_story(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_get_voc_event_detail(event_id):
+        return {
+            "event_id": event_id,
+            "overview": {"event_name": "launch event", "content_cnt": 12, "comment_cnt": 80},
+            "top_contents": [{"title": "top post", "engagement_total": 99}],
+            "kol_voice": [{"author_name": "kol a", "kol_main_type": "test drive"}],
+            "user_profiles": [{"main_label": "price sensitive", "user_cnt": 8}],
+            "asset_counts": {"contents": 12, "comments": 80},
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_event_detail", fake_get_voc_event_detail)
+
+    response = client.get("/api/voc/events/event_001")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["overview"]["event_name"] == "launch event"
+    assert payload["kol_voice"][0]["kol_main_type"] == "test drive"
+    assert payload["user_profiles"][0]["main_label"] == "price sensitive"
+
+
 def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     captured = {}

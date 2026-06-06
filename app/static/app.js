@@ -19,6 +19,8 @@ const backupList = document.querySelector("#backup-list");
 const testScriptButton = document.querySelector("#test-script");
 const mainNavItems = document.querySelectorAll(".main-nav-item");
 const mainViews = document.querySelectorAll(".main-view");
+const moduleNavGroups = document.querySelectorAll(".module-nav-group");
+const moduleNavItems = document.querySelectorAll(".module-nav-item");
 const subnavItems = document.querySelectorAll(".subnav-item");
 const workbenchViews = document.querySelectorAll(".workbench-view");
 const assetTabs = document.querySelectorAll(".asset-tab");
@@ -72,7 +74,21 @@ const commentUserProfileSearchForm = document.querySelector("#comment-user-profi
 const commentUserProfileSearchInput = document.querySelector("#comment-user-profile-search-input");
 const commentUserProfileBatchFilter = document.querySelector("#comment-user-profile-batch-filter");
 const commentUserProfilePager = document.querySelector("#comment-user-profile-pager");
+const vocEventPicker = document.querySelector("#voc-event-picker");
+const vocEventSearchInput = document.querySelector("#voc-event-search-input");
+const vocEventSelect = document.querySelector("#voc-event-select");
+const vocEventTitle = document.querySelector("#voc-event-title");
+const vocEventSubtitle = document.querySelector("#voc-event-subtitle");
+const vocEventMetrics = document.querySelector("#voc-event-metrics");
+const vocPlatformList = document.querySelector("#voc-platform-list");
+const vocProfileSummary = document.querySelector("#voc-profile-summary");
+const vocEventContentTable = document.querySelector("#voc-event-content-table");
+const vocEventKolTable = document.querySelector("#voc-event-kol-table");
+const vocEventUserProfileTable = document.querySelector("#voc-event-user-profile-table");
+const vocEventKolUserMatrixTable = document.querySelector("#voc-event-kol-user-matrix-table");
+const vocAssetCards = document.querySelector("#voc-asset-cards");
 let currentAssetKey = "events";
+let currentVocEventId = null;
 const pageSize = 50;
 const tableState = { offset: 0, total: 0 };
 const assetState = { offset: 0, total: 0 };
@@ -263,6 +279,7 @@ function activateView(viewId) {
   for (const item of subnavItems) {
     item.classList.toggle("active", item.dataset.viewTarget === viewId);
   }
+  setActiveModuleItem(viewId);
 }
 
 function activateMainView(viewId) {
@@ -271,6 +288,12 @@ function activateMainView(viewId) {
   }
   for (const item of mainNavItems) {
     item.classList.toggle("active", item.dataset.mainTarget === viewId);
+  }
+  for (const group of moduleNavGroups) {
+    group.classList.toggle("active", group.dataset.moduleGroup === viewId);
+  }
+  if (viewId === "voc-event-view") {
+    loadVocEvents();
   }
   if (viewId === "asset-library-view") {
     loadAsset(currentAssetKey);
@@ -292,6 +315,50 @@ for (const item of mainNavItems) {
 
 for (const item of subnavItems) {
   item.addEventListener("click", () => activateView(item.dataset.viewTarget));
+}
+
+function setActiveModuleItem(targetId) {
+  for (const item of moduleNavItems) {
+    const target = item.dataset.moduleTarget || item.dataset.assetTarget;
+    item.classList.toggle("active", target === targetId);
+  }
+}
+
+function activateModuleView(targetId) {
+  if (document.querySelector(`#${targetId}.workbench-view`)) {
+    activateView(targetId);
+    return;
+  }
+  if (document.querySelector(`#${targetId}.competitor-view`)) {
+    activateCompetitorView(targetId);
+    setActiveModuleItem(targetId);
+    return;
+  }
+  if (document.querySelector(`#${targetId}.profile-view`)) {
+    activateProfileView(targetId);
+    setActiveModuleItem(targetId);
+    return;
+  }
+  const moduleViews = document.querySelectorAll("#voc-event-view .module-view");
+  if (moduleViews.length) {
+    for (const view of moduleViews) {
+      view.classList.toggle("active", view.id === targetId);
+    }
+    setActiveModuleItem(targetId);
+  }
+}
+
+for (const item of moduleNavItems) {
+  item.addEventListener("click", () => {
+    if (item.dataset.assetTarget) {
+      activateMainView("asset-library-view");
+      assetState.offset = 0;
+      loadAsset(item.dataset.assetTarget);
+      setActiveModuleItem(item.dataset.assetTarget);
+      return;
+    }
+    activateModuleView(item.dataset.moduleTarget);
+  });
 }
 
 function renderFlow(nodes) {
@@ -686,11 +753,153 @@ commentUserProfileSearchForm.addEventListener("submit", (event) => {
   loadCommentUserProfiles();
 });
 
+function asMetric(value) {
+  if (value === null || value === undefined || value === "") return "0";
+  return Number(value).toLocaleString("zh-CN");
+}
+
+function renderMiniTable(table, columns, rows) {
+  renderBusinessTable(table, { columns, rows: rows || [] });
+}
+
+async function loadVocEvents() {
+  const params = new URLSearchParams({ limit: "30" });
+  if (vocEventSearchInput.value.trim()) params.set("q", vocEventSearchInput.value.trim());
+  try {
+    const payload = await api(`/api/voc/events?${params.toString()}`);
+    vocEventSelect.innerHTML = payload.events.map(event =>
+      `<option value="${event.event_id}">${event.event_name || event.event_id}</option>`
+    ).join("");
+    if (!payload.events.length) {
+      currentVocEventId = null;
+      vocEventTitle.textContent = "暂无事件数据";
+      vocEventSubtitle.textContent = "请先在任务管理中导入事件、内容和评论，并运行ETL。";
+      return;
+    }
+    if (!currentVocEventId || !payload.events.some(event => event.event_id === currentVocEventId)) {
+      currentVocEventId = payload.events[0].event_id;
+    }
+    vocEventSelect.value = currentVocEventId;
+    await loadVocEventDetail(currentVocEventId);
+  } catch (error) {
+    vocEventTitle.textContent = "VOC看事件加载失败";
+    vocEventSubtitle.textContent = error.message;
+  }
+}
+
+async function loadVocEventDetail(eventId) {
+  if (!eventId) return;
+  currentVocEventId = eventId;
+  const payload = await api(`/api/voc/events/${encodeURIComponent(eventId)}`);
+  renderVocEventDetail(payload);
+}
+
+function renderVocEventDetail(payload) {
+  const overview = payload.overview || {};
+  vocEventTitle.textContent = overview.event_name || payload.event_id || "未命名事件";
+  vocEventSubtitle.textContent = [
+    overview.brand_name,
+    overview.model_name,
+    overview.event_type,
+    overview.event_status,
+  ].filter(Boolean).join(" / ") || "事件信息来自数据资产层";
+  const metricItems = [
+    ["content_cnt", "帖子数"],
+    ["comment_cnt", "评论数"],
+    ["kol_content_cnt", "KOL发声"],
+    ["author_cnt", "作者数"],
+    ["total_engagement", "总互动"],
+  ];
+  vocEventMetrics.innerHTML = metricItems.map(([key, label]) => `
+    <div class="metric">
+      <strong>${asMetric(overview[key])}</strong>
+      <span>${label}</span>
+    </div>
+  `).join("");
+  renderTagCloud(vocPlatformList, overview.top_platform_json || overview.platform_list || []);
+  renderTagCloud(vocProfileSummary, (payload.user_profiles || []).map(item => ({
+    label: item.main_label,
+    value: item.user_cnt,
+  })));
+  renderMiniTable(vocEventContentTable, [
+    { key: "platform", label: "平台" },
+    { key: "title", label: "标题" },
+    { key: "author_name", label: "作者" },
+    { key: "is_kol", label: "KOL" },
+    { key: "engagement_total", label: "互动量" },
+    { key: "comment_cnt", label: "评论数" },
+    { key: "source_url", label: "链接" },
+  ], payload.top_contents);
+  renderMiniTable(vocEventKolTable, [
+    { key: "author_name", label: "KOL" },
+    { key: "kol_main_type", label: "KOL类型" },
+    { key: "content_tendency", label: "内容倾向" },
+    { key: "car_focus", label: "车型关注" },
+    { key: "content_cnt", label: "帖子数" },
+    { key: "comment_cnt", label: "评论数" },
+  ], payload.kol_voice);
+  renderMiniTable(vocEventUserProfileTable, [
+    { key: "main_label", label: "用户主标签" },
+    { key: "user_cnt", label: "用户数" },
+  ], payload.user_profiles);
+  renderMiniTable(vocEventKolUserMatrixTable, [
+    { key: "author_name", label: "KOL" },
+    { key: "main_label", label: "吸引用户标签" },
+    { key: "user_cnt", label: "用户数" },
+  ], payload.kol_user_matrix || []);
+  renderVocAssetCards(payload.asset_counts || {});
+}
+
+function renderTagCloud(container, items) {
+  const normalized = Array.isArray(items) ? items : [];
+  if (!normalized.length) {
+    container.innerHTML = '<span class="chip">暂无数据</span>';
+    return;
+  }
+  container.innerHTML = normalized.slice(0, 12).map(item => {
+    const label = item.label || item.name || item.main_label || "";
+    const value = item.value ?? item.user_cnt ?? item.count ?? "";
+    return `<span class="chip metric-chip">${label}${value !== "" ? ` · ${value}` : ""}</span>`;
+  }).join("");
+}
+
+function renderVocAssetCards(counts) {
+  const cards = [
+    ["events", "事件资产", counts.events || 0],
+    ["contents", "内容资产", counts.contents || 0],
+    ["comments", "评论资产", counts.comments || 0],
+    ["kols", "KOL资产", counts.kols || 0],
+    ["comment_users", "评论用户画像", counts.comment_user_profiles || 0],
+  ];
+  vocAssetCards.innerHTML = cards.map(([assetKey, label, value]) => `
+    <button class="asset-card" type="button" data-asset-key="${assetKey}">
+      <span>${label}</span>
+      <strong>${asMetric(value)}</strong>
+    </button>
+  `).join("");
+  for (const card of vocAssetCards.querySelectorAll(".asset-card")) {
+    card.addEventListener("click", () => {
+      activateMainView("asset-library-view");
+      loadAsset(card.dataset.assetKey);
+    });
+  }
+}
+
+vocEventPicker.addEventListener("submit", (event) => {
+  event.preventDefault();
+  currentVocEventId = null;
+  loadVocEvents();
+});
+
+vocEventSelect.addEventListener("change", () => {
+  loadVocEventDetail(vocEventSelect.value);
+});
+
 async function boot() {
   await loadTasks();
   await loadFlow();
   await loadScript();
-  await loadAsset();
+  await loadVocEvents();
 }
 
 boot();

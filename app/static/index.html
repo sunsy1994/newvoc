@@ -3,28 +3,175 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AutoVOC 任务管理</title>
+  <title>AutoVOC</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="brand">
-      <span class="brand-mark">A</span>
-      <div>
-        <strong>AutoVOC</strong>
-        <small>Event Data Ops</small>
+  <aside class="nav-frame">
+    <section class="sidebar primary-sidebar">
+      <div class="brand">
+        <span class="brand-mark">A</span>
+        <div>
+          <strong>AutoVOC</strong>
+          <small>Event Intelligence</small>
+        </div>
       </div>
-    </div>
-    <nav>
-      <button class="main-nav-item active" type="button" data-main-target="task-workbench-view">任务管理</button>
-      <button class="main-nav-item" type="button" data-main-target="asset-library-view">资产库</button>
-      <button class="main-nav-item" type="button" data-main-target="competitor-activity-view">竞品动态</button>
-      <button class="main-nav-item" type="button" data-main-target="profile-maintenance-view">用户画像维护</button>
-    </nav>
+      <nav>
+        <button class="main-nav-item active" type="button" data-main-target="voc-event-view"><span class="nav-icon">VE</span><span>VOC看事件</span></button>
+        <button class="main-nav-item" type="button" data-main-target="task-workbench-view"><span class="nav-icon">TM</span><span>任务管理</span></button>
+        <button class="main-nav-item" type="button" data-main-target="asset-library-view"><span class="nav-icon">DB</span><span>资产库</span></button>
+        <button class="main-nav-item" type="button" data-main-target="competitor-activity-view"><span class="nav-icon">CA</span><span>竞品动态</span></button>
+        <button class="main-nav-item" type="button" data-main-target="profile-maintenance-view"><span class="nav-icon">UP</span><span>用户画像维护</span></button>
+      </nav>
+    </section>
+
+    <section class="module-sidebar">
+      <div class="module-nav-group active" data-module-group="voc-event-view">
+        <p class="module-label">VOC看事件</p>
+        <button class="module-nav-item active" type="button" data-module-target="voc-event-overview"><span class="nav-icon">01</span><span>事件概览</span></button>
+        <button class="module-nav-item" type="button" data-module-target="voc-event-contents"><span class="nav-icon">02</span><span>传播内容</span></button>
+        <button class="module-nav-item" type="button" data-module-target="voc-event-kol-users"><span class="nav-icon">03</span><span>KOL与用户</span></button>
+        <button class="module-nav-item" type="button" data-module-target="voc-event-assets"><span class="nav-icon">04</span><span>数据资产</span></button>
+      </div>
+      <div class="module-nav-group" data-module-group="task-workbench-view">
+        <p class="module-label">任务管理</p>
+        <button class="module-nav-item active" type="button" data-module-target="import-view"><span class="nav-icon">01</span><span>导入任务</span></button>
+        <button class="module-nav-item" type="button" data-module-target="flow-view"><span class="nav-icon">02</span><span>ETL清理流程</span></button>
+        <button class="module-nav-item" type="button" data-module-target="script-view"><span class="nav-icon">03</span><span>脚本维护</span></button>
+      </div>
+      <div class="module-nav-group" data-module-group="asset-library-view">
+        <p class="module-label">资产库</p>
+        <button class="module-nav-item active asset-shortcut" type="button" data-asset-target="events"><span class="nav-icon">01</span><span>事件资产</span></button>
+        <button class="module-nav-item asset-shortcut" type="button" data-asset-target="contents"><span class="nav-icon">02</span><span>内容资产</span></button>
+        <button class="module-nav-item asset-shortcut" type="button" data-asset-target="comments"><span class="nav-icon">03</span><span>评论资产</span></button>
+        <button class="module-nav-item asset-shortcut" type="button" data-asset-target="authors"><span class="nav-icon">04</span><span>作者资产</span></button>
+        <button class="module-nav-item asset-shortcut" type="button" data-asset-target="kols"><span class="nav-icon">05</span><span>KOL资产</span></button>
+        <button class="module-nav-item asset-shortcut" type="button" data-asset-target="comment_users"><span class="nav-icon">06</span><span>评论用户资产</span></button>
+      </div>
+      <div class="module-nav-group" data-module-group="competitor-activity-view">
+        <p class="module-label">竞品动态</p>
+        <button class="module-nav-item active" type="button" data-module-target="competitor-accounts-view"><span class="nav-icon">01</span><span>竞品账号库</span></button>
+        <button class="module-nav-item" type="button" data-module-target="competitor-works-view"><span class="nav-icon">02</span><span>竞品作品库</span></button>
+      </div>
+      <div class="module-nav-group" data-module-group="profile-maintenance-view">
+        <p class="module-label">用户画像维护</p>
+        <button class="module-nav-item active" type="button" data-module-target="kol-profile-view"><span class="nav-icon">01</span><span>KOL画像</span></button>
+        <button class="module-nav-item" type="button" data-module-target="comment-user-profile-view"><span class="nav-icon">02</span><span>评论用户画像</span></button>
+      </div>
+    </section>
   </aside>
 
   <main class="shell">
-    <section class="main-view active" id="task-workbench-view">
+    <section class="main-view active" id="voc-event-view">
+      <header class="topbar voc-topbar">
+        <div>
+          <p class="eyebrow">业务视角 / 市场传播复盘</p>
+          <h1>VOC看事件</h1>
+        </div>
+        <form id="voc-event-picker" class="event-picker">
+          <input id="voc-event-search-input" type="search" placeholder="搜索事件、品牌、车型">
+          <select id="voc-event-select"></select>
+          <button type="submit">刷新</button>
+        </form>
+      </header>
+
+      <section class="module-view active" id="voc-event-overview">
+        <section class="panel hero-panel">
+          <div>
+            <p class="eyebrow">Event Anchor</p>
+            <h2 id="voc-event-title">请选择一个事件</h2>
+            <p id="voc-event-subtitle">基于事件下的帖子、评论、KOL和用户画像，快速判断市场传播效果。</p>
+          </div>
+          <div id="voc-event-metrics" class="summary"></div>
+        </section>
+        <section class="insight-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>平台与作者概览</h2>
+                <p>来自事件总览ADS表。</p>
+              </div>
+            </div>
+            <div id="voc-platform-list" class="tag-cloud"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>画像结论</h2>
+                <p>基于已回灌的评论用户画像。</p>
+              </div>
+            </div>
+            <div id="voc-profile-summary" class="tag-cloud"></div>
+          </section>
+        </section>
+      </section>
+
+      <section class="module-view" id="voc-event-contents">
+        <section class="panel asset-panel">
+          <div class="panel-head">
+            <div>
+              <h2>传播内容</h2>
+              <p>按互动量和评论量排序，查看事件下哪些帖子真正带动讨论。</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="voc-event-content-table"></table>
+          </div>
+        </section>
+      </section>
+
+      <section class="module-view" id="voc-event-kol-users">
+        <section class="insight-grid">
+          <section class="panel asset-panel">
+            <div class="panel-head">
+              <div>
+                <h2>KOL发声</h2>
+                <p>识别事件中哪些KOL参与传播，以及他们的画像类型。</p>
+              </div>
+            </div>
+            <div class="table-wrap compact-table">
+              <table id="voc-event-kol-table"></table>
+            </div>
+          </section>
+          <section class="panel asset-panel">
+            <div class="panel-head">
+              <div>
+                <h2>吸引的用户画像</h2>
+                <p>统计事件评论用户的主标签分布。</p>
+              </div>
+            </div>
+            <div class="table-wrap compact-table">
+              <table id="voc-event-user-profile-table"></table>
+            </div>
+          </section>
+        </section>
+        <section class="panel asset-panel">
+          <div class="panel-head">
+            <div>
+              <h2>KOL -> 用户画像矩阵</h2>
+              <p>把KOL发声和其帖子下的评论用户画像连起来。</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="voc-event-kol-user-matrix-table"></table>
+          </div>
+        </section>
+      </section>
+
+      <section class="module-view" id="voc-event-assets">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>本事件数据资产</h2>
+              <p>把业务视角背后的底层资产入口放在这里，方便回看数据来源。</p>
+            </div>
+          </div>
+          <div id="voc-asset-cards" class="asset-card-grid"></div>
+        </section>
+      </section>
+    </section>
+
+    <section class="main-view" id="task-workbench-view">
       <header class="topbar">
         <div>
           <p class="eyebrow">阶段 1 / 数据工作台</p>
@@ -37,92 +184,92 @@
         </div>
       </header>
 
-    <nav class="subnav" aria-label="任务管理子菜单">
-      <button class="subnav-item active" type="button" data-view-target="import-view">导入任务</button>
-      <button class="subnav-item" type="button" data-view-target="flow-view">ETL清理流程</button>
-      <button class="subnav-item" type="button" data-view-target="script-view">脚本维护</button>
-    </nav>
+      <nav class="subnav" aria-label="任务管理子菜单">
+        <button class="subnav-item active" type="button" data-view-target="import-view">导入任务</button>
+        <button class="subnav-item" type="button" data-view-target="flow-view">ETL清理流程</button>
+        <button class="subnav-item" type="button" data-view-target="script-view">脚本维护</button>
+      </nav>
 
-    <section class="workbench-view active" id="import-view">
-      <section class="grid">
-        <section class="panel upload-panel">
-          <div class="panel-head">
-            <h2>上传原始数据</h2>
-            <span>ODS input</span>
-          </div>
-          <form id="upload-form">
-            <label>事件表<input name="event_file" type="file" accept=".xlsx,.csv" required></label>
-            <label>内容表<input name="content_file" type="file" accept=".xlsx,.csv" required></label>
-            <label>评论表<input name="comment_file" type="file" accept=".xlsx,.csv" required></label>
-            <button type="submit">创建导入批次</button>
-          </form>
-          <p id="upload-message" class="message"></p>
+      <section class="workbench-view active" id="import-view">
+        <section class="grid">
+          <section class="panel upload-panel">
+            <div class="panel-head">
+              <h2>上传原始数据</h2>
+              <span>ODS input</span>
+            </div>
+            <form id="upload-form">
+              <label>事件表<input name="event_file" type="file" accept=".xlsx,.csv" required></label>
+              <label>内容表<input name="content_file" type="file" accept=".xlsx,.csv" required></label>
+              <label>评论表<input name="comment_file" type="file" accept=".xlsx,.csv" required></label>
+              <button type="submit">创建导入批次</button>
+            </form>
+            <p id="upload-message" class="message"></p>
+          </section>
+
+          <section class="panel task-panel">
+            <div class="panel-head">
+              <h2>ETL 作业情况</h2>
+              <button id="refresh-tasks" class="ghost" type="button">刷新</button>
+            </div>
+            <div id="task-list" class="task-list"></div>
+          </section>
         </section>
 
-        <section class="panel task-panel">
+        <section class="panel detail-panel">
           <div class="panel-head">
-            <h2>ETL 作业情况</h2>
-            <button id="refresh-tasks" class="ghost" type="button">刷新</button>
+            <div>
+              <h2>作业结果</h2>
+              <p id="selected-task">请选择一个批次</p>
+            </div>
+            <button id="run-task" type="button" disabled>运行 ETL</button>
           </div>
-          <div id="task-list" class="task-list"></div>
+          <div id="summary" class="summary"></div>
+          <div class="table-toolbar">
+            <select id="table-select"></select>
+            <span id="table-meta"></span>
+            <button id="export-table" class="ghost" type="button" disabled>导出Excel</button>
+          </div>
+          <div class="table-wrap">
+            <table id="data-table"></table>
+          </div>
+          <div id="table-pager" class="pager"></div>
+          <pre id="error-box" class="error-box"></pre>
         </section>
       </section>
 
-      <section class="panel detail-panel">
-        <div class="panel-head">
-          <div>
-            <h2>作业结果</h2>
-            <p id="selected-task">请选择一个批次</p>
+      <section class="workbench-view" id="flow-view">
+        <section class="panel flow-panel">
+          <div class="panel-head">
+            <div>
+              <h2>ETL 清理流程</h2>
+              <p>从原始上传到 PostgreSQL 落库的处理链路。</p>
+            </div>
+            <button id="refresh-flow" class="ghost" type="button">刷新流程</button>
           </div>
-          <button id="run-task" type="button" disabled>运行 ETL</button>
-        </div>
-        <div id="summary" class="summary"></div>
-        <div class="table-toolbar">
-          <select id="table-select"></select>
-          <span id="table-meta"></span>
-          <button id="export-table" class="ghost" type="button" disabled>导出Excel</button>
-        </div>
-        <div class="table-wrap">
-          <table id="data-table"></table>
-        </div>
-        <div id="table-pager" class="pager"></div>
-        <pre id="error-box" class="error-box"></pre>
+          <div id="flow-list" class="flow-list"></div>
+        </section>
       </section>
-    </section>
 
-    <section class="workbench-view" id="flow-view">
-      <section class="panel flow-panel">
-        <div class="panel-head">
-          <div>
-            <h2>ETL 清理流程</h2>
-            <p>从原始上传到 PostgreSQL 落库的处理链路</p>
+      <section class="workbench-view" id="script-view">
+        <section class="panel script-panel">
+          <div class="panel-head">
+            <div>
+              <h2>脚本维护</h2>
+              <p id="script-meta">读取脚本中...</p>
+            </div>
+            <div class="script-actions">
+              <button id="reload-script" class="ghost" type="button">重新读取</button>
+              <button id="save-script" type="button">保存并备份</button>
+              <button id="test-script" class="ghost" type="button" disabled>用选中批次试跑</button>
+            </div>
           </div>
-          <button id="refresh-flow" class="ghost" type="button">刷新流程</button>
-        </div>
-        <div id="flow-list" class="flow-list"></div>
+          <textarea id="script-editor" spellcheck="false"></textarea>
+          <div class="script-footer">
+            <p id="script-message" class="message"></p>
+            <div id="backup-list" class="backup-list"></div>
+          </div>
+        </section>
       </section>
-    </section>
-
-    <section class="workbench-view" id="script-view">
-      <section class="panel script-panel">
-        <div class="panel-head">
-          <div>
-            <h2>脚本维护</h2>
-            <p id="script-meta">读取脚本中...</p>
-          </div>
-          <div class="script-actions">
-            <button id="reload-script" class="ghost" type="button">重新读取</button>
-            <button id="save-script" type="button">保存并备份</button>
-            <button id="test-script" class="ghost" type="button" disabled>用选中批次试跑</button>
-          </div>
-        </div>
-        <textarea id="script-editor" spellcheck="false"></textarea>
-        <div class="script-footer">
-          <p id="script-message" class="message"></p>
-          <div id="backup-list" class="backup-list"></div>
-        </div>
-      </section>
-    </section>
     </section>
 
     <section class="main-view" id="asset-library-view">
@@ -203,12 +350,8 @@
             </div>
             <form id="competitor-work-filter-form" class="competitor-filters">
               <input id="competitor-work-search-input" type="search" placeholder="搜索标题、作者、话题">
-              <select id="competitor-brand-filter">
-                <option value="">全部品牌</option>
-              </select>
-              <select id="competitor-account-type-filter">
-                <option value="">全部账号类型</option>
-              </select>
+              <select id="competitor-brand-filter"><option value="">全部品牌</option></select>
+              <select id="competitor-account-type-filter"><option value="">全部账号类型</option></select>
               <input id="competitor-start-date" type="date" aria-label="开始日期">
               <input id="competitor-end-date" type="date" aria-label="结束日期">
               <button type="submit">筛选</button>
@@ -282,9 +425,7 @@
             </div>
             <form id="kol-profile-search-form" class="asset-search">
               <input id="kol-profile-search-input" type="search" placeholder="搜索author_id、作者、类型">
-              <select id="kol-profile-batch-filter">
-                <option value="">全部批次</option>
-              </select>
+              <select id="kol-profile-batch-filter"><option value="">全部批次</option></select>
               <button type="submit">搜索</button>
             </form>
           </div>
@@ -332,9 +473,7 @@
             </div>
             <form id="comment-user-profile-search-form" class="asset-search">
               <input id="comment-user-profile-search-input" type="search" placeholder="搜索用户ID、昵称、标签">
-              <select id="comment-user-profile-batch-filter">
-                <option value="">全部批次</option>
-              </select>
+              <select id="comment-user-profile-batch-filter"><option value="">全部批次</option></select>
               <button type="submit">搜索</button>
             </form>
           </div>
@@ -346,6 +485,6 @@
       </section>
     </section>
   </main>
-  <script src="/static/app.js?v=20260604-profile"></script>
+  <script src="/static/app.js?v=20260606-voc-event"></script>
 </body>
 </html>

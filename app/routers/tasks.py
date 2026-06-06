@@ -23,6 +23,7 @@ from app.services.competitor_library import (
 )
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
+from app.services.event_voc_insights import get_voc_event_detail, list_voc_events
 from app.services.profile_library import (
     export_comment_user_profile_samples,
     export_kol_profile_samples,
@@ -152,6 +153,25 @@ def get_assets(asset_key: str, q: str | None = None, limit: int = 50, offset: in
         raise HTTPException(status_code=404, detail="Asset not found")
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/voc/events")
+def get_voc_events(q: str | None = None, limit: int = 20) -> dict:
+    try:
+        return list_voc_events(q=q, limit=limit)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/voc/events/{event_id}")
+def get_voc_event(event_id: str) -> dict:
+    try:
+        payload = get_voc_event_detail(event_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if not payload.get("overview"):
+        raise HTTPException(status_code=404, detail="Event not found")
+    return payload
 
 
 @router.get("/api/competitors/accounts/export")

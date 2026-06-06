@@ -152,6 +152,37 @@ def test_voc_event_detail_api_returns_kol_and_user_profile_story(tmp_path: Path,
     assert payload["user_profiles"][0]["main_label"] == "price sensitive"
 
 
+def test_voc_event_market_dashboard_api_returns_business_sections(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_dashboard(event_id):
+        return {
+            "event": {"event_id": event_id, "event_name": "IDT6上市"},
+            "overview_metrics": {
+                "total_volume": 44,
+                "content_count": 25,
+                "comment_count": 19,
+                "kol_count": 2,
+                "kol_content_count": 6,
+                "total_engagement": 65692,
+            },
+            "volume_trend": [{"date": "2026-05-14", "content_count": 2, "comment_count": 3, "total_volume": 5}],
+            "channel_distribution": [{"channel": "抖音", "content_count": 10, "comment_count": 8, "total_volume": 18}],
+            "kol_type_distribution": [{"kol_main_type": "车型实测测评KOL", "kol_count": 2, "content_count": 4, "total_engagement": 1200}],
+            "hot_posts": [{"content_id": "c1", "title": "试驾体验", "total_engagement": 999}],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_event_market_dashboard", fake_dashboard)
+
+    response = client.get("/api/voc/events/event_001/market-dashboard")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["event"]["event_id"] == "event_001"
+    assert payload["overview_metrics"]["total_volume"] == 44
+    assert payload["hot_posts"][0]["title"] == "试驾体验"
+
+
 def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     captured = {}

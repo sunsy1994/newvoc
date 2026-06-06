@@ -67,6 +67,39 @@ def get_voc_event_detail(event_id: str, database_url: str = DATABASE_URL) -> dic
     }
 
 
+def get_voc_event_market_dashboard(event_id: str, database_url: str = DATABASE_URL) -> dict[str, Any]:
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        overview = fetch_event_overview(conn, event_id)
+        trend = fetch_event_volume_trend(conn, event_id)
+        channel_distribution = fetch_event_channel_distribution(conn, event_id)
+        kol_type_distribution = fetch_event_kol_type_distribution(conn, event_id)
+        hot_posts = fetch_event_hot_posts(conn, event_id)
+    return {
+        "event": overview,
+        "overview_metrics": build_market_overview_metrics(overview, kol_type_distribution),
+        "volume_trend": trend,
+        "channel_distribution": channel_distribution,
+        "kol_type_distribution": kol_type_distribution,
+        "hot_posts": hot_posts,
+    }
+
+
+def build_market_overview_metrics(
+    overview: dict[str, Any],
+    kol_type_distribution: list[dict[str, Any]],
+) -> dict[str, Any]:
+    content_count = int(overview.get("content_cnt") or 0)
+    comment_count = int(overview.get("comment_cnt") or 0)
+    return {
+        "total_volume": content_count + comment_count,
+        "content_count": content_count,
+        "comment_count": comment_count,
+        "kol_count": sum(int(row.get("kol_count") or 0) for row in kol_type_distribution),
+        "kol_content_count": int(overview.get("kol_content_cnt") or 0),
+        "total_engagement": int(overview.get("total_engagement") or 0),
+    }
+
+
 def fetch_event_overview(conn: psycopg.Connection, event_id: str) -> dict[str, Any]:
     query = """
         SELECT event_id, event_name, event_type, brand_name, model_name, start_time, end_time, event_status,
@@ -79,6 +112,112 @@ def fetch_event_overview(conn: psycopg.Connection, event_id: str) -> dict[str, A
         cur.execute(query, [event_id])
         row = cur.fetchone()
     return normalize_row(dict(row)) if row else {}
+
+
+def fetch_event_volume_trend(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:
+    query = """
+        WITH content_daily AS (
+          SELECT date_trunc('day', published_at)::date AS day, count(*)::bigint AS content_count
+          FROM data_asset.dwd_content
+          WHERE event_id = %s AND published_at IS NOT NULL
+          GROUP BY 1
+        ),
+        comment_daily AS (
+          SELECT date_trunc('day', cm.published_at)::date AS day, count(*)::bigint AS comment_count
+          FROM data_asset.dwd_comment cm
+          JOIN data_asset.dwd_content c ON cm.content_id = c.content_id
+          WHERE c.event_id = %s AND cm.published_at IS NOT NULL
+          GROUP BY 1
+        ),
+        days AS (
+          SELECT day FROM content_daily
+          UNION
+          SELECT day FROM comment_daily
+        )
+        SELECT day::text AS date,
+               coalesce(content_count, 0) AS content_count,
+               coalesce(comment_count, 0) AS comment_count,
+               coalesce(content_count, 0) + coalesce(comment_count, 0) AS total_volume
+        FROM days
+        LEFT JOIN content_daily USING (day)
+        LEFT JOIN comment_daily USING (day)
+        ORDER BY day
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id, event_id])
+        return [normalize_row(dict(row)) for row in cur.fetchall()]
+
+
+def fetch_event_channel_distribution(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:
+    query = """
+        WITH content_channel AS (
+          SELECT coalesce(nullif(platform, ''), '未知渠道') AS channel, count(*)::bigint AS content_count
+          FROM data_asset.dwd_content
+          WHERE event_id = %s
+          GROUP BY 1
+        ),
+        comment_channel AS (
+          SELECT coalesce(nullif(c.platform, ''), nullif(cm.platform, ''), '未知渠道') AS channel,
+                 count(*)::bigint AS comment_count
+          FROM data_asset.dwd_comment cm
+          JOIN data_asset.dwd_content c ON cm.content_id = c.content_id
+          WHERE c.event_id = %s
+          GROUP BY 1
+        ),
+        channels AS (
+          SELECT channel FROM content_channel
+          UNION
+          SELECT channel FROM comment_channel
+        )
+        SELECT channel,
+               coalesce(content_count, 0) AS content_count,
+               coalesce(comment_count, 0) AS comment_count,
+               coalesce(content_count, 0) + coalesce(comment_count, 0) AS total_volume
+        FROM channels
+        LEFT JOIN content_channel USING (channel)
+        LEFT JOIN comment_channel USING (channel)
+        ORDER BY total_volume DESC, channel
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id, event_id])
+        return [normalize_row(dict(row)) for row in cur.fetchall()]
+
+
+def fetch_event_kol_type_distribution(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:
+    query = """
+        WITH latest_kol_profile AS (
+          SELECT DISTINCT ON (author_id)
+                 author_id, kol_main_type, updated_time
+          FROM data_asset.user_profile_kol
+          ORDER BY author_id, updated_time DESC NULLS LAST
+        )
+        SELECT coalesce(nullif(p.kol_main_type, ''), '尚未维护KOL画像') AS kol_main_type,
+               count(DISTINCT a.author_id)::bigint AS kol_count,
+               count(DISTINCT c.content_id)::bigint AS content_count,
+               coalesce(sum(c.engagement_total), 0)::bigint AS total_engagement
+        FROM data_asset.dwd_content c
+        JOIN data_asset.dwd_author a ON c.author_id = a.author_id
+        LEFT JOIN latest_kol_profile p ON a.author_id = p.author_id
+        WHERE c.event_id = %s AND a.is_kol = true
+        GROUP BY 1
+        ORDER BY kol_count DESC, content_count DESC, total_engagement DESC
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id])
+        return [normalize_row(dict(row)) for row in cur.fetchall()]
+
+
+def fetch_event_hot_posts(conn: psycopg.Connection, event_id: str, limit: int = 10) -> list[dict[str, Any]]:
+    query = """
+        SELECT content_id, title, coalesce(engagement_total, 0)::bigint AS total_engagement
+        FROM data_asset.dwd_content
+        WHERE event_id = %s
+        ORDER BY engagement_total DESC NULLS LAST, published_at DESC NULLS LAST
+        LIMIT %s
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id, limit])
+        return [normalize_row(dict(row)) for row in cur.fetchall()]
 
 
 def fetch_event_top_contents(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:

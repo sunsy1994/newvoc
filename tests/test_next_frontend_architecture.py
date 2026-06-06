@@ -75,7 +75,10 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
     assert "apiBaseUrl" in navigation
     assert "serverApiBaseUrl" in navigation
     assert "http://127.0.0.1:8000/api" in navigation
+    assert "市场看板" in navigation
+    assert "传播内容" not in navigation
+    assert "KOL与用户" not in navigation
 
     market_page = (root / "src/app/voc/events/market/page.tsx").read_text(encoding="utf-8")
     assert "serverApiBaseUrl" in market_page
-    assert "fetch(`${serverApiBaseUrl}/voc/events`" in market_page
+    assert "/market-dashboard" in market_page

@@ -8,7 +8,6 @@ import {
   GitBranch,
   LayoutDashboard,
   LineChart,
-  Megaphone,
   MessageSquareText,
   Settings2,
   Sparkles,
@@ -29,8 +28,6 @@ export const navigation: NavigationItem[] = [
     icon: Activity,
     children: [
       { label: "市场看板", href: "/voc/events/market", icon: LayoutDashboard },
-      { label: "传播内容", href: "/voc/events/content", icon: Megaphone },
-      { label: "KOL与用户", href: "/voc/events/kol-users", icon: UsersRound },
     ],
   },
   {

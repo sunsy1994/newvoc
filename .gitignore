@@ -6,6 +6,7 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
+.next/
 *.local
 
 # Vite
@@ -68,6 +69,7 @@ __pycache__/
 
 # Optional eslint cache
 .eslintcache
+*.tsbuildinfo
 
 # Optional stylelint cache
 .stylelintcache

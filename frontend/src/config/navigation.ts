@@ -20,6 +20,7 @@ import {
 import type { NavigationItem } from "@/types/navigation";
 
 export const apiBaseUrl = "/api";
+export const serverApiBaseUrl = process.env.AUTOVOC_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
 export const navigation: NavigationItem[] = [
   {

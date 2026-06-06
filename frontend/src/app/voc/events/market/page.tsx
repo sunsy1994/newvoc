@@ -1,4 +1,4 @@
-import { apiBaseUrl } from "@/config/navigation";
+import { serverApiBaseUrl } from "@/config/navigation";
 
 type VocEvent = {
   event_id: string;
@@ -15,7 +15,7 @@ type VocEvent = {
 
 async function getEvents(): Promise<VocEvent[]> {
   try {
-    const response = await fetch(`${apiBaseUrl}/voc/events`, { cache: "no-store" });
+    const response = await fetch(`${serverApiBaseUrl}/voc/events`, { cache: "no-store" });
     if (!response.ok) return [];
     const payload = (await response.json()) as { events?: VocEvent[] };
     return payload.events ?? [];

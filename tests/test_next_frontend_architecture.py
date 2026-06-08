@@ -180,3 +180,17 @@ def test_task_import_page_uses_real_api_workbench() -> None:
     assert "comment_file" in workbench
     assert "<DataPagination" in workbench
     assert "const defaultPageSize = 10" in workbench
+
+
+def test_etl_flow_page_uses_visual_flow_canvas() -> None:
+    root = Path("frontend")
+    page = (root / "src/app/tasks/flow/page.tsx").read_text(encoding="utf-8")
+    canvas = (root / "src/components/tasks/EtlFlowCanvas.tsx").read_text(encoding="utf-8")
+
+    assert "EtlFlowCanvas" in page
+    assert "PlaceholderPage" not in page
+    assert "/etl/flow" in canvas
+    assert "/tasks" in canvas
+    assert "ODS → DWD → ADS → PostgreSQL" in canvas
+    assert "FlowLines" in canvas
+    assert "nodeLayouts" in canvas

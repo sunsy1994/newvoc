@@ -1,18 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ArrowDownToLine,
-  Boxes,
-  CheckCircle2,
-  Database,
-  FileInput,
-  GitBranch,
-  Layers3,
-  RefreshCw,
-  Route,
-  SearchCheck,
-} from "lucide-react";
+import { Boxes, CheckCircle2, Database, FileInput, GitBranch, Layers3, RefreshCw, Route, SearchCheck } from "lucide-react";
 
 import { apiBaseUrl } from "@/config/navigation";
 import type { EtlFlowNode, EtlFlowPayload } from "@/types/etlFlow";
@@ -25,6 +14,13 @@ type NodeLayout = {
   tone: "purple" | "blue" | "teal" | "yellow" | "green";
   icon: React.ReactNode;
 };
+
+const cardWidth = 300;
+const colGap = 96;
+const rowHeight = 330;
+const rowGap = 56;
+const canvasWidth = 6 * cardWidth + 5 * colGap;
+const canvasHeight = 3 * rowHeight + 2 * rowGap;
 
 const nodeLayouts: NodeLayout[] = [
   { id: "upload", col: 1, row: 1, tone: "purple", icon: <FileInput className="h-4 w-4" /> },
@@ -64,53 +60,66 @@ function buildApiUrl(endpoint: string, params?: URLSearchParams) {
 }
 
 function tableShortName(table: string) {
-  return table.replace("data_asset.", "").replace(".xlsx/csv", "");
+  return table.replace("data_asset.", "").replace(".xlsx/csv", "").replace("event_upload", "event").replace("content_upload", "content").replace("comment_upload", "comment");
+}
+
+function NodeChips({ items, tone = "neutral" }: { items: string[]; tone?: "neutral" | "metric" }) {
+  const visible = items.slice(0, 3);
+  const hidden = items.length - visible.length;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {visible.map((item) => (
+        <span
+          key={item}
+          className={`max-w-full truncate rounded-lg px-2 py-1 text-[11px] font-medium ${
+            tone === "metric" ? "bg-[#f0efff] text-[#5347CE]" : "bg-[#f7f9fc] text-[#596070]"
+          }`}
+          title={item}
+        >
+          {tableShortName(item)}
+        </span>
+      ))}
+      {hidden > 0 ? <span className="rounded-lg bg-white px-2 py-1 text-[11px] text-[#8b92a1]">+{hidden}</span> : null}
+    </div>
+  );
 }
 
 function FlowNodeCard({ node, layout }: { node: EtlFlowNode; layout: NodeLayout }) {
   const metricEntries = Object.entries(node.metrics ?? {});
+  const metricItems = metricEntries.map(([key, value]) => `${tableShortName(key)}: ${value.toLocaleString("zh-CN")}`);
 
   return (
     <article
-      className="relative z-10 min-h-52 w-64 rounded-2xl border border-[#e8ecf3] bg-white p-4 shadow-[0_16px_34px_rgba(26,32,44,0.08)]"
+      className="relative z-10 flex h-[300px] w-[300px] flex-col overflow-hidden rounded-2xl border border-[#e8ecf3] bg-white p-4 shadow-[0_16px_34px_rgba(26,32,44,0.08)]"
       style={{ gridColumn: layout.col, gridRow: layout.row }}
     >
       <div className="mb-3 flex items-start gap-3">
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${toneClass[layout.tone]}`}>{layout.icon}</div>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8b92a1]">
+          <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#8b92a1]" title={node.function_name}>
             Step {String(node.order).padStart(2, "0")} / {node.function_name}
           </p>
-          <h2 className="mt-1 text-sm font-semibold text-[#151720]">{node.title}</h2>
+          <h2 className="mt-1 line-clamp-1 text-sm font-semibold text-[#151720]" title={node.title}>
+            {node.title}
+          </h2>
         </div>
       </div>
-      <p className="line-clamp-2 text-xs leading-5 text-[#7b8190]">{node.desc}</p>
+      <p className="line-clamp-2 min-h-10 text-xs leading-5 text-[#7b8190]" title={node.desc}>
+        {node.desc}
+      </p>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 grid flex-1 content-start gap-3">
         <div>
-          <p className="mb-1 text-[11px] font-semibold text-[#8b92a1]">输出表</p>
-          <div className="flex flex-wrap gap-1.5">
-            {node.output_tables.slice(0, 4).map((table) => (
-              <span key={table} className="rounded-lg bg-[#f7f9fc] px-2 py-1 text-[11px] font-medium text-[#596070]">
-                {tableShortName(table)}
-              </span>
-            ))}
-          </div>
+          <p className="mb-1 text-[11px] font-semibold text-[#8b92a1]">输入</p>
+          <NodeChips items={node.input_tables} />
         </div>
-
+        <div>
+          <p className="mb-1 text-[11px] font-semibold text-[#8b92a1]">输出</p>
+          <NodeChips items={node.output_tables} />
+        </div>
         <div>
           <p className="mb-1 text-[11px] font-semibold text-[#8b92a1]">批次指标</p>
-          {metricEntries.length ? (
-            <div className="grid grid-cols-2 gap-1.5">
-              {metricEntries.slice(0, 4).map(([key, value]) => (
-                <span key={key} className="rounded-lg bg-[#f0efff] px-2 py-1 text-[11px] font-semibold text-[#5347CE]">
-                  {tableShortName(key)}: {value.toLocaleString("zh-CN")}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="rounded-lg bg-[#f7f9fc] px-2 py-1 text-[11px] text-[#a3a9b5]">暂无批次指标</span>
-          )}
+          {metricItems.length ? <NodeChips items={metricItems} tone="metric" /> : <span className="rounded-lg bg-[#f7f9fc] px-2 py-1 text-[11px] text-[#a3a9b5]">暂无批次指标</span>}
         </div>
       </div>
     </article>
@@ -119,11 +128,17 @@ function FlowNodeCard({ node, layout }: { node: EtlFlowNode; layout: NodeLayout 
 
 function FlowLines() {
   const positions = Object.fromEntries(
-    nodeLayouts.map((node) => [node.id, { x: (node.col - 1) * 304 + 128, y: (node.row - 1) * 248 + 104 }]),
+    nodeLayouts.map((node) => [
+      node.id,
+      {
+        x: (node.col - 1) * (cardWidth + colGap),
+        y: (node.row - 1) * (rowHeight + rowGap),
+      },
+    ]),
   ) as Record<string, { x: number; y: number }>;
 
   return (
-    <svg className="pointer-events-none absolute inset-0 z-0 h-[744px] w-[1776px]" aria-hidden="true">
+    <svg className="pointer-events-none absolute inset-0 z-0" width={canvasWidth} height={canvasHeight} aria-hidden="true">
       <defs>
         <marker id="flow-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="6" refY="3">
           <path d="M0,0 L0,6 L6,3 z" fill="#9aa3b5" />
@@ -132,11 +147,15 @@ function FlowLines() {
       {edges.map(([source, target]) => {
         const start = positions[source];
         const end = positions[target];
-        const midX = start.x + (end.x - start.x) / 2;
+        const startX = start.x + cardWidth;
+        const startY = start.y + 150;
+        const endX = end.x;
+        const endY = end.y + 150;
+        const midX = startX + (endX - startX) / 2;
         return (
           <path
             key={`${source}-${target}`}
-            d={`M ${start.x + 128} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x - 128} ${end.y}`}
+            d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
             fill="none"
             markerEnd="url(#flow-arrow)"
             stroke="#c7cfdd"
@@ -252,7 +271,15 @@ export function EtlFlowCanvas() {
         </div>
 
         <div className="overflow-x-auto rounded-2xl bg-[#f5f7fb] p-6">
-          <div className="relative grid h-[744px] w-[1776px] grid-cols-[repeat(6,256px)] grid-rows-[repeat(3,208px)] gap-x-12 gap-y-10">
+          <div
+            className="relative grid gap-x-24 gap-y-14"
+            style={{
+              width: canvasWidth,
+              height: canvasHeight,
+              gridTemplateColumns: `repeat(6, ${cardWidth}px)`,
+              gridTemplateRows: `repeat(3, ${rowHeight}px)`,
+            }}
+          >
             <FlowLines />
             {nodeLayouts.map((layout) => {
               const node = nodeMap.get(layout.id);

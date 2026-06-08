@@ -183,6 +183,41 @@ def test_voc_event_market_dashboard_api_returns_business_sections(tmp_path: Path
     assert payload["hot_posts"][0]["title"] == "试驾体验"
 
 
+def test_voc_event_content_detail_api_supports_comment_sort_and_paging(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_detail(event_id, content_id, sort="interaction", limit=10, offset=0):
+        captured.update({"event_id": event_id, "content_id": content_id, "sort": sort, "limit": limit, "offset": offset})
+        return {
+            "content": {"content_id": content_id, "event_id": event_id, "title": "top post", "source_url": "https://example.test/post"},
+            "comments": [
+                {
+                    "comment_id": "cm2",
+                    "parent_comment_id": "cm1",
+                    "comment_author_name": "user b",
+                    "comment_text": "reply",
+                    "interaction_cnt": 8,
+                }
+            ],
+            "total": 21,
+            "limit": limit,
+            "offset": offset,
+            "sort": sort,
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_event_content_detail", fake_detail)
+
+    response = client.get("/api/voc/events/event_001/contents/content_001/detail?sort=published_at&limit=5&offset=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert captured == {"event_id": "event_001", "content_id": "content_001", "sort": "published_at", "limit": 5, "offset": 10}
+    assert payload["content"]["source_url"] == "https://example.test/post"
+    assert payload["comments"][0]["parent_comment_id"] == "cm1"
+    assert payload["total"] == 21
+
+
 def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     captured = {}

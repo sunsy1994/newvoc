@@ -86,6 +86,32 @@ def get_voc_event_market_dashboard(event_id: str, database_url: str = DATABASE_U
     }
 
 
+def get_voc_event_content_detail(
+    event_id: str,
+    content_id: str,
+    sort: str = "interaction",
+    limit: int = 10,
+    offset: int = 0,
+    database_url: str = DATABASE_URL,
+) -> dict[str, Any]:
+    sort = sort if sort in {"interaction", "published_at"} else "interaction"
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        content = fetch_event_content(conn, event_id, content_id)
+        if not content:
+            return {"content": {}, "comments": [], "total": 0, "limit": limit, "offset": offset, "sort": sort}
+        comments, total = fetch_event_content_comments(conn, content_id, sort=sort, limit=limit, offset=offset)
+    return {
+        "content": content,
+        "comments": comments,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "sort": sort,
+    }
+
+
 def build_market_overview_metrics(
     overview: dict[str, Any],
     kol_type_distribution: list[dict[str, Any]],
@@ -220,6 +246,54 @@ def fetch_event_hot_posts(conn: psycopg.Connection, event_id: str, limit: int = 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query, [event_id, limit])
         return [normalize_row(dict(row)) for row in cur.fetchall()]
+
+
+def fetch_event_content(conn: psycopg.Connection, event_id: str, content_id: str) -> dict[str, Any]:
+    query = """
+        SELECT c.content_id, c.event_id, c.platform, c.source_url, c.title, c.content_text,
+               c.content_type, c.media_form, c.published_at,
+               c.like_cnt, c.comment_cnt, c.share_cnt, c.favorite_cnt, c.view_cnt, c.engagement_total,
+               a.author_id, a.author_name, a.author_type, coalesce(a.is_kol, false) AS is_kol,
+               a.author_home_url, a.fans_cnt
+        FROM data_asset.dwd_content c
+        LEFT JOIN data_asset.dwd_author a ON c.author_id = a.author_id
+        WHERE c.event_id = %s AND c.content_id = %s
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, [event_id, content_id])
+        row = cur.fetchone()
+    return normalize_row(dict(row)) if row else {}
+
+
+def fetch_event_content_comments(
+    conn: psycopg.Connection,
+    content_id: str,
+    sort: str,
+    limit: int,
+    offset: int,
+) -> tuple[list[dict[str, Any]], int]:
+    order_sql = (
+        "cm.published_at DESC NULLS LAST, cm.interaction_cnt DESC NULLS LAST, cm.comment_id"
+        if sort == "published_at"
+        else "cm.interaction_cnt DESC NULLS LAST, cm.published_at DESC NULLS LAST, cm.comment_id"
+    )
+    count_query = "SELECT count(*)::bigint AS total FROM data_asset.dwd_comment cm WHERE cm.content_id = %s"
+    data_query = f"""
+        SELECT cm.comment_id, cm.content_id, cm.platform, cm.location,
+               cm.comment_author_id, cm.comment_author_name, cm.parent_comment_id,
+               cm.comment_text, cm.published_at,
+               cm.like_cnt, cm.reply_cnt, cm.interaction_cnt
+        FROM data_asset.dwd_comment cm
+        WHERE cm.content_id = %s
+        ORDER BY {order_sql}
+        LIMIT %s OFFSET %s
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(count_query, [content_id])
+        total = int(cur.fetchone()["total"])
+        cur.execute(data_query, [content_id, limit, offset])
+        comments = [normalize_row(dict(row)) for row in cur.fetchall()]
+    return comments, total
 
 
 def fetch_event_top_contents(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:

@@ -208,3 +208,22 @@ def test_task_script_page_uses_real_api_editor() -> None:
     assert "/tasks" in editor
     assert "保存并备份" in editor
     assert "用选中批次试跑" in editor
+
+
+def test_market_hot_posts_support_detail_drilldown_modal() -> None:
+    root = Path("frontend")
+    market_page = (root / "src/app/voc/events/market/page.tsx").read_text(encoding="utf-8")
+    hot_list = (root / "src/components/voc/HotPostList.tsx").read_text(encoding="utf-8")
+    modal = (root / "src/components/voc/PostDetailModal.tsx").read_text(encoding="utf-8")
+
+    assert "eventId={dashboard.event.event_id}" in market_page
+    assert "PostDetailModal" in hot_list
+    assert "setSelectedPost(post)" in hot_list
+    assert "/voc/events/" in modal
+    assert "/contents/" in modal
+    assert "/detail" in modal
+    assert "按互动排序" in modal
+    assert "按发布时间排序" in modal
+    assert "<DataPagination" in modal
+    assert "parent_comment_id" in modal
+    assert "打开原帖" in modal

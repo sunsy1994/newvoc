@@ -157,7 +157,7 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
               <ChannelStackedBars data={dashboard.channel_distribution} />
             </DashboardCard>
             <DashboardCard title="热门热搜" subtitle="按总互动量排序 Top 5">
-              <HotPostList posts={dashboard.hot_posts} />
+              <HotPostList eventId={dashboard.event.event_id} posts={dashboard.hot_posts} />
             </DashboardCard>
           </section>
         </>

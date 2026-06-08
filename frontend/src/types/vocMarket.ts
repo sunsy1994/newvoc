@@ -54,6 +54,56 @@ export type HotPostItem = {
   total_engagement: number;
 };
 
+export type PostDetailContent = {
+  content_id: string;
+  event_id: string;
+  platform?: string | null;
+  source_url?: string | null;
+  title: string;
+  content_text?: string | null;
+  content_type?: string | null;
+  media_form?: string | null;
+  published_at?: string | null;
+  like_cnt: number;
+  comment_cnt: number;
+  share_cnt: number;
+  favorite_cnt: number;
+  view_cnt?: number | null;
+  engagement_total: number;
+  author_id?: string | null;
+  author_name?: string | null;
+  author_type?: string | null;
+  is_kol?: boolean | null;
+  author_home_url?: string | null;
+  fans_cnt?: number | null;
+};
+
+export type PostDetailComment = {
+  comment_id: string;
+  content_id: string;
+  platform?: string | null;
+  location?: string | null;
+  comment_author_id?: string | null;
+  comment_author_name: string;
+  parent_comment_id?: string | null;
+  comment_text: string;
+  published_at?: string | null;
+  like_cnt: number;
+  reply_cnt: number;
+  interaction_cnt: number;
+};
+
+export type PostDetailSort = "interaction" | "published_at";
+
+export type PostDetailPayload = {
+  content: PostDetailContent;
+  comments: PostDetailComment[];
+  total: number;
+  limit: number;
+  offset: number;
+  sort: PostDetailSort;
+};
+
 export type MarketDashboardPayload = {
   event: VocEvent;
   overview_metrics: OverviewMetrics;

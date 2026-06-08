@@ -23,7 +23,12 @@ from app.services.competitor_library import (
 )
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
-from app.services.event_voc_insights import get_voc_event_detail, get_voc_event_market_dashboard, list_voc_events
+from app.services.event_voc_insights import (
+    get_voc_event_content_detail,
+    get_voc_event_detail,
+    get_voc_event_market_dashboard,
+    list_voc_events,
+)
 from app.services.profile_library import (
     export_comment_user_profile_samples,
     export_kol_profile_samples,
@@ -171,6 +176,23 @@ def get_voc_event_market_dashboard_api(event_id: str) -> dict:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
     if not payload.get("event"):
         raise HTTPException(status_code=404, detail="Event not found")
+    return payload
+
+
+@router.get("/api/voc/events/{event_id}/contents/{content_id}/detail")
+def get_voc_event_content_detail_api(
+    event_id: str,
+    content_id: str,
+    sort: str = "interaction",
+    limit: int = 10,
+    offset: int = 0,
+) -> dict:
+    try:
+        payload = get_voc_event_content_detail(event_id, content_id, sort=sort, limit=limit, offset=offset)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if not payload.get("content"):
+        raise HTTPException(status_code=404, detail="Content not found")
     return payload
 
 

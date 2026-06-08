@@ -152,11 +152,11 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
             </DashboardCard>
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+          <section className="grid gap-4 lg:grid-cols-[1.55fr_0.45fr]">
             <DashboardCard title="渠道分布" subtitle="主贴与评论堆积，评论渠道继承所属主贴">
               <ChannelStackedBars data={dashboard.channel_distribution} />
             </DashboardCard>
-            <DashboardCard title="热门帖子榜" subtitle="按底表总互动量倒序">
+            <DashboardCard title="热门热搜" subtitle="按总互动量排序 Top 5">
               <HotPostList posts={dashboard.hot_posts} />
             </DashboardCard>
           </section>

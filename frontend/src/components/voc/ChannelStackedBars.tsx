@@ -7,7 +7,7 @@ type ChannelStackedBarsProps = {
 export function ChannelStackedBars({ data }: ChannelStackedBarsProps) {
   if (!data.length) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-2xl bg-[#f7f9fc] text-sm text-[#8b92a1]">
+      <div className="flex h-72 items-center justify-center rounded-2xl bg-[#f7f9fc] text-sm text-[#8b92a1]">
         缺少渠道字段，暂无法展示渠道分布
       </div>
     );
@@ -16,17 +16,17 @@ export function ChannelStackedBars({ data }: ChannelStackedBarsProps) {
   const max = Math.max(...data.map((item) => item.total_volume), 1);
 
   return (
-    <div className="space-y-4 rounded-2xl bg-[#f7f9fc] p-4">
+    <div className="space-y-5 rounded-2xl bg-[#f7f9fc] p-5">
       {data.slice(0, 8).map((item) => {
         const contentWidth = `${(item.content_count / max) * 100}%`;
         const commentWidth = `${(item.comment_count / max) * 100}%`;
         return (
           <div key={item.channel}>
             <div className="mb-2 flex justify-between gap-3 text-xs text-[#6f7685]">
-              <span className="truncate">{item.channel}</span>
+              <span className="truncate font-medium text-[#3a4050]">{item.channel}</span>
               <span>{item.total_volume.toLocaleString("zh-CN")}</span>
             </div>
-            <div className="flex h-3 overflow-hidden rounded-full bg-white">
+            <div className="flex h-5 overflow-hidden rounded-full bg-white shadow-inner shadow-[#dfe5ef]/50">
               <div className="bg-[#4896FE]" style={{ width: contentWidth }} />
               <div className="bg-[#16C8C7]" style={{ width: commentWidth }} />
             </div>

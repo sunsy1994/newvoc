@@ -16,8 +16,8 @@ export function SecondaryNav() {
   const children = activePrimary.children ?? [];
 
   return (
-    <nav className="flex flex-col gap-1 border-l border-zinc-200/80 pl-3">
-      <div className="mb-4 flex items-center justify-between px-3 pt-2 text-xs font-medium text-zinc-500">
+    <nav className="flex flex-col gap-1">
+      <div className="mb-3 flex items-center justify-between px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[#a1a7b3]">
         <span>{activePrimary.label}</span>
         <FolderClosed className="h-3.5 w-3.5" />
       </div>

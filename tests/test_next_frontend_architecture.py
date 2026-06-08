@@ -26,8 +26,8 @@ def test_next_frontend_uses_app_router_src_tailwind_and_typed_navigation() -> No
     assert "usePathname" in primary_nav
     assert "usePathname" in secondary_nav
     assert "grid-cols-[136px_1fr]" in sidebar
-    assert "bg-zinc-950 text-white" in nav_item
-    assert "bg-white text-zinc-950 shadow-sm" in nav_item
+    assert "bg-[#5347CE] text-white" in nav_item
+    assert "bg-white text-[#151720]" in nav_item
 
 
 def test_frontend_navigation_components_are_small_and_data_driven() -> None:

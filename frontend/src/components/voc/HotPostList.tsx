@@ -7,7 +7,7 @@ type HotPostListProps = {
 export function HotPostList({ posts }: HotPostListProps) {
   if (!posts.length) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-3xl bg-zinc-50 text-sm text-zinc-400">
+      <div className="flex h-64 items-center justify-center rounded-2xl bg-[#f7f9fc] text-sm text-[#8b92a1]">
         缺少总互动量字段，暂无法展示热门榜单
       </div>
     );
@@ -19,13 +19,13 @@ export function HotPostList({ posts }: HotPostListProps) {
         <a
           key={post.content_id}
           href={`#post-${encodeURIComponent(post.content_id)}`}
-          className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3 transition hover:bg-zinc-100"
+          className="flex items-center gap-3 rounded-xl bg-[#f7f9fc] px-4 py-3 transition hover:bg-[#eef1f6]"
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-zinc-500">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-semibold text-[#5347CE] shadow-[0_6px_14px_rgba(26,32,44,0.05)]">
             {index + 1}
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-700">{post.title || "未命名帖子"}</span>
-          <span className="text-sm font-semibold text-zinc-950">{post.total_engagement.toLocaleString("zh-CN")}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#3a4050]">{post.title || "未命名帖子"}</span>
+          <span className="text-sm font-semibold text-[#151720]">{post.total_engagement.toLocaleString("zh-CN")}</span>
         </a>
       ))}
     </div>

@@ -6,12 +6,10 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#ffffff_0,#f4f4f2_34%,#e9edf1_100%)] p-4 text-zinc-950">
-      <div className="flex min-h-[calc(100vh-32px)] gap-4">
+    <div className="min-h-screen bg-[#f5f7fb] p-3 text-[#151720]">
+      <div className="flex min-h-[calc(100vh-24px)] overflow-hidden rounded-[22px] border border-[#e8ecf3] bg-white shadow-[0_18px_60px_rgba(26,32,44,0.08)]">
         <Sidebar />
-        <main className="min-w-0 flex-1 rounded-[28px] border border-white/70 bg-white/82 p-8 shadow-soft backdrop-blur">
-          {children}
-        </main>
+        <main className="min-w-0 flex-1 bg-[#f7f9fc] p-6">{children}</main>
       </div>
     </div>
   );

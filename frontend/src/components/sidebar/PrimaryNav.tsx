@@ -14,7 +14,7 @@ export function PrimaryNav() {
 
   return (
     <nav className="flex flex-col gap-1">
-      <div className="mb-4 px-3 pt-2 text-xs font-semibold text-zinc-950">Menu</div>
+      <div className="mb-3 px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[#a1a7b3]">General</div>
       {navigation.map((item) => (
         <NavItem
           key={item.href}

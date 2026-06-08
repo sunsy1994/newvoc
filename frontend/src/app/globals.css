@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --nexus-primary: #5347ce;
+  --nexus-purple: #887cfd;
+  --nexus-blue: #4896fe;
+  --nexus-teal: #16c8c7;
+  --nexus-bg: #f5f7fb;
+  --nexus-border: #e8ecf3;
+  --nexus-ink: #151720;
+  --nexus-muted: #7b8190;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -13,4 +24,7 @@ body {
 
 body {
   margin: 0;
+  background: var(--nexus-bg);
+  color: var(--nexus-ink);
+  font-feature-settings: "tnum";
 }

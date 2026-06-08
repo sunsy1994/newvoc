@@ -163,3 +163,20 @@ def test_frontend_lists_use_shared_pagination_component() -> None:
         assert "const defaultPageSize = 10" in text
         assert "<DataPagination" in text
         assert "const pageSize = 50" not in text
+
+
+def test_task_import_page_uses_real_api_workbench() -> None:
+    root = Path("frontend")
+    page = (root / "src/app/tasks/import/page.tsx").read_text(encoding="utf-8")
+    workbench = (root / "src/components/tasks/TaskImportWorkbench.tsx").read_text(encoding="utf-8")
+
+    assert "TaskImportWorkbench" in page
+    assert "Placeholder" not in page
+    assert "/tasks/upload" in workbench
+    assert "/run" in workbench
+    assert "/tables" in workbench
+    assert "event_file" in workbench
+    assert "content_file" in workbench
+    assert "comment_file" in workbench
+    assert "<DataPagination" in workbench
+    assert "const defaultPageSize = 10" in workbench

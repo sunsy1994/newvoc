@@ -101,3 +101,21 @@ def test_profile_pages_use_real_api_component_and_shared_design_doc() -> None:
     assert "/profiles/comment-users" in comment_user_page
     assert "fetch(buildApiUrl(config.listEndpoint" in profile_component
     assert "FormData" in profile_component
+
+
+def test_competitor_pages_use_real_api_component_and_filters() -> None:
+    root = Path("frontend")
+    competitor_component = (root / "src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+    account_page = (root / "src/app/competitors/accounts/page.tsx").read_text(encoding="utf-8")
+    work_page = (root / "src/app/competitors/works/page.tsx").read_text(encoding="utf-8")
+
+    assert "CompetitorLibraryPage" in account_page
+    assert "CompetitorLibraryPage" in work_page
+    assert "PlaceholderPage" not in account_page
+    assert "PlaceholderPage" not in work_page
+    assert "/competitors/accounts" in account_page
+    assert "/competitors/works" in work_page
+    assert "/competitors/options" in competitor_component
+    assert "brand_name" in competitor_component
+    assert "start_date" in competitor_component
+    assert "end_date" in competitor_component

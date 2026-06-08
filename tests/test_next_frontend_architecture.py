@@ -143,3 +143,23 @@ def test_asset_pages_use_real_api_component_and_exports() -> None:
 
     assert "fetch(buildApiUrl(`/assets/${config.assetKey}`" in asset_component
     assert "`/assets/${config.assetKey}/export`" in asset_component
+
+
+def test_frontend_lists_use_shared_pagination_component() -> None:
+    root = Path("frontend")
+    pagination = (root / "src/components/shared/DataPagination.tsx").read_text(encoding="utf-8")
+    list_components = [
+        "src/components/assets/AssetLibraryPage.tsx",
+        "src/components/competitors/CompetitorLibraryPage.tsx",
+        "src/components/profiles/ProfileMaintenancePage.tsx",
+    ]
+
+    assert "pageSizeOptions = [10, 20, 50, 100]" in pagination
+    assert "onPageSizeChange" in pagination
+    assert "跳转页码" in pagination
+
+    for relative_path in list_components:
+        text = (root / relative_path).read_text(encoding="utf-8")
+        assert "const defaultPageSize = 10" in text
+        assert "<DataPagination" in text
+        assert "const pageSize = 50" not in text

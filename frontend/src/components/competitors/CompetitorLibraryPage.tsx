@@ -1,21 +1,13 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  BarChart3,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  RefreshCw,
-  Search,
-  TableProperties,
-} from "lucide-react";
+import { BarChart3, CalendarDays, Download, RefreshCw, Search, TableProperties } from "lucide-react";
 
+import { DataPagination } from "@/components/shared/DataPagination";
 import { apiBaseUrl } from "@/config/navigation";
 import type { CompetitorListPayload, CompetitorOptionsPayload, CompetitorPageConfig } from "@/types/competitors";
 
-const pageSize = 50;
+const defaultPageSize = 10;
 
 type LoadState = "idle" | "loading" | "error";
 
@@ -48,6 +40,7 @@ function SummaryTile({ label, value, tone }: { label: string; value: string; ton
     blue: "bg-[#eef6ff] text-[#4896FE]",
     teal: "bg-[#eafafa] text-[#16C8C7]",
   }[tone];
+
   return (
     <div className="rounded-2xl border border-[#e8ecf3] bg-white p-4 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
       <div className={`mb-3 inline-flex h-8 w-8 items-center justify-center rounded-xl ${toneClass}`}>
@@ -70,13 +63,10 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
 
   const total = payload?.total ?? 0;
   const rows = payload?.rows ?? [];
-  const startRow = total > 0 ? offset + 1 : 0;
-  const endRow = Math.min(offset + pageSize, total);
-  const hasPrev = offset > 0;
-  const hasNext = offset + pageSize < total;
 
   const params = useMemo(() => {
     const nextParams = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
@@ -88,7 +78,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
       if (endDate) nextParams.set("end_date", endDate);
     }
     return nextParams;
-  }, [accountType, brandName, config.mode, endDate, offset, query, startDate]);
+  }, [accountType, brandName, config.mode, endDate, offset, pageSize, query, startDate]);
 
   const exportUrl = useMemo(() => {
     const exportParams = new URLSearchParams(params);
@@ -117,8 +107,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
     try {
       const response = await fetch(buildApiUrl(config.listEndpoint, params), { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const nextPayload = (await response.json()) as CompetitorListPayload;
-      setPayload(nextPayload);
+      setPayload((await response.json()) as CompetitorListPayload);
       setLoadState("idle");
     } catch {
       setPayload(null);
@@ -335,31 +324,13 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
           ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[#7b8190]">
-          <span>
-            显示 {startRow.toLocaleString("zh-CN")} - {endRow.toLocaleString("zh-CN")} / {total.toLocaleString("zh-CN")}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={!hasPrev}
-              onClick={() => setOffset(Math.max(0, offset - pageSize))}
-              className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              上一页
-            </button>
-            <button
-              type="button"
-              disabled={!hasNext}
-              onClick={() => setOffset(offset + pageSize)}
-              className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              下一页
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <DataPagination
+          total={total}
+          offset={offset}
+          pageSize={pageSize}
+          onOffsetChange={setOffset}
+          onPageSizeChange={setPageSize}
+        />
       </section>
     </div>
   );

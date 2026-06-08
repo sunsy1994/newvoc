@@ -1,21 +1,13 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Database,
-  Download,
-  FileSpreadsheet,
-  RefreshCw,
-  Search,
-  UploadCloud,
-} from "lucide-react";
+import { Database, Download, FileSpreadsheet, RefreshCw, Search, UploadCloud } from "lucide-react";
 
+import { DataPagination } from "@/components/shared/DataPagination";
 import { apiBaseUrl } from "@/config/navigation";
 import type { ProfileBatchesPayload, ProfileListPayload, ProfilePageConfig } from "@/types/profiles";
 
-const pageSize = 50;
+const defaultPageSize = 10;
 
 type LoadState = "idle" | "loading" | "error";
 
@@ -85,16 +77,13 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
   const [draftQuery, setDraftQuery] = useState("");
   const [batch, setBatch] = useState("");
   const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
   const [sampleDays, setSampleDays] = useState(7);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const total = payload?.total ?? 0;
-  const startRow = total > 0 ? offset + 1 : 0;
-  const endRow = Math.min(offset + pageSize, total);
-  const hasPrev = offset > 0;
-  const hasNext = offset + pageSize < total;
 
   const loadBatches = useCallback(async () => {
     const response = await fetch(buildApiUrl(config.batchesEndpoint), { cache: "no-store" });
@@ -112,14 +101,13 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
     try {
       const response = await fetch(buildApiUrl(config.listEndpoint, params), { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const nextPayload = (await response.json()) as ProfileListPayload;
-      setPayload(nextPayload);
+      setPayload((await response.json()) as ProfileListPayload);
       setLoadState("idle");
     } catch {
       setPayload(null);
       setLoadState("error");
     }
-  }, [batch, config.listEndpoint, offset, query]);
+  }, [batch, config.listEndpoint, offset, pageSize, query]);
 
   useEffect(() => {
     loadBatches();
@@ -190,11 +178,7 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-        <ProfileCard
-          title={config.sampleTitle}
-          meta={config.sampleMeta}
-          icon={<FileSpreadsheet className="h-4 w-4" />}
-        >
+        <ProfileCard title={config.sampleTitle} meta={config.sampleMeta} icon={<FileSpreadsheet className="h-4 w-4" />}>
           <div className="flex flex-wrap items-center gap-2">
             {config.sampleDays ? (
               <input
@@ -319,31 +303,13 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
           ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[#7b8190]">
-          <span>
-            显示 {startRow.toLocaleString("zh-CN")} - {endRow.toLocaleString("zh-CN")} / {total.toLocaleString("zh-CN")}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={!hasPrev}
-              onClick={() => setOffset(Math.max(0, offset - pageSize))}
-              className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              上一页
-            </button>
-            <button
-              type="button"
-              disabled={!hasNext}
-              onClick={() => setOffset(offset + pageSize)}
-              className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              下一页
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <DataPagination
+          total={total}
+          offset={offset}
+          pageSize={pageSize}
+          onOffsetChange={setOffset}
+          onPageSizeChange={setPageSize}
+        />
       </section>
     </div>
   );

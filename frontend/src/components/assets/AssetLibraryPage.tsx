@@ -1,21 +1,13 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Database,
-  Download,
-  FileStack,
-  RefreshCw,
-  Search,
-  TableProperties,
-} from "lucide-react";
+import { Database, Download, RefreshCw, Search, TableProperties } from "lucide-react";
 
+import { DataPagination } from "@/components/shared/DataPagination";
 import { apiBaseUrl } from "@/config/navigation";
 import type { AssetListPayload, AssetPageConfig } from "@/types/assets";
 
-const pageSize = 50;
+const defaultPageSize = 10;
 
 type LoadState = "idle" | "loading" | "error";
 
@@ -59,20 +51,17 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
   const [query, setQuery] = useState("");
   const [draftQuery, setDraftQuery] = useState("");
   const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
 
   const total = payload?.total ?? 0;
   const rows = payload?.rows ?? [];
   const columns = payload?.columns ?? [];
-  const startRow = total > 0 ? offset + 1 : 0;
-  const endRow = Math.min(offset + pageSize, total);
-  const hasPrev = offset > 0;
-  const hasNext = offset + pageSize < total;
 
   const params = useMemo(() => {
     const nextParams = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
     if (query.trim()) nextParams.set("q", query.trim());
     return nextParams;
-  }, [offset, query]);
+  }, [offset, pageSize, query]);
 
   const exportUrl = useMemo(() => {
     const exportParams = new URLSearchParams(params);
@@ -86,8 +75,7 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
     try {
       const response = await fetch(buildApiUrl(`/assets/${config.assetKey}`, params), { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const nextPayload = (await response.json()) as AssetListPayload;
-      setPayload(nextPayload);
+      setPayload((await response.json()) as AssetListPayload);
       setLoadState("idle");
     } catch {
       setPayload(null);
@@ -193,31 +181,13 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
           ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[#7b8190]">
-          <span>
-            显示 {startRow.toLocaleString("zh-CN")} - {endRow.toLocaleString("zh-CN")} / {total.toLocaleString("zh-CN")}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={!hasPrev}
-              onClick={() => setOffset(Math.max(0, offset - pageSize))}
-              className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              上一页
-            </button>
-            <button
-              type="button"
-              disabled={!hasNext}
-              onClick={() => setOffset(offset + pageSize)}
-              className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              下一页
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <DataPagination
+          total={total}
+          offset={offset}
+          pageSize={pageSize}
+          onOffsetChange={setOffset}
+          onPageSizeChange={setPageSize}
+        />
       </section>
     </div>
   );

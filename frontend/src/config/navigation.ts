@@ -26,9 +26,7 @@ export const navigation: NavigationItem[] = [
     label: "VOC看事件",
     href: "/voc/events",
     icon: Activity,
-    children: [
-      { label: "市场看板", href: "/voc/events/market", icon: LayoutDashboard },
-    ],
+    children: [{ label: "市场看板", href: "/voc/events/market", icon: LayoutDashboard }],
   },
   {
     label: "任务管理",
@@ -50,6 +48,7 @@ export const navigation: NavigationItem[] = [
       { label: "评论资产", href: "/assets/comments", icon: MessageSquareText },
       { label: "作者资产", href: "/assets/authors", icon: UsersRound },
       { label: "KOL资产", href: "/assets/kols", icon: Sparkles },
+      { label: "评论用户资产", href: "/assets/comment-users", icon: UsersRound },
     ],
   },
   {

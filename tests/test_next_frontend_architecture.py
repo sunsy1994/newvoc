@@ -64,6 +64,7 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
         "src/app/assets/comments/page.tsx",
         "src/app/assets/authors/page.tsx",
         "src/app/assets/kols/page.tsx",
+        "src/app/assets/comment-users/page.tsx",
         "src/app/competitors/accounts/page.tsx",
         "src/app/competitors/works/page.tsx",
         "src/app/profiles/kols/page.tsx",
@@ -76,6 +77,7 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
     assert "serverApiBaseUrl" in navigation
     assert "http://127.0.0.1:8000/api" in navigation
     assert "市场看板" in navigation
+    assert "/assets/comment-users" in navigation
     assert "传播内容" not in navigation
     assert "KOL与用户" not in navigation
 
@@ -119,3 +121,25 @@ def test_competitor_pages_use_real_api_component_and_filters() -> None:
     assert "brand_name" in competitor_component
     assert "start_date" in competitor_component
     assert "end_date" in competitor_component
+
+
+def test_asset_pages_use_real_api_component_and_exports() -> None:
+    root = Path("frontend")
+    asset_component = (root / "src/components/assets/AssetLibraryPage.tsx").read_text(encoding="utf-8")
+    expected_assets = {
+        "events": "src/app/assets/events/page.tsx",
+        "contents": "src/app/assets/contents/page.tsx",
+        "comments": "src/app/assets/comments/page.tsx",
+        "authors": "src/app/assets/authors/page.tsx",
+        "kols": "src/app/assets/kols/page.tsx",
+        "comment_users": "src/app/assets/comment-users/page.tsx",
+    }
+
+    for asset_key, relative_path in expected_assets.items():
+        page = (root / relative_path).read_text(encoding="utf-8")
+        assert "AssetLibraryPage" in page
+        assert "PlaceholderPage" not in page
+        assert f'assetKey: "{asset_key}"' in page
+
+    assert "fetch(buildApiUrl(`/assets/${config.assetKey}`" in asset_component
+    assert "`/assets/${config.assetKey}/export`" in asset_component

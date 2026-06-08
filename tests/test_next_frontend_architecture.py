@@ -194,3 +194,17 @@ def test_etl_flow_page_uses_visual_flow_canvas() -> None:
     assert "ODS → DWD → ADS → PostgreSQL" in canvas
     assert "FlowLines" in canvas
     assert "nodeLayouts" in canvas
+
+
+def test_task_script_page_uses_real_api_editor() -> None:
+    root = Path("frontend")
+    page = (root / "src/app/tasks/scripts/page.tsx").read_text(encoding="utf-8")
+    editor = (root / "src/components/tasks/ScriptMaintenancePage.tsx").read_text(encoding="utf-8")
+
+    assert "ScriptMaintenancePage" in page
+    assert "PlaceholderPage" not in page
+    assert "/etl/script" in editor
+    assert "/etl/script/test-run" in editor
+    assert "/tasks" in editor
+    assert "保存并备份" in editor
+    assert "用选中批次试跑" in editor

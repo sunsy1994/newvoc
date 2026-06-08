@@ -39,6 +39,11 @@ def test_market_dashboard_payload_uses_real_sections(monkeypatch) -> None:
         "fetch_event_hot_posts",
         lambda conn, event_id: [{"content_id": "c1", "title": "试驾体验", "total_engagement": 999}],
     )
+    monkeypatch.setattr(
+        event_voc_insights,
+        "fetch_latest_comment_user_profiles",
+        lambda conn, event_id: [{"main_label": "价格敏感"}, {"main_label": "价格敏感"}, {"main_label": "空间关注"}],
+    )
 
     class FakeConnection:
         def __enter__(self):
@@ -63,4 +68,5 @@ def test_market_dashboard_payload_uses_real_sections(monkeypatch) -> None:
     assert payload["volume_trend"][0]["total_volume"] == 5
     assert payload["channel_distribution"][0]["channel"] == "抖音"
     assert payload["kol_type_distribution"][0]["kol_main_type"] == "车型实测测评KOL"
+    assert payload["user_profile_distribution"][0] == {"main_label": "价格敏感", "user_cnt": 2}
     assert payload["hot_posts"][0]["title"] == "试驾体验"

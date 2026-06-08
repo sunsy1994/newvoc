@@ -148,7 +148,7 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
               <VolumeTrendChart data={dashboard.volume_trend} />
             </DashboardCard>
             <DashboardCard title="KOL类型分布" subtitle="来自KOL画像表，按参与KOL人数排序">
-              <KolTypeBars data={dashboard.kol_type_distribution} />
+              <KolTypeBars data={dashboard.kol_type_distribution} userProfiles={dashboard.user_profile_distribution ?? []} />
             </DashboardCard>
           </section>
 

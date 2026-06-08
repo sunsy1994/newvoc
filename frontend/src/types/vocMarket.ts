@@ -43,6 +43,11 @@ export type KolTypeDistributionItem = {
   total_engagement: number;
 };
 
+export type UserProfileDistributionItem = {
+  main_label: string;
+  user_cnt: number;
+};
+
 export type HotPostItem = {
   content_id: string;
   title: string;
@@ -55,5 +60,6 @@ export type MarketDashboardPayload = {
   volume_trend: VolumeTrendPoint[];
   channel_distribution: ChannelDistributionItem[];
   kol_type_distribution: KolTypeDistributionItem[];
+  user_profile_distribution: UserProfileDistributionItem[];
   hot_posts: HotPostItem[];
 };

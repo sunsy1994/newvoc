@@ -73,6 +73,7 @@ def get_voc_event_market_dashboard(event_id: str, database_url: str = DATABASE_U
         trend = fetch_event_volume_trend(conn, event_id)
         channel_distribution = fetch_event_channel_distribution(conn, event_id)
         kol_type_distribution = fetch_event_kol_type_distribution(conn, event_id)
+        profile_rows = fetch_latest_comment_user_profiles(conn, event_id)
         hot_posts = fetch_event_hot_posts(conn, event_id)
     return {
         "event": overview,
@@ -80,6 +81,7 @@ def get_voc_event_market_dashboard(event_id: str, database_url: str = DATABASE_U
         "volume_trend": trend,
         "channel_distribution": channel_distribution,
         "kol_type_distribution": kol_type_distribution,
+        "user_profile_distribution": summarize_user_profiles(profile_rows),
         "hot_posts": hot_posts,
     }
 

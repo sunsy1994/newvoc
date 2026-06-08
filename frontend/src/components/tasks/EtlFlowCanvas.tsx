@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Boxes, CheckCircle2, Database, FileInput, GitBranch, Layers3, RefreshCw, Route, SearchCheck } from "lucide-react";
+import { Boxes, CheckCircle2, Database, FileInput, GitBranch, Info, Layers3, RefreshCw, Route, SearchCheck } from "lucide-react";
 
 import { apiBaseUrl } from "@/config/navigation";
 import type { EtlFlowNode, EtlFlowPayload } from "@/types/etlFlow";
@@ -60,26 +60,58 @@ function buildApiUrl(endpoint: string, params?: URLSearchParams) {
 }
 
 function tableShortName(table: string) {
-  return table.replace("data_asset.", "").replace(".xlsx/csv", "").replace("event_upload", "event").replace("content_upload", "content").replace("comment_upload", "comment");
+  return table
+    .replace("data_asset.", "")
+    .replace(".xlsx/csv", "")
+    .replace("event_upload", "event")
+    .replace("content_upload", "content")
+    .replace("comment_upload", "comment");
 }
 
-function NodeChips({ items, tone = "neutral" }: { items: string[]; tone?: "neutral" | "metric" }) {
+function NodeChips({ items }: { items: string[] }) {
   const visible = items.slice(0, 3);
   const hidden = items.length - visible.length;
+
   return (
     <div className="flex flex-wrap gap-1.5">
       {visible.map((item) => (
-        <span
-          key={item}
-          className={`max-w-full truncate rounded-lg px-2 py-1 text-[11px] font-medium ${
-            tone === "metric" ? "bg-[#f0efff] text-[#5347CE]" : "bg-[#f7f9fc] text-[#596070]"
-          }`}
-          title={item}
-        >
+        <span key={item} className="max-w-full truncate rounded-lg bg-[#f7f9fc] px-2 py-1 text-[11px] font-medium text-[#596070]" title={item}>
           {tableShortName(item)}
         </span>
       ))}
       {hidden > 0 ? <span className="rounded-lg bg-white px-2 py-1 text-[11px] text-[#8b92a1]">+{hidden}</span> : null}
+    </div>
+  );
+}
+
+function MetricSummary({ items }: { items: string[] }) {
+  if (!items.length) {
+    return <span className="rounded-lg bg-[#f7f9fc] px-2 py-1 text-[11px] text-[#a3a9b5]">暂无批次指标</span>;
+  }
+
+  return (
+    <div className="group relative inline-flex max-w-full">
+      <button
+        type="button"
+        className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-[#f0efff] px-2.5 py-1.5 text-[11px] font-semibold text-[#5347CE] transition hover:bg-[#e8e5ff] focus:outline-none focus:ring-2 focus:ring-[#887CFD]/30"
+        aria-label="查看完整批次指标"
+      >
+        <Info className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{items.length} 项指标</span>
+      </button>
+      <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-64 rounded-xl border border-[#e8ecf3] bg-white p-3 text-left shadow-[0_18px_40px_rgba(26,32,44,0.14)] group-hover:block group-focus-within:block">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold text-[#151720]">完整批次指标</p>
+          <span className="rounded-full bg-[#f7f9fc] px-2 py-0.5 text-[10px] text-[#8b92a1]">{items.length} 项</span>
+        </div>
+        <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+          {items.map((item) => (
+            <div key={item} className="truncate rounded-lg bg-[#f7f9fc] px-2 py-1.5 text-[11px] font-medium text-[#596070]" title={item}>
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -90,7 +122,7 @@ function FlowNodeCard({ node, layout }: { node: EtlFlowNode; layout: NodeLayout 
 
   return (
     <article
-      className="relative z-10 flex h-[300px] w-[300px] flex-col overflow-hidden rounded-2xl border border-[#e8ecf3] bg-white p-4 shadow-[0_16px_34px_rgba(26,32,44,0.08)]"
+      className="relative z-10 flex h-[300px] w-[300px] flex-col overflow-visible rounded-2xl border border-[#e8ecf3] bg-white p-4 shadow-[0_16px_34px_rgba(26,32,44,0.08)]"
       style={{ gridColumn: layout.col, gridRow: layout.row }}
     >
       <div className="mb-3 flex items-start gap-3">
@@ -109,17 +141,17 @@ function FlowNodeCard({ node, layout }: { node: EtlFlowNode; layout: NodeLayout 
       </p>
 
       <div className="mt-4 grid flex-1 content-start gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="mb-1 text-[11px] font-semibold text-[#8b92a1]">输入</p>
           <NodeChips items={node.input_tables} />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="mb-1 text-[11px] font-semibold text-[#8b92a1]">输出</p>
           <NodeChips items={node.output_tables} />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="mb-1 text-[11px] font-semibold text-[#8b92a1]">批次指标</p>
-          {metricItems.length ? <NodeChips items={metricItems} tone="metric" /> : <span className="rounded-lg bg-[#f7f9fc] px-2 py-1 text-[11px] text-[#a3a9b5]">暂无批次指标</span>}
+          <MetricSummary items={metricItems} />
         </div>
       </div>
     </article>

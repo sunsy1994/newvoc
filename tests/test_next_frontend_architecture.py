@@ -82,3 +82,22 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
     market_page = (root / "src/app/voc/events/market/page.tsx").read_text(encoding="utf-8")
     assert "serverApiBaseUrl" in market_page
     assert "/market-dashboard" in market_page
+
+
+def test_profile_pages_use_real_api_component_and_shared_design_doc() -> None:
+    root = Path("frontend")
+    design_doc = Path("docs/design.md").read_text(encoding="utf-8")
+    profile_component = (root / "src/components/profiles/ProfileMaintenancePage.tsx").read_text(encoding="utf-8")
+    kol_page = (root / "src/app/profiles/kols/page.tsx").read_text(encoding="utf-8")
+    comment_user_page = (root / "src/app/profiles/comment-users/page.tsx").read_text(encoding="utf-8")
+
+    assert "#5347CE" in design_doc
+    assert "#4896FE" in design_doc
+    assert "ProfileMaintenancePage" in kol_page
+    assert "ProfileMaintenancePage" in comment_user_page
+    assert "PlaceholderPage" not in kol_page
+    assert "PlaceholderPage" not in comment_user_page
+    assert "/profiles/kols" in kol_page
+    assert "/profiles/comment-users" in comment_user_page
+    assert "fetch(buildApiUrl(config.listEndpoint" in profile_component
+    assert "FormData" in profile_component

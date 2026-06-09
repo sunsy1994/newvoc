@@ -277,31 +277,54 @@ def fetch_event_content_comments(
         if sort == "published_at"
         else "cm.interaction_cnt DESC NULLS LAST, cm.published_at DESC NULLS LAST, cm.comment_id"
     )
-    count_query = "SELECT count(*)::bigint AS total FROM data_asset.dwd_comment cm WHERE cm.content_id = %s"
+    root_filter = "(cm.parent_comment_id IS NULL OR cm.parent_comment_id = '')"
+    count_query = f"SELECT count(*)::bigint AS total FROM data_asset.dwd_comment cm WHERE cm.content_id = %s AND {root_filter}"
     data_query = f"""
-        SELECT cm.comment_id, cm.content_id, cm.platform, cm.location,
-               cm.comment_author_id, cm.comment_author_name, cm.parent_comment_id,
-               parent.comment_author_name AS parent_comment_author_name,
-               cm.comment_text, cm.published_at,
-               cm.like_cnt, cm.reply_cnt, cm.interaction_cnt
-        FROM data_asset.dwd_comment cm
-        LEFT JOIN LATERAL (
-          SELECT p.comment_author_name
-          FROM data_asset.dwd_comment p
-          WHERE p.content_id = cm.content_id
-            AND (
-              p.comment_id = cm.parent_comment_id
-              OR (
-                cm.parent_comment_id ILIKE '%%e+%%'
-                AND p.comment_id LIKE regexp_replace(split_part(lower(cm.parent_comment_id), 'e', 1), '\\.', '', 'g') || '%%'
-              )
-            )
-          ORDER BY CASE WHEN p.comment_id = cm.parent_comment_id THEN 0 ELSE 1 END
-          LIMIT 1
-        ) parent ON true
-        WHERE cm.content_id = %s
-        ORDER BY {order_sql}
-        LIMIT %s OFFSET %s
+        WITH root_page AS (
+          SELECT cm.comment_id, cm.content_id, cm.platform, cm.location,
+                 cm.comment_author_id, cm.comment_author_name, cm.parent_comment_id,
+                 NULL::varchar AS parent_comment_author_name,
+                 cm.comment_text, cm.published_at,
+                 cm.like_cnt, cm.reply_cnt, cm.interaction_cnt,
+                 row_number() OVER (ORDER BY {order_sql}) AS thread_order,
+                 0 AS reply_order
+          FROM data_asset.dwd_comment cm
+          WHERE cm.content_id = %s AND {root_filter}
+          ORDER BY {order_sql}
+          LIMIT %s OFFSET %s
+        ),
+        reply_rows AS (
+          SELECT child.comment_id, child.content_id, child.platform, child.location,
+                 child.comment_author_id, child.comment_author_name, child.parent_comment_id,
+                 root.comment_author_name AS parent_comment_author_name,
+                 child.comment_text, child.published_at,
+                 child.like_cnt, child.reply_cnt, child.interaction_cnt,
+                 root.thread_order,
+                 row_number() OVER (
+                   PARTITION BY root.comment_id
+                   ORDER BY child.published_at ASC NULLS LAST, child.interaction_cnt DESC NULLS LAST, child.comment_id
+                 ) AS reply_order
+          FROM root_page root
+          JOIN data_asset.dwd_comment child
+            ON child.content_id = root.content_id
+           AND (
+             child.parent_comment_id = root.comment_id
+             OR (
+               child.parent_comment_id ILIKE '%%e+%%'
+               AND root.comment_id LIKE regexp_replace(split_part(lower(child.parent_comment_id), 'e', 1), '\\.', '', 'g') || '%%'
+             )
+           )
+        )
+        SELECT comment_id, content_id, platform, location,
+               comment_author_id, comment_author_name, parent_comment_id,
+               parent_comment_author_name, comment_text, published_at,
+               like_cnt, reply_cnt, interaction_cnt
+        FROM (
+          SELECT * FROM root_page
+          UNION ALL
+          SELECT * FROM reply_rows
+        ) threaded
+        ORDER BY thread_order, reply_order
     """
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(count_query, [content_id])

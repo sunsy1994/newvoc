@@ -227,3 +227,19 @@ def test_market_hot_posts_support_detail_drilldown_modal() -> None:
     assert "<DataPagination" in modal
     assert "parent_comment_id" in modal
     assert "打开原帖" in modal
+
+
+def test_market_dashboard_charts_have_tooltips_and_metric_icons() -> None:
+    root = Path("frontend")
+    market_page = (root / "src/app/voc/events/market/page.tsx").read_text(encoding="utf-8")
+    metric_card = (root / "src/components/voc/MetricCard.tsx").read_text(encoding="utf-8")
+    trend_chart = (root / "src/components/voc/VolumeTrendChart.tsx").read_text(encoding="utf-8")
+    channel_chart = (root / "src/components/voc/ChannelStackedBars.tsx").read_text(encoding="utf-8")
+    distribution_chart = (root / "src/components/voc/KolTypeBars.tsx").read_text(encoding="utf-8")
+
+    assert "icon?: React.ReactNode" in metric_card
+    assert "icon={<Activity" in market_page
+    assert "icon={<MessageCircle" in market_page
+    assert "<title>" in trend_chart
+    assert "title={tooltip}" in channel_chart
+    assert "title={`${item.label}" in distribution_chart

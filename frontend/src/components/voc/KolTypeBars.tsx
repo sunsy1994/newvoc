@@ -33,13 +33,13 @@ function DistributionBars({
   return (
     <div className="space-y-4 rounded-2xl bg-[#f7f9fc] p-4">
       {rows.slice(0, 8).map((item) => (
-        <div key={item.label}>
+        <div key={item.label} title={`${item.label}: ${item.value.toLocaleString("zh-CN")}${valueSuffix}`}>
           <div className="mb-2 flex justify-between gap-3 text-xs text-[#6f7685]">
             <span className="truncate">{item.label}</span>
-            <span>{item.value}{valueSuffix}</span>
+            <span>{item.value.toLocaleString("zh-CN")}{valueSuffix}</span>
           </div>
           <div className="h-3 overflow-hidden rounded-full bg-white">
-            <div className="h-full rounded-full bg-[#887CFD]" style={{ width: `${(item.value / max) * 100}%` }} />
+            <div className="h-full rounded-full bg-[#887CFD] transition-[width]" style={{ width: `${(item.value / max) * 100}%` }} />
           </div>
         </div>
       ))}

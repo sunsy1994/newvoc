@@ -16,27 +16,28 @@ const series: Array<{ key: TrendKey; label: string; color: string; width: number
   { key: "comment_count", label: "评论声量", color: "#16C8C7", width: 2.5 },
 ];
 
+const chart = { left: 34, right: 520, top: 24, bottom: 156 };
+
 function formatDate(date: string) {
   const [, month, day] = date.split("-");
   return month && day ? `${month}-${day}` : date;
 }
 
+function pointFor(data: VolumeTrendPoint[], index: number, key: TrendKey, max: number) {
+  const x = chart.left + (index / Math.max(data.length - 1, 1)) * (chart.right - chart.left);
+  const y = chart.bottom - ((data[index][key] || 0) / max) * (chart.bottom - chart.top);
+  return { x, y };
+}
+
 function buildPoints(data: VolumeTrendPoint[], key: TrendKey, max: number) {
-  const left = 34;
-  const right = 520;
-  const top = 24;
-  const bottom = 156;
   if (data.length === 1) {
-    const y = bottom - ((data[0][key] || 0) / max) * (bottom - top);
-    return `${left},${y} ${right},${y}`;
+    const y = pointFor(data, 0, key, max).y;
+    return `${chart.left},${y} ${chart.right},${y}`;
   }
-  return data
-    .map((item, index) => {
-      const x = left + (index / Math.max(data.length - 1, 1)) * (right - left);
-      const y = bottom - ((item[key] || 0) / max) * (bottom - top);
-      return `${x},${y}`;
-    })
-    .join(" ");
+  return data.map((_, index) => {
+    const point = pointFor(data, index, key, max);
+    return `${point.x},${point.y}`;
+  }).join(" ");
 }
 
 export function VolumeTrendChart({ data }: VolumeTrendChartProps) {
@@ -50,7 +51,7 @@ export function VolumeTrendChart({ data }: VolumeTrendChartProps) {
   if (!data.length) {
     return (
       <div className="flex h-64 items-center justify-center rounded-2xl bg-[#f7f9fc] text-sm text-[#8b92a1]">
-        缺少发布时间，暂无法展示声量趋势
+        缺少发布时间，暂时无法展示声量趋势
       </div>
     );
   }
@@ -68,19 +69,28 @@ export function VolumeTrendChart({ data }: VolumeTrendChartProps) {
         <line x1="34" y1="156" x2="520" y2="156" stroke="#d9deea" strokeWidth="1" />
         {series.map((item) =>
           activeKeys.includes(item.key) ? (
-            <polyline
-              key={item.key}
-              points={buildPoints(data, item.key, max)}
-              fill="none"
-              stroke={item.color}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={item.width}
-            />
+            <g key={item.key}>
+              <polyline
+                points={buildPoints(data, item.key, max)}
+                fill="none"
+                stroke={item.color}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={item.width}
+              />
+              {data.map((point, index) => {
+                const { x, y } = pointFor(data, index, item.key, max);
+                return (
+                  <circle key={`${item.key}-${point.date}`} cx={x} cy={y} r="4.5" fill="white" stroke={item.color} strokeWidth="2">
+                    <title>{`${point.date}\n${item.label}: ${(point[item.key] || 0).toLocaleString("zh-CN")}`}</title>
+                  </circle>
+                );
+              })}
+            </g>
           ) : null,
         )}
         {data.map((item, index) => {
-          const x = 34 + (index / Math.max(data.length - 1, 1)) * (520 - 34);
+          const x = chart.left + (index / Math.max(data.length - 1, 1)) * (chart.right - chart.left);
           return (
             <g key={item.date}>
               <line x1={x} y1="156" x2={x} y2="161" stroke="#b8bfcc" strokeWidth="1" />

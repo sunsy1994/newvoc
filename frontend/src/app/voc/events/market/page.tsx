@@ -1,4 +1,4 @@
-import { CalendarDays } from "lucide-react";
+import { Activity, CalendarDays, FileText, MessageCircle, Repeat2, Sparkles } from "lucide-react";
 
 import { ChannelStackedBars } from "@/components/voc/ChannelStackedBars";
 import { HotPostList } from "@/components/voc/HotPostList";
@@ -114,11 +114,11 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
 
       {metrics ? (
         <section className="grid gap-3 md:grid-cols-5">
-          <MetricCard label="总声量" value={formatNumber(metrics.total_volume)} hint="主贴 + 评论" tone="purple" />
-          <MetricCard label="主贴数" value={formatNumber(metrics.content_count)} tone="blue" />
-          <MetricCard label="评论数" value={formatNumber(metrics.comment_count)} tone="teal" />
-          <MetricCard label="KOL发声" value={`${formatNumber(metrics.kol_count)} 位`} hint={`贡献 ${formatNumber(metrics.kol_content_count)} 条主贴`} tone="violet" />
-          <MetricCard label="总互动量" value={formatNumber(metrics.total_engagement)} tone="neutral" />
+          <MetricCard label="总声量" value={formatNumber(metrics.total_volume)} hint="主贴 + 评论" tone="purple" icon={<Activity className="h-4 w-4" />} />
+          <MetricCard label="主贴数" value={formatNumber(metrics.content_count)} tone="blue" icon={<FileText className="h-4 w-4" />} />
+          <MetricCard label="评论数" value={formatNumber(metrics.comment_count)} tone="teal" icon={<MessageCircle className="h-4 w-4" />} />
+          <MetricCard label="KOL发声" value={`${formatNumber(metrics.kol_count)} 位`} hint={`贡献 ${formatNumber(metrics.kol_content_count)} 条主贴`} tone="violet" icon={<Sparkles className="h-4 w-4" />} />
+          <MetricCard label="总互动量" value={formatNumber(metrics.total_engagement)} tone="neutral" icon={<Repeat2 className="h-4 w-4" />} />
         </section>
       ) : (
         <div className="rounded-2xl border border-dashed border-[#d9deea] bg-white p-10 text-center text-sm text-[#8b92a1]">

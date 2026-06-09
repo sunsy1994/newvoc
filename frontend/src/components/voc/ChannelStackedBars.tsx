@@ -29,7 +29,7 @@ export function ChannelStackedBars({ data }: ChannelStackedBarsProps) {
   if (!data.length) {
     return (
       <div className="flex h-72 items-center justify-center rounded-2xl bg-[#f7f9fc] text-sm text-[#8b92a1]">
-        缺少渠道字段，暂无法展示渠道分布
+        缺少渠道字段，暂时无法展示渠道分布
       </div>
     );
   }
@@ -42,18 +42,21 @@ export function ChannelStackedBars({ data }: ChannelStackedBarsProps) {
     <div className="rounded-2xl bg-[#f7f9fc] p-5">
       <div className="flex h-72 items-end justify-between gap-3 border-b border-[#d9deea] px-2 pb-7">
         {rows.map((item) => {
-          const contentHeight = activeKeys.includes("content_count") ? ((item.content_count || 0) / max) * 210 : 0;
-          const commentHeight = activeKeys.includes("comment_count") ? ((item.comment_count || 0) / max) * 210 : 0;
+          const activeContent = activeKeys.includes("content_count") ? item.content_count || 0 : 0;
+          const activeComment = activeKeys.includes("comment_count") ? item.comment_count || 0 : 0;
+          const contentHeight = (activeContent / max) * 210;
+          const commentHeight = (activeComment / max) * 210;
+          const activeTotal = activeContent + activeComment;
+          const tooltip = `${item.channel}\n主贴: ${(item.content_count || 0).toLocaleString("zh-CN")}\n评论: ${(item.comment_count || 0).toLocaleString("zh-CN")}\n总声量: ${(item.total_volume || 0).toLocaleString("zh-CN")}`;
+
           return (
             <div key={item.channel} className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-end">
-              <div className="mb-2 text-[11px] font-semibold text-[#3a4050]">
-                {(activeKeys.includes("content_count") ? item.content_count : 0) + (activeKeys.includes("comment_count") ? item.comment_count : 0)}
+              <div className="mb-2 text-[11px] font-semibold text-[#3a4050]">{activeTotal.toLocaleString("zh-CN")}</div>
+              <div className="flex w-full max-w-14 flex-col justify-end overflow-hidden rounded-t-xl bg-white shadow-inner shadow-[#dfe5ef]/60" title={tooltip}>
+                <div className="bg-[#16C8C7] transition-[height]" style={{ height: `${commentHeight}px` }} />
+                <div className="bg-[#4896FE] transition-[height]" style={{ height: `${contentHeight}px` }} />
               </div>
-              <div className="flex w-full max-w-14 flex-col justify-end overflow-hidden rounded-t-xl bg-white shadow-inner shadow-[#dfe5ef]/60">
-                <div className="bg-[#16C8C7]" style={{ height: `${commentHeight}px` }} />
-                <div className="bg-[#4896FE]" style={{ height: `${contentHeight}px` }} />
-              </div>
-              <span className="absolute -bottom-6 max-w-20 truncate text-[10px] text-[#8b92a1]">{item.channel}</span>
+              <span className="absolute -bottom-6 max-w-20 truncate text-[10px] text-[#8b92a1]" title={item.channel}>{item.channel}</span>
             </div>
           );
         })}

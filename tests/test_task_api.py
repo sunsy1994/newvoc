@@ -195,6 +195,7 @@ def test_voc_event_content_detail_api_supports_comment_sort_and_paging(tmp_path:
                 {
                     "comment_id": "cm2",
                     "parent_comment_id": "cm1",
+                    "parent_comment_author_name": "user a",
                     "comment_author_name": "user b",
                     "comment_text": "reply",
                     "interaction_cnt": 8,
@@ -215,6 +216,7 @@ def test_voc_event_content_detail_api_supports_comment_sort_and_paging(tmp_path:
     assert captured == {"event_id": "event_001", "content_id": "content_001", "sort": "published_at", "limit": 5, "offset": 10}
     assert payload["content"]["source_url"] == "https://example.test/post"
     assert payload["comments"][0]["parent_comment_id"] == "cm1"
+    assert payload["comments"][0]["parent_comment_author_name"] == "user a"
     assert payload["total"] == 21
 
 

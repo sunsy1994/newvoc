@@ -86,6 +86,7 @@ export type PostDetailComment = {
   comment_author_id?: string | null;
   comment_author_name: string;
   parent_comment_id?: string | null;
+  parent_comment_author_name?: string | null;
   comment_text: string;
   published_at?: string | null;
   like_cnt: number;

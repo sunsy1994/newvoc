@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Heart, MessageCircle, RefreshCw, Repeat2, Share2, Star, X } from "lucide-react";
 
 import { DataPagination } from "@/components/shared/DataPagination";
@@ -41,8 +41,9 @@ function MetricPill({ icon, label, value }: { icon: React.ReactNode; label: stri
   );
 }
 
-function CommentCard({ comment, parent }: { comment: PostDetailComment; parent?: PostDetailComment }) {
+function CommentCard({ comment }: { comment: PostDetailComment }) {
   const isReply = Boolean(comment.parent_comment_id);
+  const replyTargetName = comment.parent_comment_author_name || "未知用户";
 
   return (
     <article className={`rounded-2xl border border-[#e8ecf3] bg-white p-4 ${isReply ? "ml-5 border-l-4 border-l-[#887CFD]" : ""}`}>
@@ -62,16 +63,9 @@ function CommentCard({ comment, parent }: { comment: PostDetailComment; parent?:
         </div>
       </div>
 
-      {comment.parent_comment_id ? (
+      {isReply ? (
         <div className="mt-3 rounded-xl bg-[#f7f9fc] px-3 py-2 text-xs text-[#7b8190]">
-          {parent ? (
-            <>
-              回复 <span className="font-semibold text-[#596070]">{parent.comment_author_name}</span>：
-              <span className="ml-1">{parent.comment_text}</span>
-            </>
-          ) : (
-            <>回复评论：{comment.parent_comment_id}</>
-          )}
+          回复给 <span className="font-semibold text-[#596070]">{replyTargetName}</span>
         </div>
       ) : null}
 
@@ -87,10 +81,6 @@ export function PostDetailModal({ eventId, post, onClose }: PostDetailModalProps
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const commentMap = useMemo(() => {
-    return new Map((payload?.comments ?? []).map((comment) => [comment.comment_id, comment]));
-  }, [payload?.comments]);
 
   const loadDetail = useCallback(async () => {
     setIsLoading(true);
@@ -195,7 +185,7 @@ export function PostDetailModal({ eventId, post, onClose }: PostDetailModalProps
               {isLoading ? <div className="rounded-2xl bg-[#f7f9fc] p-6 text-center text-sm text-[#8b92a1]">正在加载评论...</div> : null}
               {!isLoading && payload?.comments.length === 0 ? <div className="rounded-2xl bg-[#f7f9fc] p-6 text-center text-sm text-[#8b92a1]">暂无评论明细</div> : null}
               {payload?.comments.map((comment) => (
-                <CommentCard key={comment.comment_id} comment={comment} parent={comment.parent_comment_id ? commentMap.get(comment.parent_comment_id) : undefined} />
+                <CommentCard key={comment.comment_id} comment={comment} />
               ))}
             </div>
 

@@ -281,9 +281,24 @@ def fetch_event_content_comments(
     data_query = f"""
         SELECT cm.comment_id, cm.content_id, cm.platform, cm.location,
                cm.comment_author_id, cm.comment_author_name, cm.parent_comment_id,
+               parent.comment_author_name AS parent_comment_author_name,
                cm.comment_text, cm.published_at,
                cm.like_cnt, cm.reply_cnt, cm.interaction_cnt
         FROM data_asset.dwd_comment cm
+        LEFT JOIN LATERAL (
+          SELECT p.comment_author_name
+          FROM data_asset.dwd_comment p
+          WHERE p.content_id = cm.content_id
+            AND (
+              p.comment_id = cm.parent_comment_id
+              OR (
+                cm.parent_comment_id ILIKE '%%e+%%'
+                AND p.comment_id LIKE regexp_replace(split_part(lower(cm.parent_comment_id), 'e', 1), '\\.', '', 'g') || '%%'
+              )
+            )
+          ORDER BY CASE WHEN p.comment_id = cm.parent_comment_id THEN 0 ELSE 1 END
+          LIMIT 1
+        ) parent ON true
         WHERE cm.content_id = %s
         ORDER BY {order_sql}
         LIMIT %s OFFSET %s

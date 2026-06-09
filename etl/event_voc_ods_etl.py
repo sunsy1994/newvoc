@@ -276,9 +276,9 @@ def read_upload(input_dir: Path, spec: TemplateSpec) -> pd.DataFrame:
     if path is None:
         return pd.DataFrame(columns=[field for _label, field, _required, _desc in spec.columns])
     if path.suffix.lower() == ".csv":
-        dataframe = pd.read_csv(path)
+        dataframe = pd.read_csv(path, dtype=str)
     else:
-        dataframe = pd.read_excel(path)
+        dataframe = pd.read_excel(path, dtype=str)
     dataframe = dataframe.dropna(how="all")
     dataframe = dataframe.rename(columns=spec_column_map(spec))
     field_names = [field for _label, field, _required, _desc in spec.columns]

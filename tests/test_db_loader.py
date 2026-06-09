@@ -55,3 +55,9 @@ def test_resolve_load_tables_only_returns_existing_known_outputs(tmp_path: Path)
 def test_normalize_boolean_chinese_values() -> None:
     assert normalize_db_value("是", "is_kol") is True
     assert normalize_db_value("否", "is_kol") is False
+
+
+def test_normalize_numeric_placeholders_to_none() -> None:
+    assert normalize_db_value("--", "reply_cnt") is None
+    assert normalize_db_value("-", "favorite_cnt") is None
+    assert normalize_db_value("1,234", "like_cnt") == 1234

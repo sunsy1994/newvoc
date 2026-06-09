@@ -66,6 +66,25 @@ JSON_COLUMNS = {
 
 BOOLEAN_COLUMNS = {"is_kol", "is_enabled"}
 
+INTEGER_COLUMNS = {
+    "raw_row_no",
+    "like_cnt",
+    "comment_cnt",
+    "share_cnt",
+    "favorite_cnt",
+    "view_cnt",
+    "fans_cnt",
+    "reply_cnt",
+    "content_cnt",
+    "author_cnt",
+    "kol_content_cnt",
+    "total_engagement",
+    "engagement_cnt",
+    "row_no",
+}
+
+EMPTY_NUMERIC_TEXTS = {"", "-", "--", "—", "–", "nan", "none", "null", "n/a", "na"}
+
 
 def init_database(database_url: str = DATABASE_URL) -> None:
     schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
@@ -221,6 +240,14 @@ def normalize_db_value(value: Any, column: str) -> Any:
         return Jsonb(value)
     if isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
+    if column in INTEGER_COLUMNS:
+        text = str(value).strip().replace(",", "")
+        if text.lower() in EMPTY_NUMERIC_TEXTS:
+            return None
+        try:
+            return int(float(text))
+        except ValueError:
+            return None
     if column in BOOLEAN_COLUMNS:
         if isinstance(value, bool):
             return value

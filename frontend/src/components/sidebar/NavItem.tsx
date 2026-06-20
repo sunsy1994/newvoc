@@ -19,14 +19,14 @@ export function NavItem({ label, href, icon: Icon, active, variant, badge }: Nav
     <Link
       href={href}
       className={cn(
-        "group flex h-9 items-center justify-between rounded-lg px-3 text-xs font-medium transition",
+        "group flex h-9 items-center justify-between rounded-[10px] px-3 text-[13px] font-medium transition-all duration-200 ease-out",
         isPrimary
           ? active
-            ? "bg-[#5347CE] text-white shadow-[0_10px_18px_rgba(83,71,206,0.20)]"
-            : "text-[#596070] hover:bg-[#f3f5fa] hover:text-[#151720]"
+            ? "bg-[var(--sys-icon-fill)] text-white shadow-[var(--sys-btn-shadow)]"
+            : "text-[var(--sys-body)] hover:bg-[var(--sys-panel-bg)] hover:text-[var(--sys-ink)]"
           : active
-            ? "bg-white text-[#151720] shadow-[0_8px_18px_rgba(26,32,44,0.06)] ring-1 ring-[#e8ecf3]"
-            : "text-[#707787] hover:bg-white hover:text-[#151720]",
+            ? "bg-[var(--sys-card)] text-[var(--sys-ink)] shadow-[0_8px_18px_rgba(26,32,44,0.06)] ring-1 ring-[var(--sys-border)]"
+            : "text-[var(--sys-muted)] hover:bg-[var(--sys-card)] hover:text-[var(--sys-ink)]",
       )}
     >
       <span className="flex min-w-0 items-center gap-2">
@@ -34,7 +34,7 @@ export function NavItem({ label, href, icon: Icon, active, variant, badge }: Nav
         <span className="truncate">{label}</span>
       </span>
       {badge ? (
-        <span className={cn("rounded-full px-1.5 text-[10px]", active ? "bg-white text-[#5347CE]" : "bg-[#eef1f6] text-[#596070]")}>
+        <span className={cn("rounded-full px-1.5 text-[10px]", active ? "bg-white text-[var(--sys-icon-fill)]" : "bg-[var(--sys-panel-bg)] text-[var(--sys-body)]")}>
           {badge}
         </span>
       ) : null}

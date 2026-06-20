@@ -25,7 +25,7 @@ export function NavItem({ label, href, icon: Icon, active, variant, badge }: Nav
             ? "bg-[var(--sys-icon-fill)] text-white shadow-[var(--sys-btn-shadow)]"
             : "text-[var(--sys-body)] hover:bg-[var(--sys-panel-bg)] hover:text-[var(--sys-ink)]"
           : active
-            ? "bg-[var(--sys-card)] text-[var(--sys-ink)] shadow-[0_8px_18px_rgba(26,32,44,0.06)] ring-1 ring-[var(--sys-border)]"
+            ? "bg-[var(--sys-card)] text-[var(--sys-ink)] shadow-[var(--sys-card-shadow)] ring-1 ring-[var(--sys-border)]"
             : "text-[var(--sys-muted)] hover:bg-[var(--sys-card)] hover:text-[var(--sys-ink)]",
       )}
     >

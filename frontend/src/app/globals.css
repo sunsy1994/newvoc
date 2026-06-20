@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --nexus-primary: #5347ce;
-  --nexus-purple: #887cfd;
-  --nexus-blue: #4896fe;
-  --nexus-teal: #16c8c7;
-  --nexus-bg: #f5f7fb;
-  --nexus-border: #e8ecf3;
-  --nexus-ink: #151720;
-  --nexus-muted: #7b8190;
+  --nexus-primary: #6c5ce7;
+  --nexus-purple: #a29bfe;
+  --nexus-blue: #6b9fee;
+  --nexus-teal: #2db5b4;
+  --nexus-bg: #f8f9fc;
+  --nexus-border: #e6e8ee;
+  --nexus-ink: #1a1a2e;
+  --nexus-muted: #8a8fa0;
   --soft-page: #F6F7F9;
   --soft-header: #F8F5F1;
   --soft-card: #FFFFFF;
@@ -20,14 +20,14 @@
   --soft-body: #555268;
   --soft-muted: #8D8992;
   --soft-disabled: #B3B1BC;
-  --soft-primary: #2D2B31;
-  --soft-primary-hover: #1F1E22;
-  --soft-primary-soft: #FFF5EE;
-  --soft-selected-border: #D98252;
-  --soft-selected-bg: #FFF5EE;
-  --soft-selected-text: #3A302B;
-  --soft-hover-bg: #F8F3ED;
-  --soft-icon: #4B4850;
+  --soft-primary: #c07040;
+  --soft-primary-hover: #a85e30;
+  --soft-primary-soft: #fdf0e8;
+  --soft-selected-border: #c07040;
+  --soft-selected-bg: #fdf0e8;
+  --soft-selected-text: #8a4520;
+  --soft-hover-bg: #faf5f0;
+  --soft-icon: #c07040;
   --soft-primary-text: #24213D;
   --soft-card-border: #E7E9EF;
   --soft-tag-border: #E2E3E9;
@@ -49,7 +49,7 @@
   --soft-chart-green: #B4D396;
   --soft-chart-orange: #F7C28E;
   --classic-primary: var(--nexus-primary);
-  --classic-primary-hover: #3A32A5;
+  --classic-primary-hover: #5a4bd6;
   --classic-accent: var(--nexus-teal);
   --classic-selected-border: var(--nexus-primary);
   --classic-page: var(--nexus-bg);
@@ -62,22 +62,22 @@
   --theme-white: #ffffff;
   --theme-border: var(--nexus-border);
   --theme-ink: var(--nexus-ink);
-  --theme-body: #4a5160;
+  --theme-body: #4e5264;
   --theme-muted: var(--nexus-muted);
-  --theme-subtle: #8b92a1;
+  --theme-subtle: #a0a5b5;
   --theme-primary: var(--nexus-primary);
-  --theme-primary-hover: #3a32a5;
-  --theme-primary-soft: #f0efff;
+  --theme-primary-hover: #5a4bd6;
+  --theme-primary-soft: #f0edff;
   --theme-selected-border: var(--nexus-primary);
-  --theme-selected-bg: #f7f6ff;
+  --theme-selected-bg: #f5f3ff;
   --theme-selected-text: var(--nexus-primary);
-  --theme-hover-bg: #f7f9fc;
+  --theme-hover-bg: #f5f6fa;
   --theme-icon: var(--nexus-primary);
-  --theme-status-bg: #e9fbfa;
-  --theme-status-text: #0d9e9c;
-  --theme-chip: #f0efff;
-  --theme-soft-panel: #fbfcfe;
-  --theme-track: #edf1f7;
+  --theme-status-bg: #e8f8f0;
+  --theme-status-text: #22a06b;
+  --theme-chip: #f0edff;
+  --theme-soft-panel: #fafbfe;
+  --theme-track: #edf0f5;
   --voc-chart-1: var(--nexus-primary);
   --voc-chart-2: var(--nexus-blue);
   --voc-chart-3: var(--nexus-teal);
@@ -91,32 +91,32 @@
   --sales-sankey-mid: var(--nexus-purple);
   --sales-sankey-weak: var(--nexus-blue);
   --sales-sankey-neutral: #c9d0dc;
-  --sales-chip-strong: #f0efff;
-  --sales-chip-mid: #edf2ff;
-  --sales-chip-weak: #edf6ff;
+  --sales-chip-strong: #f0edff;
+  --sales-chip-mid: #edf0ff;
+  --sales-chip-weak: #edf5ff;
   --sales-chip-strong-text: var(--nexus-primary);
   --sales-chip-mid-text: var(--nexus-purple);
   --sales-chip-weak-text: var(--nexus-blue);
 
   /* ── System / Shell premium tokens ── */
-  --sys-page: #f5f7fb;
+  --sys-page: #f8f9fc;
   --sys-card: #ffffff;
-  --sys-border: #e8ecf3;
-  --sys-ink: #17152b;
-  --sys-title: #17152b;
-  --sys-body: #555268;
-  --sys-muted: #8a8798;
-  --sys-subtle: #8d8992;
-  --sys-input-bg: #f6f7f9;
-  --sys-input-border: #e7e9ef;
-  --sys-panel-bg: #f6f7f9;
-  --sys-icon-bg: #eef0ff;
-  --sys-icon-fill: #5347ce;
-  --sys-card-shadow: 0 2px 8px rgba(26, 32, 44, 0.04), 0 12px 32px rgba(26, 32, 44, 0.04);
-  --sys-card-shadow-hover: 0 4px 12px rgba(26, 32, 44, 0.06), 0 20px 48px rgba(26, 32, 44, 0.06);
-  --sys-btn-shadow: 0 8px 24px rgba(83, 71, 206, 0.24);
-  --sys-focus-ring: 0 0 0 3px rgba(83, 71, 206, 0.15);
-  --sys-shell-shadow: 0 2px 8px rgba(26, 32, 44, 0.06), 0 18px 60px rgba(26, 32, 44, 0.08);
+  --sys-border: #e6e8ee;
+  --sys-ink: #1a1a2e;
+  --sys-title: #1a1a2e;
+  --sys-body: #505468;
+  --sys-muted: #8a8fa0;
+  --sys-subtle: #a8acbe;
+  --sys-input-bg: #f4f5f8;
+  --sys-input-border: #e2e4ea;
+  --sys-panel-bg: #f4f5f8;
+  --sys-icon-bg: #ededff;
+  --sys-icon-fill: #6c5ce7;
+  --sys-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.04);
+  --sys-card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 12px 28px rgba(0, 0, 0, 0.06);
+  --sys-btn-shadow: 0 6px 20px rgba(108, 92, 231, 0.28);
+  --sys-focus-ring: 0 0 0 3px rgba(108, 92, 231, 0.18);
+  --sys-shell-shadow: 0 1px 4px rgba(0, 0, 0, 0.06), 0 12px 40px rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -130,8 +130,8 @@ body {
 
 body {
   margin: 0;
-  background: var(--nexus-bg);
-  color: var(--nexus-ink);
+  background: var(--theme-page);
+  color: var(--theme-ink);
   font-feature-settings: "tnum";
 }
 
@@ -139,24 +139,24 @@ body {
   --theme-page: var(--soft-page);
   --theme-card: var(--soft-card);
   --theme-white: var(--soft-white);
-  --theme-border: var(--soft-card-border);
+  --theme-border: #eae6e0;
   --theme-ink: var(--soft-ink);
   --theme-body: var(--soft-body);
   --theme-muted: var(--soft-muted);
-  --theme-subtle: var(--soft-muted);
-  --theme-primary: var(--soft-primary);
-  --theme-primary-hover: var(--soft-primary-hover);
-  --theme-primary-soft: var(--soft-primary-soft);
-  --theme-selected-border: var(--soft-selected-border);
-  --theme-selected-bg: var(--soft-selected-bg);
-  --theme-selected-text: var(--soft-selected-text);
-  --theme-hover-bg: var(--soft-hover-bg);
-  --theme-icon: var(--soft-icon);
-  --theme-chip: var(--soft-primary-soft);
+  --theme-subtle: #a09e9e;
+  --theme-primary: #c07040;
+  --theme-primary-hover: #a85e30;
+  --theme-primary-soft: #fdf0e8;
+  --theme-selected-border: #c07040;
+  --theme-selected-bg: #fdf0e8;
+  --theme-selected-text: #8a4520;
+  --theme-hover-bg: #faf5f0;
+  --theme-icon: #c07040;
+  --theme-chip: #fdf0e8;
   --theme-status-bg: var(--soft-status-bg);
   --theme-status-text: var(--soft-status-text);
-  --theme-soft-panel: #F8F5F1;
-  --theme-track: #E7E9EF;
+  --theme-soft-panel: #f9f6f2;
+  --theme-track: #eae6e0;
   --voc-chart-1: #87B96B;
   --voc-chart-2: #F2A56B;
   --voc-chart-3: #E57C45;
@@ -183,21 +183,24 @@ body {
   --profile-missing-text: #77727B;
   background: var(--theme-page);
 
-  --sys-page: #f6f7f9;
+  --sys-page: #f8f6f3;
   --sys-card: #ffffff;
-  --sys-border: #e7e9ef;
-  --sys-ink: #17152b;
+  --sys-border: #e8e4de;
+  --sys-ink: #29263f;
   --sys-title: #29263f;
-  --sys-body: #555268;
-  --sys-muted: #8d8992;
-  --sys-subtle: #8d8992;
-  --sys-input-bg: #f6f7f9;
-  --sys-input-border: #e7e9ef;
-  --sys-panel-bg: #f6f7f9;
-  --sys-icon-bg: #fff5ee;
-  --sys-icon-fill: #d98252;
-  --sys-btn-shadow: 0 8px 24px rgba(217, 130, 82, 0.24);
-  --sys-focus-ring: 0 0 0 3px rgba(217, 130, 82, 0.15);
+  --sys-body: #6b6578;
+  --sys-muted: #9a9498;
+  --sys-subtle: #b0aaa8;
+  --sys-input-bg: #f6f3ef;
+  --sys-input-border: #e8e4de;
+  --sys-panel-bg: #f5f2ee;
+  --sys-icon-bg: #fdf0e8;
+  --sys-icon-fill: #c07040;
+  --sys-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 6px 16px rgba(0, 0, 0, 0.03);
+  --sys-card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.07), 0 12px 28px rgba(0, 0, 0, 0.05);
+  --sys-btn-shadow: 0 6px 20px rgba(192, 112, 64, 0.28);
+  --sys-focus-ring: 0 0 0 3px rgba(192, 112, 64, 0.18);
+  --sys-shell-shadow: 0 1px 4px rgba(0, 0, 0, 0.05), 0 12px 40px rgba(0, 0, 0, 0.06);
 }
 
 [data-voc-theme="nexus"] {
@@ -206,22 +209,22 @@ body {
   --theme-white: #FFFFFF;
   --theme-border: var(--classic-border);
   --theme-ink: var(--classic-ink);
-  --theme-body: #4a5160;
+  --theme-body: #4e5264;
   --theme-muted: var(--classic-muted);
-  --theme-subtle: #8b92a1;
+  --theme-subtle: #a0a5b5;
   --theme-primary: var(--classic-primary);
-  --theme-primary-hover: var(--classic-primary-hover);
-  --theme-primary-soft: #f0efff;
+  --theme-primary-hover: #5a4bd6;
+  --theme-primary-soft: #f0edff;
   --theme-selected-border: var(--classic-selected-border);
-  --theme-selected-bg: #f7f6ff;
+  --theme-selected-bg: #f5f3ff;
   --theme-selected-text: var(--classic-primary);
-  --theme-hover-bg: #f7f9fc;
+  --theme-hover-bg: #f5f6fa;
   --theme-icon: var(--classic-primary);
-  --theme-chip: #f0efff;
-  --theme-status-bg: #e9fbfa;
-  --theme-status-text: #0d9e9c;
-  --theme-soft-panel: #fbfcfe;
-  --theme-track: #edf1f7;
+  --theme-chip: #f0edff;
+  --theme-status-bg: #e8f8f0;
+  --theme-status-text: #22a06b;
+  --theme-soft-panel: #fafbfe;
+  --theme-track: #edf0f5;
   --voc-chart-1: var(--classic-primary);
   --voc-chart-2: var(--nexus-blue);
   --voc-chart-3: var(--classic-accent);
@@ -235,9 +238,9 @@ body {
   --sales-sankey-mid: var(--nexus-purple);
   --sales-sankey-weak: var(--nexus-blue);
   --sales-sankey-neutral: #c9d0dc;
-  --sales-chip-strong: #f0efff;
-  --sales-chip-mid: #edf2ff;
-  --sales-chip-weak: #edf6ff;
+  --sales-chip-strong: #f0edff;
+  --sales-chip-mid: #edf0ff;
+  --sales-chip-weak: #edf5ff;
   --sales-chip-strong-text: var(--nexus-primary);
   --sales-chip-mid-text: var(--nexus-purple);
   --sales-chip-weak-text: var(--nexus-blue);
@@ -276,7 +279,7 @@ body {
 }
 .premium-btn:active {
   transform: translateY(0);
-  box-shadow: 0 4px 12px rgba(83, 71, 206, 0.2);
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.2);
 }
 
 [data-voc-theme="soft"] .text-\[\#151720\] {
@@ -291,14 +294,18 @@ body {
 }
 
 [data-voc-theme="soft"] .text-\[\#5347CE\],
+[data-voc-theme="soft"] .text-\[\#6c5ce7\],
 [data-voc-theme="soft"] .text-\[\#887CFD\],
+[data-voc-theme="soft"] .text-\[\#a29bfe\],
 [data-voc-theme="soft"] .text-\[\#4896FE\],
+[data-voc-theme="soft"] .text-\[\#6b9fee\],
 [data-voc-theme="soft"] .fill-\[\#151720\] {
   color: var(--theme-primary);
   fill: var(--theme-primary);
 }
 
-[data-voc-theme="soft"] .bg-\[\#5347CE\] {
+[data-voc-theme="soft"] .bg-\[\#5347CE\],
+[data-voc-theme="soft"] .bg-\[\#6c5ce7\] {
   background-color: var(--theme-primary);
 }
 
@@ -310,6 +317,7 @@ body {
 }
 
 [data-voc-theme="soft"] .border-\[\#e8ecf3\],
+[data-voc-theme="soft"] .border-\[\#e6e8ee\],
 [data-voc-theme="soft"] .border-\[\#edf0f5\],
 [data-voc-theme="soft"] .border-\[\#d9deea\] {
   border-color: var(--theme-border);

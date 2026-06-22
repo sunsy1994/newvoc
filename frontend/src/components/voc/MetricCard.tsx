@@ -7,24 +7,24 @@ type MetricCardProps = {
 };
 
 const toneClasses = {
-  purple: "bg-[#f0efff] text-[#5347CE]",
-  blue: "bg-[#eef6ff] text-[#4896FE]",
-  teal: "bg-[#e9fbfa] text-[#16C8C7]",
-  violet: "bg-[#f3f1ff] text-[#887CFD]",
-  neutral: "bg-[#f2f4f8] text-[#596070]",
+  purple: "bg-[var(--theme-chip)] text-[var(--theme-primary)]",
+  blue: "bg-[var(--theme-soft-panel)] text-[var(--voc-chart-5)]",
+  teal: "bg-[var(--theme-soft-panel)] text-[var(--voc-chart-3)]",
+  violet: "bg-[var(--theme-selected-bg)] text-[var(--voc-chart-4)]",
+  neutral: "bg-[var(--theme-soft-panel)] text-[var(--theme-body)]",
 };
 
 export function MetricCard({ label, value, hint, tone = "neutral", icon }: MetricCardProps) {
   return (
-    <article className="rounded-2xl border border-[#e8ecf3] bg-white p-4 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <article className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-medium text-[#6f7685]">{label}</p>
+        <p className="text-xs font-medium text-[var(--theme-body)]">{label}</p>
         <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
           {icon}
         </span>
       </div>
-      <strong className="mt-3 block text-[26px] font-semibold leading-none tracking-tight text-[#151720]">{value}</strong>
-      {hint ? <span className="mt-3 inline-flex rounded-md bg-[#f5f7fb] px-2 py-1 text-[11px] text-[#7b8190]">{hint}</span> : null}
+      <strong className="mt-3 block text-[26px] font-semibold leading-none tracking-tight text-[var(--theme-ink)]">{value}</strong>
+      {hint ? <span className="mt-3 inline-flex rounded-md bg-[var(--theme-soft-panel)] px-2 py-1 text-[11px] text-[var(--theme-muted)]">{hint}</span> : null}
     </article>
   );
 }

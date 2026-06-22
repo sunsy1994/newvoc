@@ -28,10 +28,10 @@ function statusLabel(status: string) {
 }
 
 function statusClass(status: string) {
-  if (status === "success") return "bg-[#eafafa] text-[#0f9695]";
+  if (status === "success") return "bg-[var(--theme-status-bg)] text-[#0f9695]";
   if (status === "failed") return "bg-[#fff0f0] text-[#d94a4a]";
-  if (status === "running") return "bg-[#eef6ff] text-[#4896FE]";
-  return "bg-[#f0efff] text-[#5347CE]";
+  if (status === "running") return "bg-[var(--theme-soft-panel)] text-[var(--voc-chart-5)]";
+  return "bg-[var(--sys-icon-bg)] text-[var(--sys-icon-fill)]";
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
@@ -155,7 +155,7 @@ export function ScriptMaintenancePage() {
             type="button"
             disabled={!isDirty || saveState === "loading"}
             onClick={saveScript}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5347CE] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(83,71,206,0.22)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sys-icon-fill)] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(93,150,145,0.16)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saveState === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             保存并备份
@@ -175,16 +175,16 @@ export function ScriptMaintenancePage() {
           {saveState === "error" || runState === "error" || loadState === "error" ? (
             <AlertTriangle className="h-4 w-4 text-[#d94a4a]" />
           ) : (
-            <CheckCircle2 className="h-4 w-4 text-[#16C8C7]" />
+            <CheckCircle2 className="h-4 w-4 text-[var(--theme-status-text)]" />
           )}
           {message}
         </div>
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+        <section className="rounded-2xl border border-[#e8ecf3] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
           <div className="mb-4 flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f0efff] text-[#5347CE]">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--sys-icon-bg)] text-[var(--sys-icon-fill)]">
               <FileCode2 className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -198,15 +198,15 @@ export function ScriptMaintenancePage() {
             value={content}
             onChange={(event) => setContent(event.target.value)}
             spellCheck={false}
-            className="h-[620px] w-full resize-y rounded-2xl border border-[#e8ecf3] bg-[#0f1420] p-4 font-mono text-xs leading-5 text-[#edf2ff] outline-none focus:border-[#887CFD] focus:ring-4 focus:ring-[#887CFD]/10"
+            className="h-[620px] w-full resize-y rounded-2xl border border-[#e8ecf3] bg-[#0f1420] p-4 font-mono text-xs leading-5 text-[#edf2ff] outline-none focus:border-[var(--sys-icon-fill)] focus:ring-4 focus:ring-[var(--sys-icon-fill)]/10"
             placeholder={loadState === "loading" ? "正在读取脚本..." : "暂无脚本内容"}
           />
         </section>
 
         <aside className="space-y-4">
-          <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+          <section className="rounded-2xl border border-[#e8ecf3] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
             <div className="mb-4 flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eef6ff] text-[#4896FE]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--theme-soft-panel)] text-[var(--voc-chart-5)]">
                 <ServerCog className="h-4 w-4" />
               </div>
               <div>
@@ -217,7 +217,7 @@ export function ScriptMaintenancePage() {
             <select
               value={selectedBatchId}
               onChange={(event) => setSelectedBatchId(event.target.value)}
-              className="h-10 w-full rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[#5347CE]"
+              className="h-10 w-full rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[var(--sys-icon-fill)]"
             >
               <option value="">选择批次</option>
               {tasks.map((task) => (
@@ -246,7 +246,7 @@ export function ScriptMaintenancePage() {
             ) : null}
           </section>
 
-          <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+          <section className="rounded-2xl border border-[#e8ecf3] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
             <h2 className="text-sm font-semibold text-[#151720]">最近备份</h2>
             <div className="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
               {script?.backups.length ? null : <p className="rounded-xl bg-[#f7f9fc] p-3 text-xs text-[#8b92a1]">暂无备份文件</p>}

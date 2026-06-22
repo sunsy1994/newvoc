@@ -47,9 +47,9 @@ const edges = [
 ];
 
 const toneClass = {
-  purple: "bg-[#f0efff] text-[#5347CE]",
-  blue: "bg-[#eef6ff] text-[#4896FE]",
-  teal: "bg-[#eafafa] text-[#16C8C7]",
+  purple: "bg-[var(--sys-icon-bg)] text-[var(--sys-icon-fill)]",
+  blue: "bg-[var(--theme-soft-panel)] text-[var(--voc-chart-5)]",
+  teal: "bg-[var(--theme-status-bg)] text-[var(--theme-status-text)]",
   yellow: "bg-[#fff8e5] text-[#c89516]",
   green: "bg-[#ecfbf1] text-[#2aa365]",
 };
@@ -93,7 +93,7 @@ function MetricSummary({ items }: { items: string[] }) {
     <div className="group relative inline-flex max-w-full">
       <button
         type="button"
-        className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-[#f0efff] px-2.5 py-1.5 text-[11px] font-semibold text-[#5347CE] transition hover:bg-[#e8e5ff] focus:outline-none focus:ring-2 focus:ring-[#887CFD]/30"
+        className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-[var(--sys-icon-bg)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--sys-icon-fill)] transition hover:bg-[var(--theme-hover-bg)] focus:outline-none focus:ring-2 focus:ring-[var(--sys-icon-fill)]/30"
         aria-label="查看完整批次指标"
       >
         <Info className="h-3.5 w-3.5 shrink-0" />
@@ -251,7 +251,7 @@ export function EtlFlowCanvas() {
           <select
             value={selectedBatchId}
             onChange={(event) => setSelectedBatchId(event.target.value)}
-            className="h-10 min-w-72 rounded-lg border border-[#e8ecf3] bg-white px-3 text-sm text-[#596070] outline-none focus:border-[#5347CE]"
+            className="h-10 min-w-72 rounded-lg border border-[#e8ecf3] bg-white px-3 text-sm text-[#596070] outline-none focus:border-[var(--sys-icon-fill)]"
           >
             <option value="">不选择批次</option>
             {tasks.map((task) => (
@@ -293,7 +293,7 @@ export function EtlFlowCanvas() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+      <section className="rounded-2xl border border-[#e8ecf3] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[#151720]">ODS → DWD → ADS → PostgreSQL</h2>
@@ -302,7 +302,7 @@ export function EtlFlowCanvas() {
           {message ? <span className="rounded-lg bg-[#f7f9fc] px-3 py-2 text-xs text-[#8b92a1]">{message}</span> : null}
         </div>
 
-        <div className="overflow-x-auto rounded-2xl bg-[#f5f7fb] p-6">
+        <div className="overflow-x-auto rounded-2xl bg-[var(--theme-page)] p-6">
           <div
             className="relative grid gap-x-24 gap-y-14"
             style={{

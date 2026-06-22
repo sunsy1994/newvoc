@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import httpx
 import pandas as pd
 from fastapi.testclient import TestClient
 
@@ -169,6 +170,23 @@ def test_voc_event_market_dashboard_api_returns_business_sections(tmp_path: Path
             "volume_trend": [{"date": "2026-05-14", "content_count": 2, "comment_count": 3, "total_volume": 5}],
             "channel_distribution": [{"channel": "抖音", "content_count": 10, "comment_count": 8, "total_volume": 18}],
             "kol_type_distribution": [{"kol_main_type": "车型实测测评KOL", "kol_count": 2, "content_count": 4, "total_engagement": 1200}],
+            "comment_quality": {
+                "summary": {
+                    "labeled_comment_count": 19,
+                    "vehicle_related_count": 16,
+                    "vehicle_related_rate": 84.2,
+                    "positive_rate": 52.6,
+                    "negative_rate": 5.3,
+                    "mid_high_purchase_signal_count": 4,
+                    "mid_high_purchase_signal_rate": 21.1,
+                    "top_aspect": "外观",
+                    "top_intent": "购买意向",
+                },
+                "sentiment_distribution": [{"label": "正向", "count": 10, "rate": 52.6}],
+                "intent_distribution": [{"label": "购买意向", "count": 6, "rate": 31.6}],
+                "aspect_distribution": [{"label": "外观", "count": 7, "rate": 36.8}],
+                "purchase_signal_distribution": [{"label": "中", "count": 4, "rate": 21.1}],
+            },
             "hot_posts": [{"content_id": "c1", "title": "试驾体验", "total_engagement": 999}],
         }
 
@@ -180,7 +198,73 @@ def test_voc_event_market_dashboard_api_returns_business_sections(tmp_path: Path
     payload = response.json()
     assert payload["event"]["event_id"] == "event_001"
     assert payload["overview_metrics"]["total_volume"] == 44
+    assert payload["comment_quality"]["summary"]["vehicle_related_rate"] == 84.2
+    assert payload["comment_quality"]["aspect_distribution"][0]["label"] == "外观"
     assert payload["hot_posts"][0]["title"] == "试驾体验"
+
+
+def test_voc_event_discussion_point_comments_api_returns_comment_evidence(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_discussion_comments(event_id, aspect, limit=20, offset=0):
+        return {
+            "aspect": aspect,
+            "comments": [
+                {
+                    "comment_id": "cm1",
+                    "content_id": "c1",
+                    "source_title": "上市短视频",
+                    "comment_author_name": "九月九的酒",
+                    "comment_text": "外观确实挺好看",
+                    "published_at": "2026-05-18T12:30:00",
+                    "interaction_cnt": 8,
+                    "comment_sentiment": "正向",
+                    "purchase_signal": "中",
+                }
+            ],
+            "total": 1,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_event_discussion_point_comments", fake_discussion_comments)
+
+    response = client.get("/api/voc/events/event_001/discussion-points/%E5%A4%96%E8%A7%82/comments")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["aspect"] == "外观"
+    assert payload["comments"][0]["source_title"] == "上市短视频"
+    assert payload["comments"][0]["interaction_cnt"] == 8
+    assert payload["comments"][0]["purchase_signal"] == "中"
+
+
+def test_voc_event_product_dashboard_api_returns_focus_story(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_product_dashboard(event_id):
+        return {
+            "event": {"event_id": event_id, "event_name": "IDT6上市"},
+            "product_focus_story": {
+                "summary": {
+                    "top_aspect": "空间",
+                    "aspect_count": 3,
+                    "total_mentions": 27,
+                    "rule_based_conclusion": "用户讨论最集中在空间。",
+                },
+                "aspects": [{"aspect": "空间", "comment_count": 12, "positive_rate": 66.7, "negative_rate": 8.3}],
+            },
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_event_product_dashboard", fake_product_dashboard)
+
+    response = client.get("/api/voc/events/event_001/product-dashboard")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["event"]["event_id"] == "event_001"
+    assert payload["product_focus_story"]["summary"]["top_aspect"] == "空间"
+    assert payload["product_focus_story"]["aspects"][0]["positive_rate"] == 66.7
 
 
 def test_voc_event_content_detail_api_supports_comment_sort_and_paging(tmp_path: Path, monkeypatch) -> None:
@@ -201,6 +285,9 @@ def test_voc_event_content_detail_api_supports_comment_sort_and_paging(tmp_path:
                     "interaction_cnt": 8,
                 }
             ],
+            "comment_timeline": [
+                {"time_bucket": "2026-05-18 10:00:00", "comment_count": 1, "interaction_count": 8},
+            ],
             "total": 21,
             "limit": limit,
             "offset": offset,
@@ -217,7 +304,44 @@ def test_voc_event_content_detail_api_supports_comment_sort_and_paging(tmp_path:
     assert payload["content"]["source_url"] == "https://example.test/post"
     assert payload["comments"][0]["parent_comment_id"] == "cm1"
     assert payload["comments"][0]["parent_comment_author_name"] == "user a"
+    assert payload["comment_timeline"][0]["comment_count"] == 1
     assert payload["total"] == 21
+
+
+def test_voc_author_detail_api_returns_global_author_story(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_author_detail(author_id):
+        return {
+            "author": {"author_id": author_id, "author_name": "车圈老张", "is_kol": True},
+            "metrics": {"event_count": 2, "content_count": 5, "received_comment_count": 30, "total_engagement": 900},
+            "kol_profile": {"kol_main_type": "车型实测测评KOL", "car_focus": "新能源专注"},
+            "events": [{"event_id": "event_1", "event_name": "上市发布", "content_count": 3}],
+            "contents": [{"content_id": "content_1", "title": "试驾体验", "engagement_total": 500}],
+            "comment_quality": {"summary": {"labeled_comment_count": 20, "vehicle_related_rate": 80.0}},
+            "sankey": {"nodes": [{"id": "author:author_1", "label": "车圈老张", "layer": 0}], "links": []},
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_author_detail", fake_author_detail)
+
+    response = client.get("/api/voc/authors/author_1/detail")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["author"]["author_name"] == "车圈老张"
+    assert payload["kol_profile"]["kol_main_type"] == "车型实测测评KOL"
+    assert payload["metrics"]["event_count"] == 2
+    assert payload["sankey"]["nodes"][0]["layer"] == 0
+
+
+def test_voc_author_detail_api_returns_404_for_missing_author(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_author_detail", lambda author_id: {"author": {}})
+
+    response = client.get("/api/voc/authors/missing/detail")
+
+    assert response.status_code == 404
 
 
 def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monkeypatch) -> None:
@@ -479,6 +603,258 @@ def test_comment_user_profile_api_returns_profiles(tmp_path: Path, monkeypatch) 
     assert captured == {"q": "price", "profile_batch": "prompt_v1", "limit": 10, "offset": 20}
 
 
+def test_comment_user_ai_profile_api_runs_profile(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_run_comment_user_ai_profile(comment_user_id, **kwargs):
+        captured["comment_user_id"] = comment_user_id
+        captured.update(kwargs)
+        return {
+            "comment_user_id": comment_user_id,
+            "comment_count": 2,
+            "profile_batch": kwargs["profile_batch"],
+            "prompt_version": kwargs["prompt_version"],
+            "db_loaded": {"raw_loaded": 1, "profiles_loaded": 1, "label_scores_loaded": 3},
+        }
+
+    monkeypatch.setattr("app.routers.tasks.run_comment_user_ai_profile", fake_run_comment_user_ai_profile)
+
+    response = client.post(
+        "/api/profiles/comment-users/comment_user_001/ai-run",
+        json={
+            "profile_batch": "batch_ai",
+            "prompt_version": "comment_user_profile_v1",
+            "prompt_file": "画像提示词.txt",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["comment_count"] == 2
+    assert captured["comment_user_id"] == "comment_user_001"
+    assert captured["profile_batch"] == "batch_ai"
+    assert captured["prompt_version"] == "comment_user_profile_v1"
+    assert captured["prompt_path"].name == "画像提示词.txt"
+
+
+def test_comment_user_ai_profile_api_returns_clear_timeout_error(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_run_comment_user_ai_profile(comment_user_id, **kwargs):
+        raise httpx.ReadTimeout("timed out")
+
+    monkeypatch.setattr("app.routers.tasks.run_comment_user_ai_profile", fake_run_comment_user_ai_profile)
+
+    response = client.post(
+        "/api/profiles/comment-users/comment_user_001/ai-run",
+        json={
+            "profile_batch": "batch_ai",
+            "prompt_version": "comment_user_profile_v1",
+            "prompt_file": "画像提示词.txt",
+        },
+    )
+
+    assert response.status_code == 504
+    assert "AI画像调用超时" in response.json()["detail"]
+
+
+def test_system_ai_config_api_reads_and_saves_without_returning_secret(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_get_default_ai_config():
+        return {
+            "config_name": "default",
+            "base_url": "https://llm.example/v1",
+            "model_name": "profile-model",
+            "timeout_seconds": 60,
+            "is_enabled": True,
+            "api_key_configured": True,
+            "api_key_masked": "sk-****cdef",
+        }
+
+    def fake_save_default_ai_config(payload):
+        captured.update(payload)
+        return {
+            "config_name": "default",
+            "base_url": payload["base_url"],
+            "model_name": payload["model_name"],
+            "timeout_seconds": payload["timeout_seconds"],
+            "is_enabled": payload["is_enabled"],
+            "api_key_configured": True,
+            "api_key_masked": "sk-****9876",
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_default_ai_config", fake_get_default_ai_config)
+    monkeypatch.setattr("app.routers.tasks.save_default_ai_config", fake_save_default_ai_config)
+
+    read_response = client.get("/api/system/ai-config")
+    assert read_response.status_code == 200
+    assert read_response.json()["api_key_masked"] == "sk-****cdef"
+    assert "api_key" not in read_response.json()
+
+    save_response = client.put(
+        "/api/system/ai-config",
+        json={
+            "base_url": "https://new.example/v1",
+            "api_key": "sk-new-secret-9876",
+            "model_name": "new-model",
+            "timeout_seconds": 90,
+            "is_enabled": True,
+        },
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.json()["base_url"] == "https://new.example/v1"
+    assert "api_key" not in save_response.json()
+    assert captured["api_key"] == "sk-new-secret-9876"
+    assert captured["model_name"] == "new-model"
+
+
+def test_system_prompt_api_lists_and_saves_templates(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_list_prompt_templates(scene=None):
+        captured["scene"] = scene
+        return {
+            "prompts": [
+                {
+                    "prompt_id": 1,
+                    "prompt_name": "评论用户画像",
+                    "prompt_scene": "comment_user_profile",
+                    "prompt_version": "comment_user_profile_v1",
+                    "prompt_content": "用户ID：{{user_id}}",
+                    "is_default": True,
+                    "is_enabled": True,
+                }
+            ]
+        }
+
+    def fake_save_prompt_template(payload):
+        captured["saved"] = payload
+        return {
+            "prompt_id": 2,
+            "prompt_name": payload["prompt_name"],
+            "prompt_scene": payload["prompt_scene"],
+            "prompt_version": payload["prompt_version"],
+            "prompt_content": payload["prompt_content"],
+            "is_default": payload["is_default"],
+            "is_enabled": payload["is_enabled"],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_prompt_templates", fake_list_prompt_templates)
+    monkeypatch.setattr("app.routers.tasks.save_prompt_template", fake_save_prompt_template)
+
+    list_response = client.get("/api/system/prompts?scene=comment_user_profile")
+    assert list_response.status_code == 200
+    assert list_response.json()["prompts"][0]["prompt_version"] == "comment_user_profile_v1"
+    assert captured["scene"] == "comment_user_profile"
+
+    save_response = client.post(
+        "/api/system/prompts",
+        json={
+            "prompt_name": "评论用户画像",
+            "prompt_scene": "comment_user_profile",
+            "prompt_version": "comment_user_profile_v2",
+            "prompt_content": "评论列表：{{comments}}",
+            "is_default": True,
+            "is_enabled": True,
+        },
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.json()["prompt_version"] == "comment_user_profile_v2"
+    assert captured["saved"]["prompt_content"] == "评论列表：{{comments}}"
+
+
+
+def test_system_emoji_api_lists_and_saves_mappings(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_list_emoji_mappings(enabled_only=False):
+        captured["enabled_only"] = enabled_only
+        return {
+            "emojis": [
+                {
+                    "emoji_id": 1,
+                    "emoji_code": "[666]",
+                    "emoji_type": "emoji",
+                    "emoji_value": "??",
+                    "display_name": "666",
+                    "is_enabled": True,
+                }
+            ]
+        }
+
+    def fake_save_emoji_mapping(payload):
+        captured["saved"] = payload
+        return {
+            "emoji_id": 2,
+            "emoji_code": payload["emoji_code"],
+            "emoji_type": payload["emoji_type"],
+            "emoji_value": payload["emoji_value"],
+            "display_name": payload["display_name"],
+            "is_enabled": payload["is_enabled"],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.list_emoji_mappings", fake_list_emoji_mappings)
+    monkeypatch.setattr("app.routers.tasks.save_emoji_mapping", fake_save_emoji_mapping)
+
+    list_response = client.get("/api/system/emojis?enabled_only=true")
+    assert list_response.status_code == 200
+    assert list_response.json()["emojis"][0]["emoji_code"] == "[666]"
+    assert captured["enabled_only"] is True
+
+    save_response = client.post(
+        "/api/system/emojis",
+        json={
+            "emoji_code": "[??]",
+            "emoji_type": "emoji",
+            "emoji_value": "??",
+            "display_name": "??",
+            "is_enabled": True,
+        },
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.json()["emoji_value"] == "??"
+    assert captured["saved"]["emoji_code"] == "[??]"
+
+def test_comment_user_ai_flow_api_returns_process_nodes(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_build_comment_user_ai_flow():
+        return {
+            "nodes": [
+                {
+                    "id": "select_users",
+                    "order": 1,
+                    "title": "选择用户范围",
+                    "desc": "从评论用户资产中选择需要画像的用户。",
+                    "function_name": "select_comment_users",
+                    "input_tables": ["data_asset.dwd_comment"],
+                    "output_tables": ["comment_user_id"],
+                    "rules": ["默认使用全库评论"],
+                    "metrics": {"comment_user_count": 77},
+                    "status": "ready",
+                }
+            ],
+            "summary": {"comment_user_count": 77, "profiled_user_count": 1},
+        }
+
+    monkeypatch.setattr("app.routers.tasks.build_comment_user_ai_flow", fake_build_comment_user_ai_flow)
+
+    response = client.get("/api/profiles/comment-users/ai-flow")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["nodes"][0]["id"] == "select_users"
+    assert payload["nodes"][0]["status"] == "ready"
+    assert payload["summary"]["comment_user_count"] == 77
+
+
 def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
     monkeypatch.setattr(
@@ -554,3 +930,36 @@ def test_upload_accepts_csv_files(tmp_path: Path, monkeypatch) -> None:
     assert run_response.status_code == 200
     assert run_response.json()["status"] == "success"
     assert run_response.json()["summary"]["dwd_comment"] == 19
+
+
+def test_voc_event_market_dashboard_api_returns_region_and_topic_sections(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_dashboard(event_id):
+        return {
+            "event": {"event_id": event_id, "event_name": "launch event"},
+            "overview_metrics": {},
+            "volume_trend": [],
+            "channel_distribution": [],
+            "kol_type_distribution": [],
+            "comment_quality": {},
+            "regional_response_story": {
+                "summary": {"data_scope": "comment_location_only", "top_location": "Shanghai"},
+                "locations": [{"location": "Shanghai", "comment_count": 12}],
+                "top_contents": [],
+            },
+            "topic_spread_story": {
+                "summary": {"top_topic": "SmartCabin", "topic_count": 1},
+                "topics": [{"topic": "SmartCabin", "comment_count": 9}],
+            },
+            "hot_posts": [],
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_voc_event_market_dashboard", fake_dashboard)
+
+    response = client.get("/api/voc/events/event_001/market-dashboard")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["regional_response_story"]["summary"]["data_scope"] == "comment_location_only"
+    assert payload["topic_spread_story"]["summary"]["top_topic"] == "SmartCabin"

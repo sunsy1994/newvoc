@@ -29,6 +29,21 @@ const defaultPrompt: PromptTemplate = {
   is_enabled: true,
 };
 
+const promptSceneOptions = [
+  { value: "comment_user_profile", label: "评论用户画像", defaultName: "评论用户画像提示词", defaultVersion: "comment_user_profile_v1" },
+  { value: "market_report_summary", label: "市场部事件总结", defaultName: "市场部事件总结提示词", defaultVersion: "market_report_summary_v1" },
+];
+
+function emptyPromptForScene(scene: string): PromptTemplate {
+  const option = promptSceneOptions.find((item) => item.value === scene) ?? promptSceneOptions[0];
+  return {
+    ...defaultPrompt,
+    prompt_name: option.defaultName,
+    prompt_scene: option.value,
+    prompt_version: option.defaultVersion,
+  };
+}
+
 function buildApiUrl(endpoint: string, params?: URLSearchParams) {
   const query = params?.toString();
   return `${apiBaseUrl}${endpoint}${query ? `?${query}` : ""}`;
@@ -80,6 +95,7 @@ export function SystemSettingsPage({ mode }: { mode: SystemSettingsMode }) {
   const [aiConfig, setAiConfig] = useState<AiConfigPayload>(defaultAiConfig);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
+  const [selectedPromptScene, setSelectedPromptScene] = useState("comment_user_profile");
   const [selectedPromptKey, setSelectedPromptKey] = useState("");
   const [promptDraft, setPromptDraft] = useState<PromptTemplate>(defaultPrompt);
 
@@ -103,13 +119,13 @@ export function SystemSettingsPage({ mode }: { mode: SystemSettingsMode }) {
   const loadPrompts = useCallback(async () => {
     setLoadState("loading");
     try {
-      const params = new URLSearchParams({ scene: "comment_user_profile" });
+      const params = new URLSearchParams({ scene: selectedPromptScene });
       const response = await fetch(buildApiUrl("/system/prompts", params), { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = (await response.json()) as PromptListPayload;
       const nextPrompts = payload.prompts ?? [];
       setPrompts(nextPrompts);
-      const nextSelected = nextPrompts.find((item) => item.is_default) ?? nextPrompts[0] ?? defaultPrompt;
+      const nextSelected = nextPrompts.find((item) => item.is_default) ?? nextPrompts[0] ?? emptyPromptForScene(selectedPromptScene);
       setSelectedPromptKey(`${nextSelected.prompt_scene}:${nextSelected.prompt_version}`);
       setPromptDraft(nextSelected);
       setLoadState("idle");
@@ -117,7 +133,7 @@ export function SystemSettingsPage({ mode }: { mode: SystemSettingsMode }) {
       setLoadState("error");
       setMessage("提示词加载失败，请确认后端和 PostgreSQL 已启动。");
     }
-  }, []);
+  }, [selectedPromptScene]);
 
   useEffect(() => {
     if (mode === "parameters") {
@@ -160,7 +176,7 @@ export function SystemSettingsPage({ mode }: { mode: SystemSettingsMode }) {
       const response = await fetch(buildApiUrl("/system/prompts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(promptDraft),
+        body: JSON.stringify({ ...promptDraft, prompt_scene: selectedPromptScene }),
       });
       const payload = (await response.json()) as PromptTemplate & { detail?: string };
       if (!response.ok) {
@@ -206,17 +222,35 @@ export function SystemSettingsPage({ mode }: { mode: SystemSettingsMode }) {
                   <h2 className="text-[15px] font-semibold tracking-tight text-[var(--sys-title)]">评论用户画像提示词</h2>
                   <p className="mt-1 text-xs text-[var(--sys-muted)]">场景固定为 comment_user_profile，后续 AI 流程会读取默认启用版本。</p>
                 </div>
-                <select
-                  value={selectedPromptKey}
-                  onChange={(event) => setSelectedPromptKey(event.target.value)}
-                  className="premium-input h-10 rounded-[12px] border border-[var(--sys-input-border)] bg-[var(--sys-input-bg)] px-3 text-sm text-[var(--sys-body)] outline-none focus:border-[var(--sys-icon-fill)]"
-                >
-                  {prompts.map((item) => (
-                    <option key={`${item.prompt_scene}:${item.prompt_version}`} value={`${item.prompt_scene}:${item.prompt_version}`}>
-                      {item.prompt_version}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={selectedPromptScene}
+                    onChange={(event) => {
+                      const nextScene = event.target.value;
+                      setSelectedPromptScene(nextScene);
+                      setPromptDraft(emptyPromptForScene(nextScene));
+                      setSelectedPromptKey("");
+                    }}
+                    className="premium-input h-10 rounded-[12px] border border-[var(--sys-input-border)] bg-[var(--sys-input-bg)] px-3 text-sm text-[var(--sys-body)] outline-none focus:border-[var(--sys-icon-fill)]"
+                  >
+                    {promptSceneOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedPromptKey}
+                    onChange={(event) => setSelectedPromptKey(event.target.value)}
+                    className="premium-input h-10 rounded-[12px] border border-[var(--sys-input-border)] bg-[var(--sys-input-bg)] px-3 text-sm text-[var(--sys-body)] outline-none focus:border-[var(--sys-icon-fill)]"
+                  >
+                    {prompts.map((item) => (
+                      <option key={`${item.prompt_scene}:${item.prompt_version}`} value={`${item.prompt_scene}:${item.prompt_version}`}>
+                        {item.prompt_version}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">

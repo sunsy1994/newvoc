@@ -11,9 +11,9 @@ type VolumeTrendChartProps = {
 type TrendKey = "total_volume" | "content_count" | "comment_count";
 
 const series: Array<{ key: TrendKey; label: string; color: string; width: number }> = [
-  { key: "total_volume", label: "总声量", color: "#5347CE", width: 3 },
-  { key: "content_count", label: "主贴声量", color: "#4896FE", width: 2.5 },
-  { key: "comment_count", label: "评论声量", color: "#16C8C7", width: 2.5 },
+  { key: "total_volume", label: "总声量", color: "var(--theme-ink)", width: 3 },
+  { key: "content_count", label: "主贴声量", color: "var(--voc-chart-5)", width: 2.5 },
+  { key: "comment_count", label: "评论声量", color: "var(--voc-chart-1)", width: 2.5 },
 ];
 
 const chart = { left: 34, right: 520, top: 24, bottom: 156 };
@@ -50,7 +50,7 @@ export function VolumeTrendChart({ data }: VolumeTrendChartProps) {
 
   if (!data.length) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-2xl bg-[#f7f9fc] text-sm text-[#8b92a1]">
+      <div className="flex h-64 items-center justify-center rounded-2xl bg-[var(--theme-soft-panel)] text-sm text-[var(--theme-muted)]">
         缺少发布时间，暂时无法展示声量趋势
       </div>
     );
@@ -61,7 +61,7 @@ export function VolumeTrendChart({ data }: VolumeTrendChartProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-[#f7f9fc] p-4">
+    <div className="overflow-hidden rounded-2xl bg-[var(--theme-soft-panel)] p-4">
       <svg viewBox="0 0 540 210" className="h-72 w-full" role="img" aria-label="声量趋势折线图">
         {[24, 68, 112, 156].map((y) => (
           <line key={y} x1="34" y1={y} x2="520" y2={y} stroke="#e8ecf3" strokeWidth="1" />
@@ -110,7 +110,7 @@ export function VolumeTrendChart({ data }: VolumeTrendChartProps) {
               type="button"
               onClick={() => toggleSeries(item.key)}
               className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition ${
-                active ? "border-[#e8ecf3] bg-white text-[#3a4050]" : "border-transparent bg-transparent text-[#a1a7b3]"
+                active ? "border-[var(--theme-border)] bg-[var(--theme-white)] text-[var(--theme-body)]" : "border-transparent bg-transparent text-[var(--theme-muted)]"
               }`}
             >
               <i className="h-2 w-2 rounded-full" style={{ backgroundColor: active ? item.color : "#c7ccd6" }} />

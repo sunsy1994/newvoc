@@ -61,3 +61,9 @@ def test_normalize_numeric_placeholders_to_none() -> None:
     assert normalize_db_value("--", "reply_cnt") is None
     assert normalize_db_value("-", "favorite_cnt") is None
     assert normalize_db_value("1,234", "like_cnt") == 1234
+
+
+def test_normalize_comment_label_json_to_jsonb() -> None:
+    value = normalize_db_value('{"is_vehicle_related":"是"}', "comment_label_json")
+
+    assert value.obj == {"is_vehicle_related": "是"}

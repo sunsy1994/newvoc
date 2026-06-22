@@ -60,7 +60,12 @@ FLOW_NODES = [
         "desc": "把评论挂到内容上，形成 VOC 原声明细。",
         "input_tables": ["ods_comment_upload", "dwd_content"],
         "output_tables": ["dwd_comment"],
-        "rules": ["优先用 content_source_url 匹配内容", "评论 ID 缺失时生成稳定 ID", "位置字段原样保留用于分布统计"],
+        "rules": [
+            "优先用 content_source_url 匹配内容",
+            "评论 ID 缺失时生成稳定 ID",
+            "位置字段原样保留用于分布统计",
+            "comment_label_json 原样保留用于评论质量分析",
+        ],
         "function_name": "standardize_comments",
         "metric_keys": ["dwd_comment", "rejected_comment"],
     },

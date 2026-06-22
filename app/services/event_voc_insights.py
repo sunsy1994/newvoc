@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import date, datetime
@@ -367,13 +367,13 @@ def fetch_event_volume_trend(conn: psycopg.Connection, event_id: str) -> list[di
 def fetch_event_channel_distribution(conn: psycopg.Connection, event_id: str) -> list[dict[str, Any]]:
     query = """
         WITH content_channel AS (
-          SELECT coalesce(nullif(platform, ''), '鏈煡娓犻亾') AS channel, count(*)::bigint AS content_count
+          SELECT coalesce(nullif(platform, ''), '未知渠道') AS channel, count(*)::bigint AS content_count
           FROM data_asset.dwd_content
           WHERE event_id = %s
           GROUP BY 1
         ),
         comment_channel AS (
-          SELECT coalesce(nullif(c.platform, ''), nullif(cm.platform, ''), '鏈煡娓犻亾') AS channel,
+          SELECT coalesce(nullif(c.platform, ''), nullif(cm.platform, ''), '未知渠道') AS channel,
                  count(*)::bigint AS comment_count
           FROM data_asset.dwd_comment cm
           JOIN data_asset.dwd_content c ON cm.content_id = c.content_id
@@ -407,7 +407,7 @@ def fetch_event_kol_type_distribution(conn: psycopg.Connection, event_id: str) -
           FROM data_asset.user_profile_kol
           ORDER BY author_id, updated_time DESC NULLS LAST
         )
-        SELECT coalesce(nullif(p.kol_main_type, ''), '灏氭湭缁存姢KOL鐢诲儚') AS kol_main_type,
+        SELECT coalesce(nullif(p.kol_main_type, ''), '尚未维护KOL画像') AS kol_main_type,
                count(DISTINCT a.author_id)::bigint AS kol_count,
                count(DISTINCT c.content_id)::bigint AS content_count,
                coalesce(sum(c.engagement_total), 0)::bigint AS total_engagement
@@ -673,7 +673,7 @@ def build_regional_response_story(
         purchase_signal = int(row.get("mid_high_purchase_signal_count") or 0)
         locations.append(
             {
-                "location": row.get("location") or "鏈煡鍦板尯",
+                "location": row.get("location") or "未知地区",
                 "comment_count": comment_count,
                 "comment_rate": round(comment_count * 100 / total_comments, 1) if total_comments else 0,
                 "labeled_comment_count": labeled_count,
@@ -788,7 +788,7 @@ def build_topic_spread_story(content_rows: list[dict[str, Any]]) -> dict[str, An
                 {
                     "content_id": row.get("content_id"),
                     "title": row.get("title") or "未命名内容",
-                    "platform": row.get("platform") or "鏈煡骞冲彴",
+                    "platform": row.get("platform") or "未知平台",
                     "comment_count": int(row.get("comment_count") or 0),
                     "total_engagement": int(row.get("total_engagement") or 0),
                 }
@@ -874,9 +874,9 @@ def fetch_event_product_focus_story(conn: psycopg.Connection, event_id: str) -> 
         )
         SELECT aspect,
                count(*)::bigint AS comment_count,
-               count(*) FILTER (WHERE sentiment = '姝ｅ悜')::bigint AS positive_count,
-               count(*) FILTER (WHERE sentiment = '璐熷悜')::bigint AS negative_count,
-               count(*) FILTER (WHERE purchase_signal IN ('涓?, '寮?))::bigint AS purchase_signal_count
+               count(*) FILTER (WHERE sentiment = '正向')::bigint AS positive_count,
+               count(*) FILTER (WHERE sentiment = '负向')::bigint AS negative_count,
+               count(*) FILTER (WHERE purchase_signal IN ('中', '强'))::bigint AS purchase_signal_count
         FROM aspect_rows
         GROUP BY aspect
         ORDER BY comment_count DESC, positive_count DESC, negative_count DESC, aspect
@@ -898,7 +898,7 @@ def build_product_focus_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         purchase_signal_count = int(row.get("purchase_signal_count") or 0)
         aspects.append(
             {
-                "aspect": row.get("aspect") or "鏈爣娉ㄤ骇鍝佺偣",
+                "aspect": row.get("aspect") or "未标注产品点",
                 "comment_count": comment_count,
                 "mention_rate": round(comment_count * 100 / total_mentions, 1) if total_mentions else 0,
                 "positive_count": positive_count,
@@ -944,7 +944,7 @@ def build_product_opportunity_story(aspects: list[dict[str, Any]]) -> dict[str, 
                 continue
             items.append(
                 {
-                    "aspect": aspect.get("aspect") or "鏈爣娉ㄤ骇鍝佺偣",
+                    "aspect": aspect.get("aspect") or "未标注产品点",
                     "category": category,
                     "comment_count": int(aspect.get("comment_count") or 0),
                     "mention_rate": mention_rate,
@@ -1074,7 +1074,7 @@ def build_product_focus_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         purchase_signal_count = int(row.get("purchase_signal_count") or 0)
         aspects.append(
             {
-                "aspect": row.get("aspect") or "鏈爣娉ㄤ骇鍝佺偣",
+                "aspect": row.get("aspect") or "未标注产品点",
                 "comment_count": comment_count,
                 "mention_rate": round(comment_count * 100 / total_mentions, 1) if total_mentions else 0,
                 "positive_count": positive_count,
@@ -1121,7 +1121,7 @@ def build_product_opportunity_story(aspects: list[dict[str, Any]]) -> dict[str, 
                 continue
             items.append(
                 {
-                    "aspect": aspect.get("aspect") or "鏈爣娉ㄤ骇鍝佺偣",
+                    "aspect": aspect.get("aspect") or "未标注产品点",
                     "category": category,
                     "comment_count": int(aspect.get("comment_count") or 0),
                     "mention_rate": mention_rate,
@@ -1257,7 +1257,7 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         return target == "其他"
 
     def is_unknown_target(target: str) -> bool:
-        return target.startswith("未标注") or "鏈" in target
+        return target.startswith("未标注") or any(token in target for token in ("鏈", "鐢", "诲", "儚", "涓", "寮", "姝", "璐"))
 
     generic_target_rows = [item for item in normalized if is_generic_target(item["target"])]
     explicit_target_rows = [item for item in normalized if not is_generic_target(item["target"]) and not is_unknown_target(item["target"])]
@@ -1274,11 +1274,11 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ]
 
     def result_bucket(value: str) -> str:
-        if value in {"本车优势", "鏈溅浼樺娍"}:
+        if value == "本车优势":
             return "advantage"
-        if value in {"本车劣势", "鏈溅鍔ｅ娍"}:
+        if value == "本车劣势":
             return "disadvantage"
-        if value in {"中性对比", "涓€у姣?"}:
+        if value == "中性对比":
             return "neutral"
         return "unclear"
 
@@ -2070,18 +2070,18 @@ def fetch_author_comment_quality(conn: psycopg.Connection, author_id: str) -> di
     summary_query = f"""
         SELECT
           count(*)::bigint AS labeled_comment_count,
-          count(*) FILTER (WHERE cm.comment_label_json ->> 'is_vehicle_related' = '鏄?)::bigint AS vehicle_related_count,
-          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'is_vehicle_related' = '鏄?) / nullif(count(*), 0), 1) AS vehicle_related_rate,
-          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'comment_sentiment' = '姝ｅ悜') / nullif(count(*), 0), 1) AS positive_rate,
-          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'comment_sentiment' = '璐熷悜') / nullif(count(*), 0), 1) AS negative_rate,
-          count(*) FILTER (WHERE cm.comment_label_json ->> 'purchase_signal' IN ('涓?, '寮?))::bigint AS mid_high_purchase_signal_count,
-          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'purchase_signal' IN ('涓?, '寮?)) / nullif(count(*), 0), 1) AS mid_high_purchase_signal_rate
+          count(*) FILTER (WHERE cm.comment_label_json ->> 'is_vehicle_related' = '是')::bigint AS vehicle_related_count,
+          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'is_vehicle_related' = '是') / nullif(count(*), 0), 1) AS vehicle_related_rate,
+          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'comment_sentiment' = '正向') / nullif(count(*), 0), 1) AS positive_rate,
+          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'comment_sentiment' = '负向') / nullif(count(*), 0), 1) AS negative_rate,
+          count(*) FILTER (WHERE cm.comment_label_json ->> 'purchase_signal' IN ('中', '强'))::bigint AS mid_high_purchase_signal_count,
+          round(100.0 * count(*) FILTER (WHERE cm.comment_label_json ->> 'purchase_signal' IN ('中', '强')) / nullif(count(*), 0), 1) AS mid_high_purchase_signal_rate
         FROM data_asset.dwd_comment cm
         JOIN data_asset.dwd_content c ON cm.content_id = c.content_id
         WHERE {base_where}
     """
     distribution_query = """
-        SELECT coalesce(nullif(cm.comment_label_json ->> {field}, ''), '鏈爣娉?) AS label,
+        SELECT coalesce(nullif(cm.comment_label_json ->> {field}, ''), '未标注') AS label,
                count(*)::bigint AS count
         FROM data_asset.dwd_comment cm
         JOIN data_asset.dwd_content c ON cm.content_id = c.content_id
@@ -2167,7 +2167,7 @@ def fetch_latest_profile_label_map(conn: psycopg.Connection, comment_user_ids: l
     query = """
         SELECT DISTINCT ON (comment_user_id)
                comment_user_id,
-               coalesce(nullif(main_label, ''), '鏈敾鍍忕敤鎴?) AS main_label
+               coalesce(nullif(main_label, ''), '未画像用户') AS main_label
         FROM data_asset.user_profile_comment_result
         WHERE comment_user_id = ANY(%s)
         ORDER BY comment_user_id, updated_time DESC NULLS LAST, comment_user_profile_id DESC
@@ -2225,13 +2225,13 @@ def build_author_profile_sankey(
     for pair, value in profile_totals.items():
         if pair[0] not in top_event_ids:
             continue
-        compact_profile_totals[pair if pair in top_profile_pairs else (pair[0], "鍏朵粬鐢诲儚")] += value
+        compact_profile_totals[pair if pair in top_profile_pairs else (pair[0], "其他画像")] += value
 
     nodes = [{"id": author_node_id, "label": author_name, "layer": 0}]
     links = []
     for event_id in top_event_ids:
         event_node_id = f"event:{event_id}"
-        nodes.append({"id": event_node_id, "label": event_names.get(event_id, "鏈煡浜嬩欢"), "layer": 1})
+        nodes.append({"id": event_node_id, "label": event_names.get(event_id, "未知事件"), "layer": 1})
         links.append({"source": author_node_id, "target": event_node_id, "value": event_totals[event_id]})
 
     profile_labels = []
@@ -2379,7 +2379,7 @@ def build_subject_story(
 def fetch_event_platform_story(conn: psycopg.Connection, event_id: str) -> dict[str, Any]:
     query = """
         WITH content_platform AS (
-          SELECT coalesce(nullif(platform, ''), '鏈煡骞冲彴') AS platform,
+          SELECT coalesce(nullif(platform, ''), '未知平台') AS platform,
                  count(DISTINCT content_id)::bigint AS content_count,
                  coalesce(sum(engagement_total), 0)::bigint AS total_engagement
           FROM data_asset.dwd_content
@@ -2387,7 +2387,7 @@ def fetch_event_platform_story(conn: psycopg.Connection, event_id: str) -> dict[
           GROUP BY 1
         ),
         comment_platform AS (
-          SELECT coalesce(nullif(c.platform, ''), nullif(cm.platform, ''), '鏈煡骞冲彴') AS platform,
+          SELECT coalesce(nullif(c.platform, ''), nullif(cm.platform, ''), '未知平台') AS platform,
                  count(DISTINCT cm.comment_id)::bigint AS comment_count,
                  count(DISTINCT cm.comment_id) FILTER (WHERE cm.comment_label_json IS NOT NULL)::bigint AS labeled_comment_count,
                  count(DISTINCT cm.comment_id) FILTER (WHERE cm.comment_label_json ->> 'is_vehicle_related' = '是')::bigint AS vehicle_related_count,

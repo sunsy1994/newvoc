@@ -48,9 +48,9 @@ function ProfileCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <section className="rounded-2xl border border-[#e8ecf3] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
       <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f0efff] text-[#5347CE]">{icon}</div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--sys-icon-bg)] text-[var(--sys-icon-fill)]">{icon}</div>
         <div>
           <h2 className="text-sm font-semibold text-[#151720]">{title}</h2>
           {meta ? <p className="mt-1 text-xs leading-5 text-[#8b92a1]">{meta}</p> : null}
@@ -172,7 +172,7 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#151720]">{config.title}</h1>
         </div>
         <div className="inline-flex items-center gap-2 rounded-2xl border border-[#e8ecf3] bg-white px-3 py-2 text-xs text-[#7b8190] shadow-[0_8px_20px_rgba(26,32,44,0.03)]">
-          <Database className="h-3.5 w-3.5 text-[#5347CE]" />
+          <Database className="h-3.5 w-3.5 text-[var(--sys-icon-fill)]" />
           PostgreSQL 实时读取
         </div>
       </header>
@@ -187,12 +187,12 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
                 max={365}
                 value={sampleDays}
                 onChange={(event) => setSampleDays(Number(event.target.value || 1))}
-                className="h-10 w-28 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm font-medium text-[#151720] outline-none focus:border-[#5347CE]"
+                className="h-10 w-28 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm font-medium text-[#151720] outline-none focus:border-[var(--sys-icon-fill)]"
               />
             ) : null}
             <a
               href={exportUrl}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5347CE] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(83,71,206,0.22)]"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sys-icon-fill)] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(93,150,145,0.16)]"
             >
               <Download className="h-4 w-4" />
               导出样本
@@ -206,13 +206,13 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
               ref={fileInputRef}
               type="file"
               accept=".xlsx,.xls"
-              className="h-10 min-w-0 flex-1 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 py-2 text-sm text-[#596070] file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-2 file:py-1 file:text-xs file:font-medium file:text-[#5347CE]"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 py-2 text-sm text-[#596070] file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-2 file:py-1 file:text-xs file:font-medium file:text-[var(--sys-icon-fill)]"
             />
             <button
               type="submit"
               className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#e8ecf3] bg-white px-4 text-sm font-semibold text-[#151720] shadow-[0_8px_20px_rgba(26,32,44,0.03)]"
             >
-              <UploadCloud className="h-4 w-4 text-[#4896FE]" />
+              <UploadCloud className="h-4 w-4 text-[var(--voc-chart-5)]" />
               上传入库
             </button>
           </form>
@@ -222,7 +222,7 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
         </ProfileCard>
       </section>
 
-      <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+      <section className="rounded-2xl border border-[#e8ecf3] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[#151720]">{config.listTitle}</h2>
@@ -243,7 +243,7 @@ export function ProfileMaintenancePage({ config }: { config: ProfilePageConfig }
             <select
               value={batch}
               onChange={handleBatchChange}
-              className="h-10 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[#5347CE]"
+              className="h-10 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[var(--sys-icon-fill)]"
             >
               <option value="">全部批次</option>
               {batches.map((item) => (

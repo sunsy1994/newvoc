@@ -1,10 +1,15 @@
-import { Activity, CalendarDays, FileText, MessageCircle, Repeat2, Sparkles } from "lucide-react";
+import { Activity, FileText, MessageCircle, Repeat2, Sparkles } from "lucide-react";
 
-import { ChannelStackedBars } from "@/components/voc/ChannelStackedBars";
-import { HotPostList } from "@/components/voc/HotPostList";
-import { KolTypeBars } from "@/components/voc/KolTypeBars";
+import { CommentQualityStoryCard } from "@/components/voc/CommentQualityStoryCard";
+import { MarketAiSummaryCard } from "@/components/voc/MarketAiSummaryCard";
 import { MetricCard } from "@/components/voc/MetricCard";
-import { VolumeTrendChart } from "@/components/voc/VolumeTrendChart";
+import { PlatformStoryCard } from "@/components/voc/PlatformStoryCard";
+import { RegionalResponseStoryCard } from "@/components/voc/RegionalResponseStoryCard";
+import { SubjectStoryCard } from "@/components/voc/SubjectStoryCard";
+import { TopicSpreadStoryCard } from "@/components/voc/TopicSpreadStoryCard";
+import { VocDashboardHeader } from "@/components/voc/VocDashboardHeader";
+import { VocDashboardThemeFrame } from "@/components/voc/VocDashboardThemeFrame";
+import { VolumeRhythmStoryCard } from "@/components/voc/VolumeRhythmStoryCard";
 import { serverApiBaseUrl } from "@/config/navigation";
 import type { MarketDashboardPayload, VocEvent } from "@/types/vocMarket";
 
@@ -41,31 +46,6 @@ type PageProps = {
   };
 };
 
-function DashboardCard({
-  title,
-  subtitle,
-  children,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  action?: React.ReactNode;
-}) {
-  return (
-    <article className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-[#151720]">{title}</h2>
-          {subtitle ? <p className="mt-1 text-xs text-[#8b92a1]">{subtitle}</p> : null}
-        </div>
-        {action}
-      </div>
-      {children}
-    </article>
-  );
-}
-
 export default async function MarketDashboardPage({ searchParams }: PageProps) {
   const events = await getEvents();
   const selectedEventId = searchParams?.event_id ?? events[0]?.event_id;
@@ -73,80 +53,49 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
   const metrics = dashboard?.overview_metrics;
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-[#8b92a1]">VOC Event Intelligence</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#151720]">市场看板</h1>
-        </div>
+    <VocDashboardThemeFrame>
+      <div className="space-y-5">
+        <VocDashboardHeader kind="market" events={events} selectedEventId={selectedEventId} event={dashboard?.event} />
 
-        <div className="flex max-w-full flex-col items-end gap-2">
-          <form className="flex flex-wrap items-center justify-end gap-2">
-            <select
-              name="event_id"
-              defaultValue={selectedEventId}
-              className="h-10 min-w-72 rounded-lg border border-[#e8ecf3] bg-white px-3 text-sm font-medium text-[#151720] shadow-[0_8px_20px_rgba(26,32,44,0.03)] outline-none focus:border-[#5347CE]"
-            >
-              {events.map((event) => (
-                <option key={event.event_id} value={event.event_id}>
-                  {event.event_name}
-                </option>
-              ))}
-            </select>
-            <button className="h-10 rounded-lg bg-[#5347CE] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(83,71,206,0.22)]">
-              查看
-            </button>
-          </form>
-
-          {dashboard?.event ? (
-            <div className="flex max-w-3xl flex-wrap justify-end gap-2 text-xs text-[#6f7685]">
-              <span className="inline-flex items-center gap-1 rounded-lg bg-[#f0efff] px-2.5 py-1 text-[#5347CE]">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {dashboard.event.event_status ?? "未知状态"}
-              </span>
-              <span className="rounded-lg bg-white px-2.5 py-1 shadow-[0_8px_20px_rgba(26,32,44,0.03)]">{dashboard.event.brand_name ?? "未填品牌"}</span>
-              <span className="rounded-lg bg-white px-2.5 py-1 shadow-[0_8px_20px_rgba(26,32,44,0.03)]">{dashboard.event.model_name ?? "未填车型"}</span>
-              <span className="rounded-lg bg-white px-2.5 py-1 shadow-[0_8px_20px_rgba(26,32,44,0.03)]">{dashboard.event.event_type ?? "未填类型"}</span>
-            </div>
-          ) : null}
-        </div>
-      </header>
-
-      {metrics ? (
-        <section className="grid gap-3 md:grid-cols-5">
-          <MetricCard label="总声量" value={formatNumber(metrics.total_volume)} hint="主贴 + 评论" tone="purple" icon={<Activity className="h-4 w-4" />} />
-          <MetricCard label="主贴数" value={formatNumber(metrics.content_count)} tone="blue" icon={<FileText className="h-4 w-4" />} />
-          <MetricCard label="评论数" value={formatNumber(metrics.comment_count)} tone="teal" icon={<MessageCircle className="h-4 w-4" />} />
-          <MetricCard label="KOL发声" value={`${formatNumber(metrics.kol_count)} 位`} hint={`贡献 ${formatNumber(metrics.kol_content_count)} 条主贴`} tone="violet" icon={<Sparkles className="h-4 w-4" />} />
-          <MetricCard label="总互动量" value={formatNumber(metrics.total_engagement)} tone="neutral" icon={<Repeat2 className="h-4 w-4" />} />
-        </section>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-[#d9deea] bg-white p-10 text-center text-sm text-[#8b92a1]">
-          暂无事件数据，请先导入并运行 ETL。
-        </div>
-      )}
-
-      {dashboard ? (
-        <>
-          <section className="grid gap-4 lg:grid-cols-[1.18fr_0.82fr]">
-            <DashboardCard title="声量趋势" subtitle="按发布时间聚合，展示事件爆发和回落节奏">
-              <VolumeTrendChart data={dashboard.volume_trend} />
-            </DashboardCard>
-            <DashboardCard title="KOL类型分布" subtitle="来自KOL画像表，按参与KOL人数排序">
-              <KolTypeBars data={dashboard.kol_type_distribution} userProfiles={dashboard.user_profile_distribution ?? []} />
-            </DashboardCard>
+        {metrics ? (
+          <section className="grid gap-3 md:grid-cols-5">
+            <MetricCard label="总声量" value={formatNumber(metrics.total_volume)} hint="主贴 + 评论" tone="purple" icon={<Activity className="h-4 w-4" />} />
+            <MetricCard label="主贴数" value={formatNumber(metrics.content_count)} tone="blue" icon={<FileText className="h-4 w-4" />} />
+            <MetricCard label="评论数" value={formatNumber(metrics.comment_count)} tone="teal" icon={<MessageCircle className="h-4 w-4" />} />
+            <MetricCard label="KOL发声" value={`${formatNumber(metrics.kol_count)} 位`} hint={`贡献 ${formatNumber(metrics.kol_content_count)} 条主贴`} tone="violet" icon={<Sparkles className="h-4 w-4" />} />
+            <MetricCard label="总互动量" value={formatNumber(metrics.total_engagement)} tone="neutral" icon={<Repeat2 className="h-4 w-4" />} />
           </section>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[var(--theme-border)] bg-[var(--theme-card)] p-10 text-center text-sm text-[var(--theme-muted)]">
+            暂无事件数据，请先导入并运行 ETL。
+          </div>
+        )}
 
-          <section className="grid gap-4 lg:grid-cols-[1.55fr_0.45fr]">
-            <DashboardCard title="渠道分布" subtitle="主贴与评论堆积，评论渠道继承所属主贴">
-              <ChannelStackedBars data={dashboard.channel_distribution} />
-            </DashboardCard>
-            <DashboardCard title="热门热搜" subtitle="按总互动量排序 Top 5">
-              <HotPostList eventId={dashboard.event.event_id} posts={dashboard.hot_posts} />
-            </DashboardCard>
-          </section>
-        </>
-      ) : null}
-    </div>
+        {dashboard ? (
+          <>
+            <MarketAiSummaryCard eventId={dashboard.event.event_id} />
+
+            <section className="grid gap-4 lg:grid-cols-[1.18fr_0.82fr]">
+              <VolumeRhythmStoryCard trend={dashboard.volume_trend} rhythm={dashboard.volume_rhythm} />
+              <SubjectStoryCard story={dashboard.subject_story} userProfiles={dashboard.user_profile_distribution ?? []} />
+            </section>
+
+            <PlatformStoryCard
+              story={dashboard.platform_story}
+              channels={dashboard.channel_distribution}
+              eventId={dashboard.event.event_id}
+              hotPosts={dashboard.hot_posts}
+            />
+
+            <section className="grid gap-4 xl:grid-cols-2">
+              <RegionalResponseStoryCard story={dashboard.regional_response_story} eventId={dashboard.event.event_id} />
+              <TopicSpreadStoryCard story={dashboard.topic_spread_story} eventId={dashboard.event.event_id} />
+            </section>
+
+            <CommentQualityStoryCard eventId={dashboard.event.event_id} quality={dashboard.comment_quality} />
+          </>
+        ) : null}
+      </div>
+    </VocDashboardThemeFrame>
   );
 }

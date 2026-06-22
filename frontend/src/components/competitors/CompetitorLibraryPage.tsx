@@ -36,9 +36,9 @@ function toDateInputValue(date: Date) {
 
 function SummaryTile({ label, value, tone }: { label: string; value: string; tone: "purple" | "blue" | "teal" }) {
   const toneClass = {
-    purple: "bg-[#f0efff] text-[#5347CE]",
-    blue: "bg-[#eef6ff] text-[#4896FE]",
-    teal: "bg-[#eafafa] text-[#16C8C7]",
+    purple: "bg-[var(--sys-icon-bg)] text-[var(--sys-icon-fill)]",
+    blue: "bg-[var(--theme-soft-panel)] text-[var(--voc-chart-5)]",
+    teal: "bg-[var(--theme-status-bg)] text-[var(--theme-status-text)]",
   }[tone];
 
   return (
@@ -153,7 +153,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
         </div>
         <a
           href={exportUrl}
-          className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5347CE] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(83,71,206,0.22)]"
+          className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sys-icon-fill)] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(93,150,145,0.16)]"
         >
           <Download className="h-4 w-4" />
           导出Excel
@@ -174,7 +174,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
         />
       </section>
 
-      <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+      <section className="rounded-2xl border border-[#e8ecf3] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[#151720]">{config.listTitle}</h2>
@@ -200,7 +200,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
                     setOffset(0);
                     setBrandName(event.target.value);
                   }}
-                  className="h-10 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[#5347CE]"
+                  className="h-10 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[var(--sys-icon-fill)]"
                 >
                   <option value="">全部品牌</option>
                   {options.brands.map((brand) => (
@@ -215,7 +215,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
                     setOffset(0);
                     setAccountType(event.target.value);
                   }}
-                  className="h-10 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[#5347CE]"
+                  className="h-10 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[var(--sys-icon-fill)]"
                 >
                   <option value="">全部账号类型</option>
                   {options.account_types.map((type) => (

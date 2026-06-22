@@ -131,9 +131,13 @@ CREATE TABLE IF NOT EXISTS data_asset.ods_comment_upload (
   published_at        TIMESTAMP NOT NULL,
   like_cnt            BIGINT,
   reply_cnt           BIGINT,
+  comment_label_json  JSONB,
   raw_payload_json    JSONB,
   created_time        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE data_asset.ods_comment_upload
+  ADD COLUMN IF NOT EXISTS comment_label_json JSONB;
 
 COMMENT ON TABLE data_asset.ods_comment_upload IS 'ODS评论上传表。保留使用者上传的评论原始数据，供标准化ETL生成 dwd_comment。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.ods_row_id IS 'ODS行ID。系统生成，仅用于追溯原始上传行。';
@@ -152,6 +156,7 @@ COMMENT ON COLUMN data_asset.ods_comment_upload.comment_text IS '评论正文。
 COMMENT ON COLUMN data_asset.ods_comment_upload.published_at IS '评论发布时间。使用者上传，必填。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.like_cnt IS '评论点赞数。使用者上传，可为空；标准化ETL为空时置0。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.reply_cnt IS '评论回复数。使用者上传，可为空；标准化ETL为空时置0。';
+COMMENT ON COLUMN data_asset.ods_comment_upload.comment_label_json IS '评论打标结果JSON。使用者线下打标后上传，可为空；用于后续计算有效互动率、情感、意图、关注点和购买信号。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.raw_payload_json IS '原始行JSON。系统可选记录，用于保留上传文件中的完整原始字段。';
 COMMENT ON COLUMN data_asset.ods_comment_upload.created_time IS 'ODS入库时间。系统生成。';
 
@@ -287,11 +292,15 @@ CREATE TABLE IF NOT EXISTS data_asset.dwd_comment (
   like_cnt            BIGINT DEFAULT 0,
   reply_cnt           BIGINT DEFAULT 0,
   interaction_cnt     BIGINT GENERATED ALWAYS AS (like_cnt + reply_cnt) STORED,
+  comment_label_json  JSONB,
   ingest_batch_id     VARCHAR(64),
   raw_source_key      VARCHAR(64) DEFAULT 'comment_upload',
   created_time        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_time        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE data_asset.dwd_comment
+  ADD COLUMN IF NOT EXISTS comment_label_json JSONB;
 
 COMMENT ON TABLE data_asset.dwd_comment IS '评论标准明细表。由 ods_comment_upload 标准化生成，存储公网评论原文，是 VOC 看事件的用户声音来源。';
 COMMENT ON COLUMN data_asset.dwd_comment.comment_id IS '评论ID。标准化ETL生成或沿用上传的 raw_comment_id，主键，稳定不重复。';
@@ -307,6 +316,7 @@ COMMENT ON COLUMN data_asset.dwd_comment.published_at IS '评论发布时间。�
 COMMENT ON COLUMN data_asset.dwd_comment.like_cnt IS '评论点赞数。来自ODS，upsert 时可更新为最新值。';
 COMMENT ON COLUMN data_asset.dwd_comment.reply_cnt IS '评论回复数。来自ODS，upsert 时可更新为最新值。';
 COMMENT ON COLUMN data_asset.dwd_comment.interaction_cnt IS '评论互动量。系统生成，公式：评论点赞数 + 评论回复数。';
+COMMENT ON COLUMN data_asset.dwd_comment.comment_label_json IS '评论打标结果JSON。来自ODS，用于沉淀评论级标签，字段建议包含 is_vehicle_related、comment_sentiment、comment_intent、mentioned_aspect、purchase_signal、comment_label_reason。';
 COMMENT ON COLUMN data_asset.dwd_comment.ingest_batch_id IS '最近一次写入该记录的导入批次ID。标准化ETL写入。';
 COMMENT ON COLUMN data_asset.dwd_comment.raw_source_key IS '原始来源类型。标准化ETL写入，第一版默认为 comment_upload。';
 COMMENT ON COLUMN data_asset.dwd_comment.created_time IS '标准记录首次创建时间。系统生成。';
@@ -842,3 +852,78 @@ COMMENT ON COLUMN data_asset.user_profile_comment_label_score.evidence_details_j
 CREATE INDEX IF NOT EXISTS idx_user_profile_comment_raw_batch ON data_asset.user_profile_comment_raw(profile_batch);
 CREATE INDEX IF NOT EXISTS idx_user_profile_comment_result_batch ON data_asset.user_profile_comment_result(profile_batch);
 CREATE INDEX IF NOT EXISTS idx_user_profile_comment_result_label ON data_asset.user_profile_comment_result(main_label);
+
+-- =========================================================
+-- SYSTEM：系统参数与提示词维护
+-- 说明：用于把 AI 服务参数、提示词模板从代码文件迁移到可维护的数据表。
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS data_asset.system_ai_config (
+  ai_config_id     BIGSERIAL PRIMARY KEY,
+  config_name      VARCHAR(128) NOT NULL DEFAULT 'default',
+  base_url         TEXT NOT NULL,
+  api_key          TEXT,
+  model_name       VARCHAR(128) NOT NULL,
+  timeout_seconds  INTEGER NOT NULL DEFAULT 60,
+  is_enabled       BOOLEAN NOT NULL DEFAULT TRUE,
+  is_default       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (config_name)
+);
+
+COMMENT ON TABLE data_asset.system_ai_config IS '系统AI参数配置表。维护 OpenAI 兼容接口的 base_url、api_key、model 和超时时间，供用户画像AI打标流程读取。';
+COMMENT ON COLUMN data_asset.system_ai_config.ai_config_id IS 'AI参数配置记录ID。系统生成。';
+COMMENT ON COLUMN data_asset.system_ai_config.config_name IS '配置名称。第一版默认使用 default，后续可扩展多套模型配置。';
+COMMENT ON COLUMN data_asset.system_ai_config.base_url IS 'OpenAI兼容接口地址。可以填写到 /v1 或 /v1/chat/completions，系统会自动补齐。';
+COMMENT ON COLUMN data_asset.system_ai_config.api_key IS 'AI接口密钥。仅后端运行时读取，前端接口不返回明文。';
+COMMENT ON COLUMN data_asset.system_ai_config.model_name IS '模型名称。用于 chat completions 请求的 model 字段。';
+COMMENT ON COLUMN data_asset.system_ai_config.timeout_seconds IS 'AI请求超时时间，单位秒。';
+COMMENT ON COLUMN data_asset.system_ai_config.is_enabled IS '是否启用该配置。关闭后不允许发起AI画像打标。';
+COMMENT ON COLUMN data_asset.system_ai_config.is_default IS '是否默认配置。第一版只使用默认配置。';
+
+CREATE TABLE IF NOT EXISTS data_asset.system_prompt_template (
+  prompt_id       BIGSERIAL PRIMARY KEY,
+  prompt_name     VARCHAR(128) NOT NULL,
+  prompt_scene    VARCHAR(64) NOT NULL,
+  prompt_version  VARCHAR(128) NOT NULL,
+  prompt_content  TEXT NOT NULL,
+  is_default      BOOLEAN NOT NULL DEFAULT FALSE,
+  is_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (prompt_scene, prompt_version)
+);
+
+COMMENT ON TABLE data_asset.system_prompt_template IS '系统提示词模板表。维护不同业务场景、不同版本的提示词正文，供AI流程运行时读取。';
+COMMENT ON COLUMN data_asset.system_prompt_template.prompt_id IS '提示词模板ID。系统生成。';
+COMMENT ON COLUMN data_asset.system_prompt_template.prompt_name IS '提示词名称。面向使用者展示，例如评论用户画像提示词。';
+COMMENT ON COLUMN data_asset.system_prompt_template.prompt_scene IS '提示词场景。第一版使用 comment_user_profile，表示评论用户画像AI打标。';
+COMMENT ON COLUMN data_asset.system_prompt_template.prompt_version IS '提示词版本。用于区分不同prompt实验版本，并写入画像结果表追溯。';
+COMMENT ON COLUMN data_asset.system_prompt_template.prompt_content IS '提示词正文。系统会把用户ID和评论列表拼接到该模板中。';
+COMMENT ON COLUMN data_asset.system_prompt_template.is_default IS '是否默认提示词。同一场景下默认只应有一个默认版本。';
+COMMENT ON COLUMN data_asset.system_prompt_template.is_enabled IS '是否启用该提示词。关闭后不作为运行候选。';
+
+CREATE INDEX IF NOT EXISTS idx_system_ai_config_default ON data_asset.system_ai_config(is_default, is_enabled);
+CREATE INDEX IF NOT EXISTS idx_system_prompt_template_scene ON data_asset.system_prompt_template(prompt_scene, is_default, is_enabled);
+
+CREATE TABLE IF NOT EXISTS data_asset.system_emoji_mapping (
+  emoji_id      BIGSERIAL PRIMARY KEY,
+  emoji_code    VARCHAR(128) NOT NULL,
+  emoji_type    VARCHAR(32) NOT NULL DEFAULT 'emoji',
+  emoji_value   TEXT NOT NULL,
+  display_name  VARCHAR(128),
+  is_enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+  created_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (emoji_code)
+);
+
+COMMENT ON TABLE data_asset.system_emoji_mapping IS '系统表情包映射表。用于把评论原文中的[666]、[捂脸]等平台表情文本，在前端展示时替换为emoji字符或图片。';
+COMMENT ON COLUMN data_asset.system_emoji_mapping.emoji_code IS '原始表情文本，例如[666]、[捂脸]。原文不改，只在展示层匹配替换。';
+COMMENT ON COLUMN data_asset.system_emoji_mapping.emoji_type IS '表情类型。emoji表示字符表情，image表示图片地址。';
+COMMENT ON COLUMN data_asset.system_emoji_mapping.emoji_value IS '替换后的展示值。emoji类型填写字符，image类型填写图片URL或静态资源路径。';
+COMMENT ON COLUMN data_asset.system_emoji_mapping.display_name IS '表情展示名称，后台维护和搜索使用。';
+COMMENT ON COLUMN data_asset.system_emoji_mapping.is_enabled IS '是否启用。关闭后前端不替换该表情。';
+
+CREATE INDEX IF NOT EXISTS idx_system_emoji_mapping_enabled ON data_asset.system_emoji_mapping(is_enabled, emoji_code);

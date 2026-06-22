@@ -9,12 +9,16 @@ from urllib.parse import quote
 
 import psycopg
 import pandas as pd
+import httpx
 from pydantic import BaseModel
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 
 from app.config import TEMPLATE_DIR
+from app.config import PROJECT_ROOT
+from app.services.comment_user_ai_flow import build_comment_user_ai_flow
+from app.services.comment_user_ai_profile import DEFAULT_PROMPT_FILE, run_comment_user_ai_profile
 from app.services.asset_library import list_assets
 from app.services.competitor_library import (
     get_competitor_options,
@@ -23,12 +27,19 @@ from app.services.competitor_library import (
 )
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
+from app.services.emoji_dictionary import list_emoji_mappings, save_emoji_mapping
 from app.services.event_voc_insights import (
+    get_voc_author_detail,
+    get_voc_event_discussion_point_comments,
+    get_voc_event_comment_user_insight_profile,
     get_voc_event_content_detail,
     get_voc_event_detail,
     get_voc_event_market_dashboard,
+    get_voc_event_product_dashboard,
+    get_voc_event_sales_dashboard,
     list_voc_events,
 )
+from app.services.home_dashboard import get_auto_voc_home
 from app.services.profile_library import (
     export_comment_user_profile_samples,
     export_kol_profile_samples,
@@ -39,7 +50,14 @@ from app.services.profile_library import (
     load_comment_user_profiles,
     load_kol_profiles,
 )
+from app.services.report_agent import run_market_report_agent
 from app.services.script_manager import ScriptManager
+from app.services.system_settings import (
+    get_default_ai_config,
+    list_prompt_templates,
+    save_default_ai_config,
+    save_prompt_template,
+)
 from app.services.task_store import TaskStore
 
 
@@ -84,12 +102,97 @@ class ScriptTestRunRequest(BaseModel):
     batch_id: str
 
 
+class CommentUserAiProfileRunRequest(BaseModel):
+    profile_batch: str = "ai_profile"
+    prompt_version: str = "comment_user_profile_v1"
+    prompt_file: str | None = None
+
+
+class AiConfigSaveRequest(BaseModel):
+    base_url: str
+    api_key: str | None = None
+    model_name: str
+    timeout_seconds: int = 60
+    is_enabled: bool = True
+
+
+class PromptTemplateSaveRequest(BaseModel):
+    prompt_name: str
+    prompt_scene: str
+    prompt_version: str
+    prompt_content: str
+    is_default: bool = False
+    is_enabled: bool = True
+
+
+class EmojiMappingSaveRequest(BaseModel):
+    emoji_code: str
+    emoji_type: str = "emoji"
+    emoji_value: str
+    display_name: str | None = None
+    is_enabled: bool = True
+
+
 def get_store(request: Request) -> TaskStore:
     return request.app.state.task_store
 
 
 def get_script_manager(request: Request) -> ScriptManager:
     return request.app.state.script_manager
+
+
+@router.get("/api/system/ai-config")
+def get_system_ai_config() -> dict:
+    try:
+        return get_default_ai_config()
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.put("/api/system/ai-config")
+def save_system_ai_config(payload: AiConfigSaveRequest) -> dict:
+    try:
+        return save_default_ai_config(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/system/prompts")
+def get_system_prompts(scene: str | None = None) -> dict:
+    try:
+        return list_prompt_templates(scene=scene)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/system/prompts")
+def save_system_prompt(payload: PromptTemplateSaveRequest) -> dict:
+    try:
+        return save_prompt_template(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/system/emojis")
+def get_system_emojis(enabled_only: bool = False) -> dict:
+    try:
+        return list_emoji_mappings(enabled_only=enabled_only)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/system/emojis")
+def save_system_emoji(payload: EmojiMappingSaveRequest) -> dict:
+    try:
+        return save_emoji_mapping(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 
 
 def upload_suffix(upload_file: UploadFile) -> str:
@@ -134,9 +237,27 @@ def save_temp_upload(upload_file: UploadFile) -> Path:
         return Path(temp_file.name)
 
 
+def resolve_project_prompt_path(prompt_file: str | None) -> Path:
+    if not prompt_file:
+        return DEFAULT_PROMPT_FILE
+    prompt_path = (PROJECT_ROOT / prompt_file).resolve()
+    project_root = PROJECT_ROOT.resolve()
+    if not prompt_path.is_relative_to(project_root):
+        raise ValueError("prompt_file must stay inside project root")
+    return prompt_path
+
+
 @router.get("/api/tasks")
 def list_tasks(request: Request) -> list[dict]:
     return get_store(request).list_tasks()
+
+
+@router.get("/api/auto-voc/home")
+def get_auto_voc_home_api(days: int = 30) -> dict:
+    try:
+        return get_auto_voc_home(days=days)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 
 
 @router.get("/api/assets/{asset_key}/export")
@@ -179,6 +300,28 @@ def get_voc_event_market_dashboard_api(event_id: str) -> dict:
     return payload
 
 
+@router.get("/api/voc/events/{event_id}/product-dashboard")
+def get_voc_event_product_dashboard_api(event_id: str) -> dict:
+    try:
+        payload = get_voc_event_product_dashboard(event_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if not payload.get("event"):
+        raise HTTPException(status_code=404, detail="Event not found")
+    return payload
+
+
+@router.get("/api/voc/events/{event_id}/sales-dashboard")
+def get_voc_event_sales_dashboard_api(event_id: str) -> dict:
+    try:
+        payload = get_voc_event_sales_dashboard(event_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if not payload.get("event"):
+        raise HTTPException(status_code=404, detail="Event not found")
+    return payload
+
+
 @router.get("/api/voc/events/{event_id}/contents/{content_id}/detail")
 def get_voc_event_content_detail_api(
     event_id: str,
@@ -193,6 +336,41 @@ def get_voc_event_content_detail_api(
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
     if not payload.get("content"):
         raise HTTPException(status_code=404, detail="Content not found")
+    return payload
+
+
+@router.get("/api/voc/events/{event_id}/discussion-points/{aspect}/comments")
+def get_voc_event_discussion_point_comments_api(
+    event_id: str,
+    aspect: str,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict:
+    try:
+        return get_voc_event_discussion_point_comments(event_id, aspect, limit=limit, offset=offset)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/voc/events/{event_id}/comment-users/{comment_user_id}/insight-profile")
+def get_voc_event_comment_user_insight_profile_api(event_id: str, comment_user_id: str) -> dict:
+    try:
+        payload = get_voc_event_comment_user_insight_profile(event_id, comment_user_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if not payload.get("comments") and not payload.get("profile_summary", {}).get("main_label"):
+        raise HTTPException(status_code=404, detail="Comment user not found")
+    return payload
+
+
+@router.get("/api/voc/authors/{author_id}/detail")
+def get_voc_author_detail_api(author_id: str) -> dict:
+    try:
+        payload = get_voc_author_detail(author_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if not payload.get("author"):
+        raise HTTPException(status_code=404, detail="Author not found")
     return payload
 
 
@@ -300,6 +478,12 @@ def upload_kol_profiles(profile_file: Annotated[UploadFile, File()]) -> dict:
         return load_kol_profiles(temp_path, source_file_name=profile_file.filename or "kol_profile.xlsx")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI画像调用超时，请调大 PROFILE_AI_TIMEOUT_SECONDS 或稍后重试。")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"AI画像服务返回异常：{exc.response.status_code} {exc.response.text[:300]}")
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"AI画像服务调用失败：{exc}")
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
     finally:
@@ -338,10 +522,61 @@ def upload_comment_user_profiles(profile_file: Annotated[UploadFile, File()]) ->
         return load_comment_user_profiles(temp_path, source_file_name=profile_file.filename or "comment_user_profile.xlsx")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI画像调用超时，请调大 PROFILE_AI_TIMEOUT_SECONDS 或稍后重试。")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"AI画像服务返回异常：{exc.response.status_code} {exc.response.text[:300]}")
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"AI画像服务调用失败：{exc}")
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
     finally:
         temp_path.unlink(missing_ok=True)
+
+
+@router.post("/api/profiles/comment-users/{comment_user_id}/ai-run")
+def run_comment_user_ai_profile_api(comment_user_id: str, payload: CommentUserAiProfileRunRequest) -> dict:
+    try:
+        return run_comment_user_ai_profile(
+            comment_user_id,
+            profile_batch=payload.profile_batch,
+            prompt_version=payload.prompt_version,
+            prompt_path=resolve_project_prompt_path(payload.prompt_file) if payload.prompt_file else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI画像调用超时，请调大 PROFILE_AI_TIMEOUT_SECONDS 或稍后重试。")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"AI画像服务返回异常：{exc.response.status_code} {exc.response.text[:300]}")
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"AI画像服务调用失败：{exc}")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/voc/events/{event_id}/market/report-agent/run")
+def run_market_report_agent_api(event_id: str) -> dict:
+    try:
+        return run_market_report_agent(event_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI市场摘要调用超时，请检查模型服务或稍后重试。")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"AI市场摘要服务返回异常：{exc.response.status_code} {exc.response.text[:300]}")
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"AI市场摘要服务调用失败：{exc}")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/profiles/comment-users/ai-flow")
+def get_comment_user_ai_profile_flow_api() -> dict:
+    try:
+        return build_comment_user_ai_flow()
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 
 
 @router.get("/api/profiles/comment-users")

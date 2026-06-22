@@ -62,6 +62,7 @@ JSON_COLUMNS = {
     "data_lineage_json",
     "top_platform_json",
     "top_author_json",
+    "comment_label_json",
 }
 
 BOOLEAN_COLUMNS = {"is_kol", "is_enabled"}

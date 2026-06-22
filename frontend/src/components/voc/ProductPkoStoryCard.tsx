@@ -31,12 +31,12 @@ function RuleTooltip() {
       <button
         type="button"
         aria-label="查看 PKO 对比解析规则"
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e8ecf3] bg-white text-[#8b92a1] shadow-[0_8px_20px_rgba(26,32,44,0.03)] transition hover:text-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30"
+        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-white)] text-[var(--theme-muted)] shadow-[0_8px_20px_rgba(26,32,44,0.03)] transition hover:text-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-selected-bg)]"
       >
         <HelpCircle className="h-4 w-4" />
       </button>
-      <div className="pointer-events-none absolute right-0 top-10 z-20 hidden w-80 rounded-2xl border border-[#e8ecf3] bg-white p-4 text-xs leading-5 text-[#4a5160] shadow-[0_18px_48px_rgba(26,32,44,0.12)] group-hover:block group-focus-within:block">
-        <p className="mb-2 font-semibold text-[#151720]">PKO 解析规则</p>
+      <div className="pointer-events-none absolute right-0 top-10 z-20 hidden w-80 rounded-2xl border border-[var(--theme-border)] bg-white p-4 text-xs leading-5 text-[var(--theme-body)] shadow-[0_18px_48px_rgba(26,32,44,0.12)] group-hover:block group-focus-within:block">
+        <p className="mb-2 font-semibold text-[var(--theme-ink)]">PKO 解析规则</p>
         <p>数据来自 comment_label_json.pko。</p>
         <p>对比对象 = pko.target；对比维度 = pko.dimension。</p>
         <p>胜负判断 = pko.result，枚举建议为本车优势、本车劣势、中性对比、无明确判断。</p>
@@ -74,9 +74,9 @@ function MetricTile({
   accent?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-[#e8ecf3] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(26,32,44,0.03)]">
-      <p className="text-[11px] font-medium text-[#8b92a1]">{label}</p>
-      <strong className="mt-2 block truncate text-lg font-semibold text-[#151720]">{value}</strong>
+    <div className="rounded-[18px] border border-[var(--theme-border)] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(26,32,44,0.03)]">
+      <p className="text-[11px] font-medium text-[var(--theme-muted)]">{label}</p>
+      <strong className="mt-2 block truncate text-lg font-semibold text-[var(--theme-ink)]">{value}</strong>
       {hint ? (
         <span className="mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ backgroundColor: `${accent}14`, color: accent }}>
           {hint}
@@ -90,15 +90,15 @@ function PkoOverview({ pkoStory }: { pkoStory?: ProductPkoStory }) {
   const summary = pkoStory?.summary;
   const topResult = pkoStory?.result_distribution?.[0];
   return (
-    <section className="rounded-[24px] border border-[#e8ecf3] bg-[#f7f9fc] p-4">
+    <section className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--theme-selected-bg)] text-[var(--theme-primary)]">
             <GitCompareArrows className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-xs font-medium text-[#8b92a1]">Fact Overview</p>
-            <h3 className="text-base font-semibold text-[#151720]">PKO 总览</h3>
+            <p className="text-xs font-medium text-[var(--theme-muted)]">Fact Overview</p>
+            <h3 className="text-base font-semibold text-[var(--theme-ink)]">PKO 总览</h3>
           </div>
         </div>
         <StatusBadge result={topResult?.label} />
@@ -124,18 +124,18 @@ function ExplicitTargetList({
 }) {
   if (!targets.length) {
     return (
-      <div className="flex h-full min-h-[220px] items-center justify-center rounded-[22px] border border-dashed border-[#d9deea] bg-[#f7f9fc] text-sm text-[#8b92a1]">
+      <div className="flex h-full min-h-[220px] items-center justify-center rounded-[22px] border border-dashed border-[var(--theme-border)] bg-[var(--theme-soft-panel)] text-sm text-[var(--theme-muted)]">
         暂无明确竞品对象
       </div>
     );
   }
 
   return (
-    <section className="rounded-[24px] border border-[#e8ecf3] bg-white p-4 shadow-[0_8px_24px_rgba(26,32,44,0.04)]">
+    <section className="rounded-[24px] border border-[var(--theme-border)] bg-white p-4 shadow-[0_8px_24px_rgba(26,32,44,0.04)]">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium text-[#8b92a1]">Explicit Targets</p>
-          <h3 className="text-base font-semibold text-[#151720]">明确对比对象</h3>
+          <p className="text-xs font-medium text-[var(--theme-muted)]">Explicit Targets</p>
+          <h3 className="text-base font-semibold text-[var(--theme-ink)]">明确对比对象</h3>
         </div>
         <span className="rounded-full bg-[var(--theme-selected-bg)] px-3 py-1 text-xs font-semibold text-[var(--theme-primary)]">Top {targets.length}</span>
       </div>
@@ -150,20 +150,20 @@ function ExplicitTargetList({
               className={`w-full rounded-[18px] border px-3 py-3 text-left transition ${
                 active
                   ? "border-[var(--theme-primary)] bg-[var(--theme-selected-bg)] shadow-[0_10px_24px_rgba(26,32,44,0.08)]"
-                  : "border-[#e8ecf3] bg-white hover:bg-[#f7f9fc]"
+                  : "border-[var(--theme-border)] bg-white hover:bg-[var(--theme-soft-panel)]"
               }`}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-[#8b92a1]">#{index + 1}</p>
-                  <strong className="mt-1 block truncate text-sm font-semibold text-[#151720]">{displayDistributionLabel(item.label, "target")}</strong>
+                  <p className="text-[11px] font-semibold text-[var(--theme-muted)]">#{index + 1}</p>
+                  <strong className="mt-1 block truncate text-sm font-semibold text-[var(--theme-ink)]">{displayDistributionLabel(item.label, "target")}</strong>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-[var(--theme-primary)]">{formatPercent(item.rate)}</p>
-                  <p className="text-[11px] text-[#8b92a1]">{formatNumber(item.count)} 条</p>
+                  <p className="text-[11px] text-[var(--theme-muted)]">{formatNumber(item.count)} 条</p>
                 </div>
               </div>
-              <div className="mt-3 h-1 rounded-full bg-[#edf0f5]">
+              <div className="mt-3 h-1 rounded-full bg-[var(--theme-track)]">
                 <div className="h-1 rounded-full bg-[var(--theme-primary)]" style={{ width: `${Math.min(100, item.rate)}%` }} />
               </div>
             </button>
@@ -176,15 +176,15 @@ function ExplicitTargetList({
 
 function GenericTargetNote({ summary }: { summary?: ProductPkoDistributionItem }) {
   return (
-    <section className="rounded-[22px] border border-[#e8ecf3] bg-[#f7f9fc] p-4">
-      <p className="text-xs font-medium text-[#8b92a1]">Generic Comparison</p>
+    <section className="rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
+      <p className="text-xs font-medium text-[var(--theme-muted)]">Generic Comparison</p>
       <div className="mt-2 flex items-end justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-[#151720]">泛化对比</h3>
-          <p className="mt-1 text-xs leading-5 text-[#7b8190]">底表为“其他”的评论单独呈现，避免误判为明确竞品。</p>
+          <h3 className="text-base font-semibold text-[var(--theme-ink)]">泛化对比</h3>
+          <p className="mt-1 text-xs leading-5 text-[var(--theme-muted)]">底表为“其他”的评论单独呈现，避免误判为明确竞品。</p>
         </div>
         <div className="text-right">
-          <p className="text-lg font-semibold text-[#151720]">{formatNumber(summary?.count)} 条</p>
+          <p className="text-lg font-semibold text-[var(--theme-ink)]">{formatNumber(summary?.count)} 条</p>
           <p className="text-xs font-semibold text-[var(--voc-chart-5)]">{formatPercent(summary?.rate)}</p>
         </div>
       </div>
@@ -200,9 +200,9 @@ function QuoteCard({
   selectedTarget?: string;
 }) {
   return (
-    <section className="rounded-[22px] border border-[#e8ecf3] bg-white p-4 shadow-[0_8px_24px_rgba(26,32,44,0.04)]">
+    <section className="rounded-[22px] border border-[var(--theme-border)] bg-white p-4 shadow-[0_8px_24px_rgba(26,32,44,0.04)]">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#151720]">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--theme-ink)]">
           <Quote className="h-4 w-4 text-[var(--voc-chart-3)]" />
           典型评论
         </div>
@@ -210,16 +210,16 @@ function QuoteCard({
       </div>
       {evidence ? (
         <>
-          <p className="line-clamp-4 min-h-[72px] text-sm leading-6 text-[#4a5160]">{evidence.comment_text}</p>
+          <p className="line-clamp-4 min-h-[72px] text-sm leading-6 text-[var(--theme-body)]">{evidence.comment_text}</p>
           <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
             <span className="rounded-full bg-[var(--theme-selected-bg)] px-2.5 py-1 text-[var(--theme-primary)]">{displayDistributionLabel(evidence.target, "target")}</span>
-            <span className="rounded-full bg-[var(--theme-chip)] px-2.5 py-1 text-[var(--voc-chart-2)]">{displayDistributionLabel(evidence.dimension, "dimension")}</span>
+            <span className="rounded-full bg-[var(--theme-chip)] px-2.5 py-1 text-[var(--voc-chart-5)]">{displayDistributionLabel(evidence.dimension, "dimension")}</span>
             <span className="rounded-full bg-[var(--theme-chip)] px-2.5 py-1 text-[var(--voc-chart-3)]">{evidence.result}</span>
           </div>
-          {evidence.reason ? <p className="mt-3 line-clamp-2 text-xs leading-5 text-[#8b92a1]">依据：{evidence.reason}</p> : null}
+          {evidence.reason ? <p className="mt-3 line-clamp-2 text-xs leading-5 text-[var(--theme-muted)]">依据：{evidence.reason}</p> : null}
         </>
       ) : (
-        <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-[#d9deea] bg-[#f7f9fc] text-sm text-[#8b92a1]">
+        <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-[var(--theme-border)] bg-[var(--theme-soft-panel)] text-sm text-[var(--theme-muted)]">
           暂无可展示的评论
         </div>
       )}
@@ -230,16 +230,16 @@ function QuoteCard({
 function DimensionResultMatrix({ rows }: { rows: ProductPkoDimensionResultRow[] }) {
   const maxTotal = Math.max(...rows.map((row) => row.total_count), 1);
   return (
-    <section className="rounded-[24px] border border-[#e8ecf3] bg-white p-4 shadow-[0_8px_24px_rgba(26,32,44,0.04)]">
+    <section className="rounded-[24px] border border-[var(--theme-border)] bg-white p-4 shadow-[0_8px_24px_rgba(26,32,44,0.04)]">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium text-[#8b92a1]">Dimension x Result</p>
-          <h3 className="text-base font-semibold text-[#151720]">维度胜负矩阵</h3>
+          <p className="text-xs font-medium text-[var(--theme-muted)]">Dimension x Result</p>
+          <h3 className="text-base font-semibold text-[var(--theme-ink)]">维度胜负矩阵</h3>
         </div>
-        <span className="text-xs text-[#8b92a1]">按评论量排序</span>
+        <span className="text-xs text-[var(--theme-muted)]">按评论量排序</span>
       </div>
-      <div className="overflow-hidden rounded-[18px] border border-[#e8ecf3]">
-        <div className="grid grid-cols-[1.3fr_1fr_2fr] bg-[#f7f9fc] px-4 py-2 text-[11px] font-semibold text-[#8b92a1]">
+      <div className="overflow-hidden rounded-[18px] border border-[var(--theme-border)]">
+        <div className="grid grid-cols-[1.3fr_1fr_2fr] bg-[var(--theme-soft-panel)] px-4 py-2 text-[11px] font-semibold text-[var(--theme-muted)]">
           <span>维度</span>
           <span>主要对象</span>
           <span>胜负分布</span>
@@ -251,20 +251,20 @@ function DimensionResultMatrix({ rows }: { rows: ProductPkoDimensionResultRow[] 
             const neutralWidth = (row.neutral_count / maxTotal) * 100;
             const unclearWidth = (row.unclear_count / maxTotal) * 100;
             return (
-              <div key={row.dimension} className="grid grid-cols-[1.3fr_1fr_2fr] items-center gap-3 border-t border-[#eef1f6] px-4 py-3">
+              <div key={row.dimension} className="grid grid-cols-[1.3fr_1fr_2fr] items-center gap-3 border-t border-[var(--theme-border)] px-4 py-3">
                 <div className="min-w-0">
-                  <strong className="block truncate text-sm font-semibold text-[#151720]">{displayDistributionLabel(row.dimension, "dimension")}</strong>
-                  <span className="text-[11px] text-[#8b92a1]">{formatNumber(row.total_count)} 条</span>
+                  <strong className="block truncate text-sm font-semibold text-[var(--theme-ink)]">{displayDistributionLabel(row.dimension, "dimension")}</strong>
+                  <span className="text-[11px] text-[var(--theme-muted)]">{formatNumber(row.total_count)} 条</span>
                 </div>
-                <span className="truncate text-xs text-[#4a5160]">{displayDistributionLabel(row.top_target, "target")}</span>
+                <span className="truncate text-xs text-[var(--theme-body)]">{displayDistributionLabel(row.top_target, "target")}</span>
                 <div className="space-y-1.5">
-                  <div className="flex h-2 overflow-hidden rounded-full bg-[#edf0f5]">
+                  <div className="flex h-2 overflow-hidden rounded-full bg-[var(--theme-track)]">
                     <span className="bg-[var(--voc-chart-3)]" style={{ width: `${advantageWidth}%` }} />
                     <span className="bg-[var(--voc-chart-6)]" style={{ width: `${disadvantageWidth}%` }} />
-                    <span className="bg-[var(--voc-chart-2)]" style={{ width: `${neutralWidth}%` }} />
-                    <span className="bg-[#c8ceda]" style={{ width: `${unclearWidth}%` }} />
+                    <span className="bg-[var(--theme-track)]" style={{ width: `${neutralWidth}%` }} />
+                    <span className="bg-[var(--theme-track)]" style={{ width: `${unclearWidth}%` }} />
                   </div>
-                  <p className="text-[11px] text-[#8b92a1]">
+                  <p className="text-[11px] text-[var(--theme-muted)]">
                     优 {row.advantage_count} / 劣 {row.disadvantage_count} / 中 {row.neutral_count} / 未明 {row.unclear_count}
                   </p>
                 </div>
@@ -272,7 +272,7 @@ function DimensionResultMatrix({ rows }: { rows: ProductPkoDimensionResultRow[] 
             );
           })
         ) : (
-          <div className="flex h-24 items-center justify-center text-sm text-[#8b92a1]">暂无维度矩阵数据</div>
+          <div className="flex h-24 items-center justify-center text-sm text-[var(--theme-muted)]">暂无维度矩阵数据</div>
         )}
       </div>
     </section>
@@ -289,11 +289,11 @@ export function ProductPkoStoryCard({ pkoStory }: ProductPkoStoryCardProps) {
   }, [activeTarget, pkoStory?.evidence_comments]);
 
   return (
-    <article className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <article className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium text-[#8b92a1]">Product PKO Story</p>
-          <h2 className="mt-1 text-base font-semibold text-[#151720]">PKO 对比与竞争位置</h2>
+          <p className="text-xs font-medium text-[var(--theme-muted)]">Product PKO Story</p>
+          <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">PKO 对比与竞争位置</h2>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--theme-selected-bg)] px-3 py-1.5 text-xs font-medium text-[var(--theme-primary)]">
@@ -304,7 +304,7 @@ export function ProductPkoStoryCard({ pkoStory }: ProductPkoStoryCardProps) {
         </div>
       </div>
 
-      <p className="mb-4 rounded-[20px] border border-[#e8ecf3] bg-[#f7f9fc] px-4 py-3 text-sm leading-6 text-[#4a5160]">
+      <p className="mb-4 rounded-[20px] border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] px-4 py-3 text-sm leading-6 text-[var(--theme-body)]">
         {pkoStory?.summary?.rule_based_conclusion ?? "暂未解析到 PKO 对比评论。"}
       </p>
 

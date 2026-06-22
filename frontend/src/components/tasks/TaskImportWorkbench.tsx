@@ -40,10 +40,10 @@ function statusLabel(status: string) {
 }
 
 function statusClass(status: string) {
-  if (status === "success") return "bg-[#eafafa] text-[#0f9695]";
+  if (status === "success") return "bg-[var(--theme-status-bg)] text-[#0f9695]";
   if (status === "failed") return "bg-[#fff0f0] text-[#d94a4a]";
-  if (status === "running") return "bg-[#eef6ff] text-[#4896FE]";
-  return "bg-[#f0efff] text-[#5347CE]";
+  if (status === "running") return "bg-[var(--theme-soft-panel)] text-[var(--voc-chart-5)]";
+  return "bg-[var(--sys-icon-bg)] text-[var(--sys-icon-fill)]";
 }
 
 function formatCellValue(value: unknown) {
@@ -59,7 +59,7 @@ function formatCellValue(value: unknown) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#e8ecf3] bg-white p-4 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <div className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
       <p className="text-xs text-[#8b92a1]">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-[#151720]">{value}</p>
     </div>
@@ -75,7 +75,7 @@ function FileInput({ label, name }: { label: string; name: string }) {
         type="file"
         accept=".xlsx,.csv"
         required
-        className="h-10 w-full rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 py-2 text-sm text-[#596070] file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-2 file:py-1 file:text-xs file:font-medium file:text-[#5347CE]"
+        className="h-10 w-full rounded-lg border border-[var(--theme-border)] bg-[#f7f9fc] px-3 py-2 text-sm text-[#596070] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--theme-white)] file:px-2 file:py-1 file:text-xs file:font-medium file:text-[var(--sys-icon-fill)]"
       />
     </label>
   );
@@ -227,22 +227,22 @@ export function TaskImportWorkbench() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#151720]">导入任务</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a className="h-9 rounded-lg border border-[#e8ecf3] bg-white px-3 py-2 text-xs font-medium text-[#596070]" href={buildApiUrl("/templates/event_upload_template.xlsx")}>
+          <a className="h-9 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-white)] px-3 py-2 text-xs font-medium text-[#596070]" href={buildApiUrl("/templates/event_upload_template.xlsx")}>
             事件模板
           </a>
-          <a className="h-9 rounded-lg border border-[#e8ecf3] bg-white px-3 py-2 text-xs font-medium text-[#596070]" href={buildApiUrl("/templates/content_upload_template.xlsx")}>
+          <a className="h-9 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-white)] px-3 py-2 text-xs font-medium text-[#596070]" href={buildApiUrl("/templates/content_upload_template.xlsx")}>
             内容模板
           </a>
-          <a className="h-9 rounded-lg border border-[#e8ecf3] bg-white px-3 py-2 text-xs font-medium text-[#596070]" href={buildApiUrl("/templates/comment_upload_template.xlsx")}>
+          <a className="h-9 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-white)] px-3 py-2 text-xs font-medium text-[#596070]" href={buildApiUrl("/templates/comment_upload_template.xlsx")}>
             评论模板
           </a>
         </div>
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+        <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
           <div className="mb-4 flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f0efff] text-[#5347CE]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--sys-icon-bg)] text-[var(--sys-icon-fill)]">
               <UploadCloud className="h-4 w-4" />
             </div>
             <div>
@@ -254,15 +254,15 @@ export function TaskImportWorkbench() {
             <FileInput label="事件表" name="event_file" />
             <FileInput label="内容表" name="content_file" />
             <FileInput label="评论表" name="comment_file" />
-            <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5347CE] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(83,71,206,0.22)]">
+            <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sys-icon-fill)] px-4 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(93,150,145,0.16)]">
               <UploadCloud className="h-4 w-4" />
               创建导入批次
             </button>
           </form>
-          {uploadMessage ? <p className="mt-3 rounded-xl border border-[#e8ecf3] bg-[#f7f9fc] px-3 py-2 text-xs text-[#596070]">{uploadMessage}</p> : null}
+          {uploadMessage ? <p className="mt-3 rounded-xl border border-[var(--theme-border)] bg-[#f7f9fc] px-3 py-2 text-xs text-[#596070]">{uploadMessage}</p> : null}
         </section>
 
-        <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+        <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-[#151720]">ETL 作业情况</h2>
@@ -271,7 +271,7 @@ export function TaskImportWorkbench() {
             <button
               type="button"
               onClick={() => loadTasks()}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#e8ecf3] bg-white px-3 text-xs font-medium text-[#596070]"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-white)] px-3 text-xs font-medium text-[#596070]"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               刷新
@@ -285,7 +285,7 @@ export function TaskImportWorkbench() {
                 type="button"
                 onClick={() => selectTask(task.batch_id)}
                 className={`w-full rounded-xl border p-3 text-left transition ${
-                  task.batch_id === selectedBatchId ? "border-[#5347CE] bg-[#f7f6ff]" : "border-[#e8ecf3] bg-white hover:bg-[#f7f9fc]"
+                  task.batch_id === selectedBatchId ? "border-[var(--sys-icon-fill)] bg-[var(--theme-selected-bg)]" : "border-[var(--theme-border)] bg-[var(--theme-white)] hover:bg-[var(--theme-hover-bg)]"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -299,7 +299,7 @@ export function TaskImportWorkbench() {
         </section>
       </section>
 
-      <section className="rounded-2xl border border-[#e8ecf3] bg-white p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+      <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[#151720]">作业结果</h2>
@@ -334,7 +334,7 @@ export function TaskImportWorkbench() {
                 setOffset(0);
                 setSelectedTable(event.target.value);
               }}
-              className="h-10 min-w-64 rounded-lg border border-[#e8ecf3] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[#5347CE]"
+              className="h-10 min-w-64 rounded-lg border border-[var(--theme-border)] bg-[#f7f9fc] px-3 text-sm text-[#596070] outline-none focus:border-[var(--sys-icon-fill)]"
             >
               <option value="">选择输出表</option>
               {tables.map((table) => (
@@ -347,16 +347,16 @@ export function TaskImportWorkbench() {
           </div>
           <a
             href={exportTableUrl}
-            className={`inline-flex h-10 items-center gap-2 rounded-lg border border-[#e8ecf3] bg-white px-4 text-sm font-semibold text-[#151720] ${
+            className={`inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-white)] px-4 text-sm font-semibold text-[#151720] ${
               selectedBatchId && selectedTable ? "" : "pointer-events-none opacity-40"
             }`}
           >
-            <Download className="h-4 w-4 text-[#4896FE]" />
+            <Download className="h-4 w-4 text-[var(--voc-chart-5)]" />
             导出Excel
           </a>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-[#e8ecf3]">
+        <div className="overflow-hidden rounded-xl border border-[var(--theme-border)]">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-[#f7f9fc] text-xs font-semibold text-[#7b8190]">

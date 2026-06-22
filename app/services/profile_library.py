@@ -427,19 +427,18 @@ def get_comment_user_lookup(conn: psycopg.Connection) -> dict[str, dict[str, Any
     return lookup
 
 
-def load_comment_user_profiles(
-    upload_path: Path,
-    source_file_name: str,
+def load_comment_user_profile_records(
+    records: list[dict[str, Any]],
     database_url: str = DATABASE_URL,
 ) -> dict[str, int]:
     init_database(database_url)
-    dataframe = prepare_comment_user_llm_upload(upload_path, source_file_name)
+    dataframe = pd.DataFrame(records)
     if dataframe.empty:
-        raw_columns = [str(column).strip().replace("\ufeff", "") for column in pd.read_excel(upload_path, nrows=0).columns]
-        raise ValueError(
-            "未找到有效的 comment_user_id。请确认上传文件包含 comment_user_id 或 评论用户ID 列，且至少一行不为空。"
-            f" 当前文件列：{', '.join(raw_columns)}"
-        )
+        return {"raw_loaded": 0, "profiles_loaded": 0, "label_scores_loaded": 0}
+    for column in [*COMMENT_USER_UPLOAD_COLUMNS, "source_file_name"]:
+        if column not in dataframe.columns:
+            dataframe[column] = None
+    dataframe = dataframe.drop_duplicates(["comment_user_id", "profile_batch"], keep="last")
 
     with psycopg.connect(database_url) as conn:
         user_lookup = get_comment_user_lookup(conn)
@@ -553,6 +552,22 @@ def load_comment_user_profiles(
         "profiles_loaded": profiles_loaded,
         "label_scores_loaded": label_scores_loaded,
     }
+
+
+def load_comment_user_profiles(
+    upload_path: Path,
+    source_file_name: str,
+    database_url: str = DATABASE_URL,
+) -> dict[str, int]:
+    init_database(database_url)
+    dataframe = prepare_comment_user_llm_upload(upload_path, source_file_name)
+    if dataframe.empty:
+        raw_columns = [str(column).strip().replace("\ufeff", "") for column in pd.read_excel(upload_path, nrows=0).columns]
+        raise ValueError(
+            "未找到有效的 comment_user_id。请确认上传文件包含 comment_user_id 或 评论用户ID 列，且至少一行不为空。"
+            f" 当前文件列：{', '.join(raw_columns)}"
+        )
+    return load_comment_user_profile_records(dataframe.to_dict(orient="records"), database_url=database_url)
 
 
 def list_comment_user_profiles(

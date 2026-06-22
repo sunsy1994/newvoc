@@ -47,13 +47,13 @@ export function DataPagination({
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[#7b8190]">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--theme-muted)]">
       <span>
         显示 {startRow.toLocaleString("zh-CN")} - {endRow.toLocaleString("zh-CN")} / {total.toLocaleString("zh-CN")}
       </span>
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070]">
+        <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-white px-3 font-medium text-[var(--theme-body)]">
           每页
           <select
             value={pageSize}
@@ -61,7 +61,7 @@ export function DataPagination({
               onPageSizeChange(Number(event.target.value));
               onOffsetChange(0);
             }}
-            className="bg-transparent text-xs font-semibold text-[#151720] outline-none"
+            className="bg-transparent text-xs font-semibold text-[var(--theme-ink)] outline-none"
           >
             {options.map((option) => (
               <option key={option} value={option}>
@@ -76,21 +76,21 @@ export function DataPagination({
           type="button"
           disabled={currentPage <= 1 || total === 0}
           onClick={() => goToPage(currentPage - 1)}
-          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[var(--theme-border)] bg-white px-3 font-medium text-[var(--theme-body)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" />
           上一页
         </button>
 
         <form
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070]"
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-white px-3 font-medium text-[var(--theme-body)]"
           onSubmit={submitJump}
         >
           <span>第</span>
           <input
             value={jumpValue}
             onChange={(event) => setJumpValue(event.target.value)}
-            className="h-6 w-10 rounded-md bg-[#f7f9fc] text-center text-xs font-semibold text-[#151720] outline-none focus:ring-1 focus:ring-[#5347CE]"
+            className="h-6 w-10 rounded-md bg-[var(--theme-soft-panel)] text-center text-xs font-semibold text-[var(--theme-ink)] outline-none focus:ring-1 focus:ring-[var(--theme-primary)]"
             inputMode="numeric"
             aria-label="跳转页码"
           />
@@ -101,7 +101,7 @@ export function DataPagination({
           type="button"
           disabled={currentPage >= pageCount || total === 0}
           onClick={() => goToPage(currentPage + 1)}
-          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#e8ecf3] bg-white px-3 font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[var(--theme-border)] bg-white px-3 font-medium text-[var(--theme-body)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           下一页
           <ChevronRight className="h-4 w-4" />

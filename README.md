@@ -122,6 +122,10 @@ python etl/event_voc_ods_etl.py run-sample
 - `content_upload.xlsx` 或 `content_upload.csv`
 - `comment_upload.xlsx` 或 `comment_upload.csv`
 
+评论上传文件可选填 `comment_label_json`。这是线下打标结果 JSON，建议包含：
+`is_vehicle_related`、`comment_sentiment`、`comment_intent`、`mentioned_aspect`、`purchase_signal`、`comment_label_reason`。
+ETL 会把它原样保留到 `ods_comment_upload` 和 `dwd_comment`，后续用于市场看板计算有效互动率、情感分布、关注点和购买信号。
+
 然后执行：
 
 ```bash

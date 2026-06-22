@@ -123,6 +123,8 @@ def test_system_management_pages_use_real_api_components() -> None:
     assert "预览" in emoji_component
     assert "PROFILE_AI_API_KEY" in component
     assert "comment_user_profile" in component
+    assert "market_report_summary" in component
+    assert "selectedPromptScene" in component
     assert "<textarea" in component
     assert "留空则保持当前密钥" in component
 
@@ -1127,3 +1129,21 @@ def test_post_detail_modal_renders_comment_timeline_chart() -> None:
     assert "bg-[#5347CE]" not in modal
     assert "互动量</span>" not in modal
     assert "<rect" not in modal
+
+
+def test_market_dashboard_renders_ai_summary_card() -> None:
+    root = Path("frontend")
+    market_page = (root / "src/app/voc/events/market/page.tsx").read_text(encoding="utf-8")
+    card = (root / "src/components/voc/MarketAiSummaryCard.tsx").read_text(encoding="utf-8")
+    types = (root / "src/types/vocMarket.ts").read_text(encoding="utf-8")
+
+    assert "MarketAiSummaryCard" in market_page
+    assert "eventId={dashboard.event.event_id}" in market_page
+    assert "/market/report-agent/run" in card
+    assert "MarketReportAgentPayload" in types
+    assert "isOpen" in card
+    assert "AI 总结" in card
+    assert "使用的 Prompt" in card
+    assert "输入给 AI 的结构化数据" in card
+    assert "event_overview" in card
+    assert "market_conclusion" in card

@@ -131,6 +131,7 @@ COMMENT_SPEC = TemplateSpec(
         ("评论发布时间", "published_at", True, "YYYY-MM-DD HH:MM:SS"),
         ("评论点赞数", "like_cnt", False, "空值按0处理"),
         ("评论回复数", "reply_cnt", False, "空值按0处理"),
+        ("comment_label_json", "comment_label_json", False, "评论打标结果JSON，可为空"),
     ],
     sample_row={
         "原始评论ID": "",
@@ -145,6 +146,7 @@ COMMENT_SPEC = TemplateSpec(
         "评论发布时间": "2026-05-01 21:10:00",
         "评论点赞数": 23,
         "评论回复数": 4,
+        "comment_label_json": '{"is_vehicle_related":"是","comment_sentiment":"正向","comment_intent":"购买意向","mentioned_aspect":"价格","purchase_signal":"强","comment_label_reason":"评论明确表达对价格和配置感兴趣"}',
     },
 )
 
@@ -503,6 +505,7 @@ def standardize_comments(
                 "like_cnt": like_cnt,
                 "reply_cnt": reply_cnt,
                 "interaction_cnt": like_cnt + reply_cnt,
+                "comment_label_json": clean_optional(row.get("comment_label_json")),
                 "ingest_batch_id": ingest_batch_id,
                 "raw_source_key": "comment_upload",
             }

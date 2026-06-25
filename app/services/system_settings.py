@@ -22,22 +22,114 @@ DEFAULT_PROMPT_SCENE = "comment_user_profile"
 DEFAULT_PROMPT_VERSION = "comment_user_profile_v1"
 MARKET_REPORT_PROMPT_SCENE = "market_report_summary"
 MARKET_REPORT_PROMPT_VERSION = "market_report_summary_v1"
-MARKET_REPORT_PROMPT_CONTENT = """浣犳槸姹借溅琛屼笟 VOC 甯傚満鍒嗘瀽鍔╂墜銆傝鍙熀浜庣粰瀹氱殑甯傚満鐪嬫澘缁撴瀯鍖栨暟鎹紝鐢熸垚甯傚満閮ㄨ瑙掔殑浜嬩欢鎬荤粨銆?
-璇锋寜涓氬姟浜哄憳闃呰椤哄簭缁勭粐锛氳繖鏄粈涔堜簨浠躲€佽捣姝㈡棩鏈熴€佸０閲忚妯°€佺儹闂ㄨ瘽棰樸€並OL 涓庝綔鑰呫€佸彈浼楃敾鍍忋€佺敤鎴峰弽棣堣川閲忋€佸競鍦洪儴缁撹銆?
-瑕佹眰锛?1. 鍙娇鐢ㄧ粰瀹氫俊鎭紝涓嶇紪閫犳暟鎹紝涓嶅紩鍏ヨ緭鍏ュ鐨勪俊鎭€?2. 涓嶈閫愰」澶嶈堪鍥捐〃锛岃鍑濈粌浼犳挱鍒ゆ柇銆?3. 濡傛灉鏌愮被鏁版嵁涓嶈冻锛岃鍦?data_limits 璇存槑銆?4. 杈撳嚭蹇呴』鏄?JSON 瀵硅薄锛屽瓧娈典笉鍙鍑忥細
+PRODUCT_REPORT_PROMPT_SCENE = "product_report_summary"
+PRODUCT_REPORT_PROMPT_VERSION = "product_report_summary_v1"
+SALES_REPORT_PROMPT_SCENE = "sales_report_summary"
+SALES_REPORT_PROMPT_VERSION = "sales_report_summary_v1"
+DEFAULT_PROMPT_SCENES = {DEFAULT_PROMPT_SCENE, MARKET_REPORT_PROMPT_SCENE, PRODUCT_REPORT_PROMPT_SCENE, SALES_REPORT_PROMPT_SCENE}
+MARKET_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 市场分析助手。请只基于给定的市场看板结构化数据，生成市场部视角的 Markdown 事件报告。
+
+报告目标：
+让业务人员快速读懂：这是什么事件、起止日期、传播规模、热门话题、KOL 与传播主体、受众画像、用户反馈质量、市场判断。
+
+数据口径约束：
+1. 输入数据是系统整理后的 market_context_json，所有判断必须来自该 JSON，不要编造外部信息。
+2. 受众画像只使用 audience.user_profile_distribution 中给出的画像标签，不要要求或提及年龄、性别、收入等人口统计字段。
+3. 地区信息只代表评论位置响应，不代表用户真实所在地，也不代表内容发布地。
+4. 用户讨论点来自评论标注字段、话题统计和看板已汇总字段，如 top_aspect、top_intent、sentiment_distribution、purchase_signal_distribution、hot_topics；不要要求额外关键词聚类。
+5. 如果没有情感时间序列，只总结整体正/中/负反馈结构，不要声称无法分析用户反馈。
+6. KOL 受众第一版按事件整体用户画像表达，不要推断单个 KOL 的独立受众画像。
+
+输出要求：
+1. 输出必须是 JSON 对象，字段不可增减。
+2. report_markdown 是一篇完整 Markdown 报告，不要把内容拆成多个 JSON 字段。
+3. report_markdown 建议包含这些章节，但如果输入没有足够信息，可以自然合并或略过，不要硬写“数据受限”：
+   # 市场部 VOC 事件总结
+   ## 事件概况
+   ## 传播规模与节奏
+   ## 热门话题与内容资产
+   ## KOL 与传播主体
+   ## 受众画像与用户反馈
+   ## 市场判断
+4. data_notes 只放真正影响判断的数据说明，例如输入字段为空、样本量过小、地区只代表评论位置；不得列出年龄、性别、收入、完整人口画像、额外关键词聚类等系统未定义字段。
+
+输出 JSON 格式：
 {
-  "event_overview": "",
-  "scale_summary": "",
-  "topic_summary": "",
-  "kol_summary": "",
-  "audience_summary": "",
-  "feedback_summary": "",
-  "market_conclusion": "",
-  "data_limits": ""
+  "report_markdown": "",
+  "data_notes": []
 }
 
-甯傚満鐪嬫澘缁撴瀯鍖栨暟鎹細
+市场看板结构化数据：
 {{market_context_json}}
+"""
+PRODUCT_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 产品分析助手。请只基于给定的产品看板结构化数据，生成产品部视角的 Markdown 事件报告。
+
+报告目标：
+让产品部快速读懂：用户主要关注哪些产品点，哪些是惊喜点、吐槽点、转化点，用户拿本车和哪些对象对比，对比维度是什么，本车优势/劣势/中性对比结构如何，并附带代表性用户原声。
+
+数据口径约束：
+1. 输入数据是系统整理后的 product_context_json，所有判断必须来自该 JSON，不要编造外部信息。
+2. PKO 只使用 pko 中给出的 target、dimension、result、reason、comment_text，不要自行补充竞品事实。
+3. 代表性原声必须来自 evidence_comments 中的 comment_text，不要改写为用户没有说过的话。
+4. 不输出营销投放建议，不输出 AI 能力说明；本报告只负责产品侧事实总结和产品判断。
+5. 如果某类数据为空，可以自然略过，不要要求新增年龄、性别、收入、外部销量或配置参数等系统未提供字段。
+
+输出要求：
+1. 输出必须是 JSON 对象，字段不可增减。
+2. report_markdown 是一篇完整 Markdown 报告，不要把内容拆成多个 JSON 字段。
+3. report_markdown 建议包含这些章节：
+   # 产品部 VOC 事件总结
+   ## 事件概况
+   ## 用户关注点
+   ## 产品机会：惊喜、吐槽与转化
+   ## PKO 对比位置
+   ## 代表性用户原声
+   ## 产品判断
+4. data_notes 只放真正影响判断的数据说明，例如输入字段为空、样本量过小、代表性原声不足；不要列出系统未定义字段。
+
+输出 JSON 格式：
+{
+  "report_markdown": "",
+  "data_notes": []
+}
+
+产品看板结构化数据：
+{{product_context_json}}
+"""
+SALES_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 销售线索分析助手。请只基于给定的销售看板结构化数据，生成销售部视角的 Markdown 事件报告。
+
+报告目标：
+让销售人员快速读懂：这个事件产生了多少可跟进线索，线索质量如何，这些人是什么样的人，来自哪些渠道和内容，哪些用户应该优先查看。
+
+数据口径约束：
+1. 输入数据是系统整理后的 sales_context_json，所有判断必须来自该 JSON，不要编造外部信息。
+2. 不要输出手机号、微信、真实身份、年龄、性别、收入等系统未提供字段。
+3. 用户画像只能使用 lead_quality.profile_segments 和 profile_distribution 中已有标签；画像覆盖不足时自然说明“仅基于已画像用户判断”。
+4. 渠道判断只能使用 lead_source.platform_efficiency、content_leads、lead_comments 中已有字段。
+5. 代表性原声必须来自 evidence_comments 或 lead_comments 的 comment_text，不要改写为用户没有说过的话。
+6. 不生成强营销话术，不替销售承诺优惠；只输出线索判断、优先级和跟进方向。
+
+输出要求：
+1. 输出必须是 JSON 对象，字段不可增减。
+2. report_markdown 是一篇完整 Markdown 报告，不要把内容拆成多个 JSON 字段。
+3. report_markdown 建议包含这些章节：
+   # 销售部 VOC 线索总结
+   ## 事件线索总览
+   ## 线索质量分层
+   ## 高意向用户画像
+   ## 线索来源渠道
+   ## 建议优先查看的用户
+   ## 代表性用户原声
+4. data_notes 只放真正影响判断的数据说明，例如样本量过小、画像覆盖不足、来源字段为空；不要列出系统未定义字段。
+
+输出 JSON 格式：
+{
+  "report_markdown": "",
+  "data_notes": []
+}
+
+销售看板结构化数据：
+{{sales_context_json}}
 """
 DEFAULT_PROMPT_FILE = PROJECT_ROOT / "鐢诲儚鎻愮ず璇?txt"
 
@@ -201,6 +293,10 @@ def _read_default_prompt_file() -> str:
 def _default_prompt_payload(scene: str) -> tuple[str, str, str]:
     if scene == MARKET_REPORT_PROMPT_SCENE:
         return "market report summary prompt", MARKET_REPORT_PROMPT_VERSION, MARKET_REPORT_PROMPT_CONTENT
+    if scene == PRODUCT_REPORT_PROMPT_SCENE:
+        return "product report summary prompt", PRODUCT_REPORT_PROMPT_VERSION, PRODUCT_REPORT_PROMPT_CONTENT
+    if scene == SALES_REPORT_PROMPT_SCENE:
+        return "sales report summary prompt", SALES_REPORT_PROMPT_VERSION, SALES_REPORT_PROMPT_CONTENT
     return "comment user profile prompt", DEFAULT_PROMPT_VERSION, _read_default_prompt_file()
 
 
@@ -224,15 +320,17 @@ def _seed_default_prompt_template(conn: psycopg.Connection, scene: str = DEFAULT
 def list_prompt_templates(scene: str | None = None, database_url: str = DATABASE_URL) -> dict[str, list[dict[str, Any]]]:
     init_database(database_url)
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
-        if scene in {DEFAULT_PROMPT_SCENE, MARKET_REPORT_PROMPT_SCENE}:
+        scenes_to_seed = [scene] if scene in DEFAULT_PROMPT_SCENES else sorted(DEFAULT_PROMPT_SCENES) if scene is None else []
+        for default_scene in scenes_to_seed:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT 1 FROM data_asset.system_prompt_template WHERE prompt_scene = %s LIMIT 1",
-                    (scene,),
+                    (default_scene,),
                 )
                 if cur.fetchone() is None:
-                    _seed_default_prompt_template(conn, scene=scene)
-                    conn.commit()
+                    _seed_default_prompt_template(conn, scene=default_scene)
+        if scenes_to_seed:
+            conn.commit()
 
         query = """
             SELECT *
@@ -261,7 +359,7 @@ def get_default_prompt_template(scene: str = DEFAULT_PROMPT_SCENE, database_url:
                 (scene,),
             )
             row = cur.fetchone()
-        if row is None and scene in {DEFAULT_PROMPT_SCENE, MARKET_REPORT_PROMPT_SCENE}:
+        if row is None and scene in DEFAULT_PROMPT_SCENES:
             row = _seed_default_prompt_template(conn, scene=scene)
             conn.commit()
         if row is None:
@@ -311,4 +409,3 @@ def save_prompt_template(payload: dict[str, Any], database_url: str = DATABASE_U
             row = cur.fetchone()
         conn.commit()
         return normalize_row(dict(row))
-

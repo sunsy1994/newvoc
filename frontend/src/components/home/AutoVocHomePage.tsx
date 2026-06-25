@@ -512,30 +512,98 @@ function AiOrb() {
   );
 }
 
-const aiCapabilities = [
+const promptGroups = {
+  data: [
+    "近30天本品事件声量是多少？",
+    "哪个事件的评论增长最快？",
+    "帮我对比本品和竞品的事件声量",
+    "最近热门话题分别来自哪些事件？",
+  ],
+  qa: [
+    "为什么这个事件在5月中旬突然爆发？",
+    "哪些平台的讨论质量更高？",
+    "用户对这次事件最常见的疑问是什么？",
+    "这个事件是否带来了真实购买信号？",
+  ],
+  report: [
+    "生成一份市场部事件总结",
+    "生成销售部线索质量摘要",
+    "生成产品部PKO对比摘要",
+    "把本周重点VOC整理成领导简报",
+  ],
+  insight: [
+    "发现最近值得关注的异常事件",
+    "找出高意向用户最集中的渠道",
+    "哪些KOL类型更容易吸引目标用户？",
+    "哪些讨论点可能影响转化？",
+  ],
+} as const;
+
+type AiSkillId = keyof typeof promptGroups;
+
+const aiCapabilities: Array<{
+  id: AiSkillId;
+  title: string;
+  description: string;
+  icon: typeof BarChart3;
+  prompts: readonly string[];
+}> = [
   {
+    id: "data",
     title: "问数",
     description: "查询事件、帖子、评论、作者等核心指标",
     icon: BarChart3,
+    prompts: promptGroups.data,
   },
   {
+    id: "qa",
     title: "问答",
     description: "解释异常变化，回答业务部门的追问",
     icon: MessagesSquare,
+    prompts: promptGroups.qa,
   },
   {
+    id: "report",
     title: "报告",
     description: "生成市场、产品、销售视角的分析摘要",
     icon: FileSearch,
+    prompts: promptGroups.report,
   },
   {
+    id: "insight",
     title: "洞察",
     description: "发现值得关注的事件、话题和用户信号",
     icon: Lightbulb,
+    prompts: promptGroups.insight,
   },
 ];
 
-function ExpandedAiWorkspace({ prompts, onClose }: { prompts: string[]; onClose: () => void }) {
+function SkillButton({ item, isActive, onClick }: { item: (typeof aiCapabilities)[number]; isActive: boolean; onClick: () => void }) {
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex min-h-[104px] flex-col justify-between rounded-[22px] border p-3.5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(20,24,38,0.07)] ${
+        isActive
+          ? "border-[var(--sys-icon-fill)] bg-[var(--theme-selected-bg)] shadow-[0_14px_30px_rgba(20,24,38,0.07)]"
+          : "border-[var(--sys-border)] bg-white hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-hover-bg)]"
+      }`}
+    >
+      <div>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-2xl transition group-hover:scale-105 ${isActive ? "bg-white text-[var(--sys-icon-fill)]" : "bg-[var(--theme-soft-panel)] text-[var(--sys-icon-fill)]"}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <p className="mt-3 text-sm font-semibold text-[var(--sys-ink)]">{item.title}</p>
+        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--sys-muted)]">{item.description}</p>
+      </div>
+    </button>
+  );
+}
+
+function ExpandedAiWorkspace({ activeSkillId, onSkillChange, onClose }: { activeSkillId: AiSkillId; onSkillChange: (skillId: AiSkillId) => void; onClose: () => void }) {
+  const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(248,250,252,0.88)] p-6 backdrop-blur-xl">
       <section className="relative flex h-full max-h-[760px] w-full max-w-5xl flex-col rounded-[34px] border border-[var(--sys-border)] bg-[var(--sys-card)] p-8 shadow-[0_32px_90px_rgba(20,24,38,0.18)]">
@@ -562,32 +630,19 @@ function ExpandedAiWorkspace({ prompts, onClose }: { prompts: string[]; onClose:
                 </span>
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--sys-muted)]">
-                选择一个方向开始，或直接输入你的业务问题。后续这里会接入 CopilotKit。
+                选择一个方向开始，下面的问题会随着能力切换。后续这里会接入 CopilotKit。
               </p>
             </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-4">
-            {aiCapabilities.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.title}
-                  type="button"
-                  className="group flex min-h-[116px] flex-col justify-between rounded-[18px] border border-[var(--sys-border)] bg-white p-4 text-left shadow-[0_10px_26px_rgba(20,24,38,0.04)] transition hover:-translate-y-0.5 hover:border-[var(--sys-icon-fill)]"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--sys-ink)]">{item.title}</p>
-                    <p className="mt-2 text-xs leading-5 text-[var(--sys-muted)]">{item.description}</p>
-                  </div>
-                  <Icon className="mt-4 h-4 w-4 text-[var(--sys-icon-fill)]" />
-                </button>
-              );
-            })}
+            {aiCapabilities.map((item) => (
+              <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => onSkillChange(item.id)} />
+            ))}
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            {prompts.slice(0, 4).map((prompt) => (
+            {selectedSkill.prompts.slice(0, 4).map((prompt) => (
               <button key={prompt} className="rounded-full border border-[var(--sys-border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--sys-body)] transition hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-icon-fill)]">
                 {prompt}
               </button>
@@ -597,7 +652,7 @@ function ExpandedAiWorkspace({ prompts, onClose }: { prompts: string[]; onClose:
           <div className="mt-8 overflow-hidden rounded-[24px] border border-[var(--sys-border)] bg-white shadow-[0_18px_42px_rgba(20,24,38,0.07)]">
             <textarea
               className="h-32 w-full resize-none bg-transparent px-5 py-4 text-sm font-medium text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)]"
-              placeholder="Ask whatever you want..."
+              placeholder={`Ask AUTO VOC about ${selectedSkill.title}...`}
             />
             <div className="flex items-center justify-between border-t border-[var(--sys-border)] px-4 py-3">
               <div className="flex items-center gap-3 text-xs font-medium text-[var(--sys-muted)]">
@@ -611,7 +666,7 @@ function ExpandedAiWorkspace({ prompts, onClose }: { prompts: string[]; onClose:
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[var(--theme-soft-panel)] px-3 py-1.5 text-xs font-medium text-[var(--sys-muted)]">AUTO VOC</span>
+                <span className="rounded-full bg-[var(--theme-soft-panel)] px-3 py-1.5 text-xs font-medium text-[var(--sys-muted)]">{selectedSkill.title}</span>
                 <button className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--sys-icon-fill)] text-white shadow-[0_12px_26px_rgba(93,150,145,0.22)]">
                   <Send className="h-4 w-4" />
                 </button>
@@ -626,10 +681,13 @@ function ExpandedAiWorkspace({ prompts, onClose }: { prompts: string[]; onClose:
 
 function AiCopilotPanel({ prompts }: { prompts: string[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [activeSkillId, setActiveSkillId] = useState<AiSkillId>("data");
+  const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
+  const selectedPrompts = selectedSkill.prompts.length ? selectedSkill.prompts : prompts;
 
   return (
     <aside className="flex h-full min-h-[860px] flex-col rounded-[30px] border border-[var(--sys-border)] bg-[var(--sys-card)] p-5 shadow-[var(--sys-card-shadow)] xl:sticky xl:top-8">
-      {isExpanded ? <ExpandedAiWorkspace prompts={prompts} onClose={() => setIsExpanded(false)} /> : null}
+      {isExpanded ? <ExpandedAiWorkspace activeSkillId={activeSkillId} onSkillChange={setActiveSkillId} onClose={() => setIsExpanded(false)} /> : null}
 
       <div className="relative rounded-[26px] bg-[linear-gradient(145deg,var(--theme-soft-panel),var(--theme-card))] px-5 py-6 text-center">
         <button
@@ -644,42 +702,29 @@ function AiCopilotPanel({ prompts }: { prompts: string[] }) {
         <p className="mt-5 text-xs font-medium text-[var(--sys-muted)]">AUTO VOC Copilot</p>
         <h2 className="mt-1 text-xl font-semibold text-[var(--sys-ink)]">VOC 智能分析中枢</h2>
         <p className="mt-3 text-sm leading-6 text-[var(--sys-body)]">
-          我可以帮你总结事件、解释异常、生成部门视角结论，并把问题带到对应看板继续下钻。
+          我可以帮你问数、问答、生成报告和发现洞察。先选择一个能力，下面会给出对应的问题入口。
         </p>
       </div>
 
       <div className="mt-5">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Skills</p>
-          <span className="text-[11px] font-medium text-[var(--sys-muted)]">选择能力开始</span>
+          <span className="text-[11px] font-medium text-[var(--sys-muted)]">当前：{selectedSkill.title}</span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2.5">
-          {aiCapabilities.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.title}
-                type="button"
-                className="group min-h-[104px] rounded-[22px] border border-[var(--sys-border)] bg-white p-3.5 text-left transition hover:-translate-y-0.5 hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-hover-bg)] hover:shadow-[0_14px_30px_rgba(20,24,38,0.07)]"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--theme-soft-panel)] text-[var(--sys-icon-fill)] transition group-hover:scale-105">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <p className="mt-3 text-sm font-semibold text-[var(--sys-ink)]">{item.title}</p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--sys-muted)]">{item.description}</p>
-              </button>
-            );
-          })}
+          {aiCapabilities.map((item) => (
+            <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => setActiveSkillId(item.id)} />
+          ))}
         </div>
       </div>
 
       <div className="mt-5">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Prompts</p>
-          <span className="text-[11px] font-medium text-[var(--sys-muted)]">你可以这样问</span>
+          <span className="text-[11px] font-medium text-[var(--sys-muted)]">{selectedSkill.title}问题</span>
         </div>
         <div className="mt-3 space-y-2">
-          {prompts.map((prompt) => (
+          {selectedPrompts.map((prompt) => (
             <button
               key={prompt}
               type="button"
@@ -694,7 +739,7 @@ function AiCopilotPanel({ prompts }: { prompts: string[] }) {
 
       <div className="mt-auto pt-5">
         <div className="flex items-center gap-2 rounded-2xl border border-[var(--sys-border)] bg-white px-3 py-2">
-          <input className="min-w-0 flex-1 bg-transparent text-sm text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)]" placeholder="问 AUTO VOC..." />
+          <input className="min-w-0 flex-1 bg-transparent text-sm text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)]" placeholder={`问 AUTO VOC 的${selectedSkill.title}能力...`} />
           <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--sys-icon-fill)] text-white">
             <Send className="h-4 w-4" />
           </button>
@@ -703,7 +748,6 @@ function AiCopilotPanel({ prompts }: { prompts: string[] }) {
     </aside>
   );
 }
-
 function EmptyCard({ title, text }: { title: string; text: string }) {
   return (
     <div className="flex min-h-40 flex-col items-center justify-center rounded-[24px] border border-dashed border-[var(--sys-border)] bg-[var(--theme-soft-panel)] p-6 text-center">

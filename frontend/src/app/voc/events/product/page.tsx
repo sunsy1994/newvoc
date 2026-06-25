@@ -1,5 +1,6 @@
 import { PackageSearch } from "lucide-react";
 
+import { ProductAiSummaryCard } from "@/components/voc/ProductAiSummaryCard";
 import { ProductFocusStoryCard } from "@/components/voc/ProductFocusStoryCard";
 import { ProductOpportunityStoryCard } from "@/components/voc/ProductOpportunityStoryCard";
 import { ProductPkoStoryCard } from "@/components/voc/ProductPkoStoryCard";
@@ -49,6 +50,7 @@ export default async function ProductDashboardPage({ searchParams }: PageProps) 
 
         {dashboard ? (
           <>
+            <ProductAiSummaryCard eventId={dashboard.event.event_id} />
             <ProductFocusStoryCard story={dashboard.product_focus_story} />
             <ProductOpportunityStoryCard opportunity={dashboard.product_opportunity_story} />
             <ProductPkoStoryCard pkoStory={dashboard.product_pko_story} />

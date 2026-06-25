@@ -907,6 +907,45 @@ COMMENT ON COLUMN data_asset.system_prompt_template.is_enabled IS '是否启用�
 CREATE INDEX IF NOT EXISTS idx_system_ai_config_default ON data_asset.system_ai_config(is_default, is_enabled);
 CREATE INDEX IF NOT EXISTS idx_system_prompt_template_scene ON data_asset.system_prompt_template(prompt_scene, is_default, is_enabled);
 
+CREATE TABLE IF NOT EXISTS data_asset.market_report_agent_run (
+  report_run_id  BIGSERIAL PRIMARY KEY,
+  event_id       TEXT NOT NULL,
+  prompt_version TEXT NOT NULL,
+  generated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  summary_json   JSONB NOT NULL,
+  context_json   JSONB NOT NULL,
+  rendered_prompt TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_report_agent_run_event_time
+  ON data_asset.market_report_agent_run(event_id, generated_at DESC, report_run_id DESC);
+
+CREATE TABLE IF NOT EXISTS data_asset.product_report_agent_run (
+  report_run_id  BIGSERIAL PRIMARY KEY,
+  event_id       TEXT NOT NULL,
+  prompt_version TEXT NOT NULL,
+  generated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  summary_json   JSONB NOT NULL,
+  context_json   JSONB NOT NULL,
+  rendered_prompt TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_report_agent_run_event_time
+  ON data_asset.product_report_agent_run(event_id, generated_at DESC, report_run_id DESC);
+
+CREATE TABLE IF NOT EXISTS data_asset.sales_report_agent_run (
+  report_run_id  BIGSERIAL PRIMARY KEY,
+  event_id       TEXT NOT NULL,
+  prompt_version TEXT NOT NULL,
+  generated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  summary_json   JSONB NOT NULL,
+  context_json   JSONB NOT NULL,
+  rendered_prompt TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_report_agent_run_event_time
+  ON data_asset.sales_report_agent_run(event_id, generated_at DESC, report_run_id DESC);
+
 CREATE TABLE IF NOT EXISTS data_asset.system_emoji_mapping (
   emoji_id      BIGSERIAL PRIMARY KEY,
   emoji_code    VARCHAR(128) NOT NULL,

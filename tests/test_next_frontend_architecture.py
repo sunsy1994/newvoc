@@ -608,7 +608,7 @@ def test_product_dashboard_pko_story_card_is_wired() -> None:
     assert "典型评论" in card
     assert "OverviewMetricGrid" in card
     assert "StatusBadge" in card
-    assert "PrimaryDistributionCard" in card
+    assert "PrimaryDistributionCard" not in card
     assert "QuoteCard" in card
     assert "displayDistributionLabel" in card
     assert "其他对象" in card
@@ -620,6 +620,25 @@ def test_product_dashboard_pko_story_card_is_wired() -> None:
     assert "CompetitiveInsightHero" not in card
     assert "TagCloud" not in card
     assert "MiniDistribution" not in card
+
+
+def test_product_pko_card_groups_target_selection_with_evidence_comments() -> None:
+    card = Path("frontend/src/components/voc/ProductPkoStoryCard.tsx").read_text(encoding="utf-8")
+
+    assert "PkoInsightGrid" in card
+    assert "对比对象证据区" in card
+    assert "该对象的典型评论" in card
+    assert "当前选择" in card
+    assert "Generic Comparison" not in card
+    assert "PrimaryDistributionCard summary=" not in card
+    assert "bg-[var(--voc-chart-2)]" not in card
+    assert "bg-[var(--theme-border)]" in card
+    assert "xl:grid-cols-[0.95fr_1.05fr]" in card
+    assert "xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]" in card
+    assert "overflow-hidden" in card
+    assert "flex flex-col gap-2" in card
+    assert "items-start justify-between gap-3" not in card
+    assert card.index("DimensionResultMatrix") < card.index("PkoInsightGrid")
 
 
 def test_product_dashboard_backend_keeps_chinese_label_sql_literals() -> None:
@@ -924,7 +943,7 @@ def test_remaining_market_product_detail_colors_follow_dashboard_theme() -> None
     assert "Quote className=\"h-4 w-4 text-[var(--voc-chart-3)]\"" in product_pko
     assert "bg-[var(--theme-selected-bg)]" in product_pko
     assert "bg-[var(--theme-chip)]" in product_pko
-    assert "text-[var(--voc-chart-2)]" in product_pko
+    assert "text-[var(--voc-chart-2)]" not in product_pko
     assert "accent = \"var(--theme-primary)\"" in product_pko
     assert '"#5347CE"' not in product_pko
     assert "#edf6ff" not in product_pko
@@ -1135,15 +1154,85 @@ def test_market_dashboard_renders_ai_summary_card() -> None:
     root = Path("frontend")
     market_page = (root / "src/app/voc/events/market/page.tsx").read_text(encoding="utf-8")
     card = (root / "src/components/voc/MarketAiSummaryCard.tsx").read_text(encoding="utf-8")
+    shared_card = (root / "src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
     types = (root / "src/types/vocMarket.ts").read_text(encoding="utf-8")
 
     assert "MarketAiSummaryCard" in market_page
     assert "eventId={dashboard.event.event_id}" in market_page
     assert "/market/report-agent/run" in card
+    assert "/market/report-agent/latest" in card
     assert "MarketReportAgentPayload" in types
-    assert "isOpen" in card
-    assert "AI 总结" in card
-    assert "使用的 Prompt" in card
-    assert "输入给 AI 的结构化数据" in card
-    assert "event_overview" in card
-    assert "market_conclusion" in card
+    assert "MarketReportSummary" in types
+    assert "ReportAgentPayload" in types
+    assert "isOpen" in shared_card
+    assert "loadLatestSummary" in shared_card
+    assert "regenerateSummary" in shared_card
+    assert "renderInlineMarkdown" in shared_card
+    assert "linear-gradient" in shared_card
+    assert "AI 总结" in shared_card
+    assert "使用的 Prompt" in shared_card
+    assert "输入给 AI 的结构化数据" in shared_card
+    assert "renderMarkdownReport" in shared_card
+    assert "report_markdown" in shared_card
+    assert "data_notes" in shared_card
+    assert "event_overview" not in shared_card
+    assert "market_conclusion" not in shared_card
+
+
+def test_product_dashboard_renders_ai_summary_card() -> None:
+    root = Path("frontend")
+    product_page = (root / "src/app/voc/events/product/page.tsx").read_text(encoding="utf-8")
+    card = (root / "src/components/voc/ProductAiSummaryCard.tsx").read_text(encoding="utf-8")
+    shared_card = (root / "src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+    types = (root / "src/types/vocMarket.ts").read_text(encoding="utf-8")
+
+    assert "ProductAiSummaryCard" in product_page
+    assert "eventId={dashboard.event.event_id}" in product_page
+    assert "/product/report-agent/run" in card
+    assert "/product/report-agent/latest" in card
+    assert "ReportAgentPayload" in types
+    assert "AI 总结" in shared_card
+    assert "产品部 AI 总结报告" in card
+    assert "renderMarkdownReport" in shared_card
+    assert "report_markdown" in shared_card
+    assert "data_notes" in shared_card
+
+
+def test_sales_dashboard_renders_ai_summary_card() -> None:
+    root = Path("frontend")
+    sales_page = (root / "src/app/voc/events/sales/page.tsx").read_text(encoding="utf-8")
+    card = (root / "src/components/voc/SalesAiSummaryCard.tsx").read_text(encoding="utf-8")
+    shared_card = (root / "src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+    types = (root / "src/types/vocMarket.ts").read_text(encoding="utf-8")
+
+    assert "SalesAiSummaryCard" in sales_page
+    assert "eventId={dashboard.event.event_id}" in sales_page
+    assert "/sales/report-agent/run" in card
+    assert "/sales/report-agent/latest" in card
+    assert "ReportAgentPayload" in types
+    assert "销售部" in card
+    assert "Sales Report Agent" in card
+    assert "renderMarkdownReport" in shared_card
+    assert "report_markdown" in shared_card
+    assert "data_notes" in shared_card
+
+
+def test_report_ai_summary_card_generates_when_no_cached_summary() -> None:
+    shared_card = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert "response.status === 404" in shared_card
+    assert "await regenerateSummary()" in shared_card
+    assert shared_card.index("response.status === 404") < shared_card.index("await regenerateSummary()")
+
+
+def test_auto_voc_home_copilot_skills_switch_prompt_groups() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+
+    assert "activeSkillId" in component
+    assert "promptGroups" in component
+    assert "selectedSkill.prompts" in component
+    assert 'id: "data"' in component
+    assert 'id: "qa"' in component
+    assert 'id: "report"' in component
+    assert 'id: "insight"' in component
+    assert "setActiveSkillId" in component

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add the first lightweight Report Agent for the market dashboard so users can generate a concise AI summary from existing event VOC data.
+**Goal:** Add the first lightweight Report Agent for the market dashboard so users can generate a continuous Markdown market report from existing event VOC data.
 
-**Architecture:** Keep business context construction inside AutoVOC services, reuse the existing OpenAI-compatible runtime config and JSON response pattern, and expose one market report endpoint. The frontend only triggers generation and renders the returned structured summary.
+**Architecture:** Keep business context construction inside AutoVOC services, reuse the existing OpenAI-compatible runtime config and JSON response pattern, and expose one market report endpoint. The frontend only triggers generation and renders the returned Markdown report.
 
 **Tech Stack:** FastAPI, psycopg, existing `system_ai_config` / `system_prompt_template`, OpenAI-compatible `/chat/completions`, Next.js App Router, TypeScript.
 
@@ -18,16 +18,14 @@ The market report Agent is intentionally a single-call, transparent report gener
 
 ```json
 {
-  "event_overview": "",
-  "scale_summary": "",
-  "topic_summary": "",
-  "kol_summary": "",
-  "audience_summary": "",
-  "feedback_summary": "",
-  "market_conclusion": "",
-  "data_limits": ""
+  "report_markdown": "",
+  "data_notes": []
 }
 ```
+
+`report_markdown` is the user-facing report body. It should be a coherent Markdown document with sections such as event overview, scale and rhythm, hot topics, KOL and audience, user feedback, and market judgment.
+
+`data_notes` records only real data caveats from the provided context. The model must not request unsupported fields such as age, gender, income, or external demographics.
 
 ### Input Context Sent To LLM
 
@@ -45,11 +43,14 @@ The market report Agent is intentionally a single-call, transparent report gener
 ### Runtime Flow
 
 1. Frontend market dashboard displays one `AI 总结` button.
-2. Click calls `POST /api/voc/events/{event_id}/market/report-agent/run`.
-3. Backend calls the existing market dashboard service and compresses the payload into `market_context_json`.
-4. Backend reads default prompt scene `market_report_summary` from `system_prompt_template`; if missing, it seeds a default prompt.
-5. Backend renders prompt with `{{market_context_json}}`, calls the OpenAI-compatible JSON endpoint once, normalizes fixed fields, and returns `summary`, `context`, and `rendered_prompt`.
-6. Frontend opens a story-card modal with summary sections, plus collapsible `使用的 Prompt` and `输入给 AI 的结构化数据`.
+2. Click opens the report modal and calls `GET /api/voc/events/{event_id}/market/report-agent/latest`.
+3. If a cached report exists, frontend renders the latest Markdown report directly.
+4. If no cached report exists, frontend shows an empty state and waits for the user to click `生成报告`.
+5. User-triggered generation calls `POST /api/voc/events/{event_id}/market/report-agent/run`.
+6. Backend calls the existing market dashboard service and compresses the payload into `market_context_json`.
+7. Backend reads default prompt scene `market_report_summary` from `system_prompt_template`; if missing, it seeds a default prompt.
+8. Backend renders prompt with `{{market_context_json}}`, calls the OpenAI-compatible JSON endpoint once, normalizes `report_markdown` and `data_notes`, saves the successful run to `data_asset.market_report_agent_run`, and returns `summary`, `context`, and `rendered_prompt`.
+9. Frontend renders the Markdown document and provides collapsible `使用的 Prompt` and `输入给 AI 的结构化数据`.
 
 ---
 
@@ -62,8 +63,9 @@ The market report Agent is intentionally a single-call, transparent report gener
 
 - [x] Add tests for building market report context from dashboard payload.
 - [x] Add tests for rendering prompt with `{{market_context_json}}`.
-- [x] Add tests for parsing fixed JSON summary fields.
+- [x] Add tests for parsing Markdown report JSON fields.
 - [x] Add API test for `POST /api/voc/events/{event_id}/market/report-agent/run`.
+- [x] Add API test for `GET /api/voc/events/{event_id}/market/report-agent/latest`.
 - [x] Implement the minimal service and route to pass tests.
 
 ### Task 2: Frontend Summary Card
@@ -75,7 +77,7 @@ The market report Agent is intentionally a single-call, transparent report gener
 - Test: `tests/test_next_frontend_architecture.py`
 
 - [x] Add architecture test for the summary card and API path.
-- [x] Implement client component with generate/copy/error/loading states.
+- [x] Implement client component with latest-result loading, manual regenerate, copy/error/loading states, and Markdown rendering.
 - [x] Render the card near the top of market dashboard.
 - [x] Run `npm run typecheck`.
 

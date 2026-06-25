@@ -50,7 +50,14 @@ from app.services.profile_library import (
     load_comment_user_profiles,
     load_kol_profiles,
 )
-from app.services.report_agent import run_market_report_agent
+from app.services.report_agent import (
+    get_latest_market_report_agent_result,
+    get_latest_product_report_agent_result,
+    get_latest_sales_report_agent_result,
+    run_market_report_agent,
+    run_product_report_agent,
+    run_sales_report_agent,
+)
 from app.services.script_manager import ScriptManager
 from app.services.system_settings import (
     get_default_ai_config,
@@ -567,6 +574,77 @@ def run_market_report_agent_api(event_id: str) -> dict:
         raise HTTPException(status_code=502, detail=f"AI市场摘要服务返回异常：{exc.response.status_code} {exc.response.text[:300]}")
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"AI市场摘要服务调用失败：{exc}")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/voc/events/{event_id}/market/report-agent/latest")
+def get_latest_market_report_agent_api(event_id: str) -> dict:
+    try:
+        latest = get_latest_market_report_agent_result(event_id)
+        if latest is None:
+            raise HTTPException(status_code=404, detail="No cached market report found.")
+        return latest
+    except HTTPException:
+        raise
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/voc/events/{event_id}/product/report-agent/run")
+def run_product_report_agent_api(event_id: str) -> dict:
+    try:
+        return run_product_report_agent(event_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI product report request timed out.")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"AI product report service returned error: {exc.response.status_code} {exc.response.text[:300]}")
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"AI product report request failed: {exc}")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/voc/events/{event_id}/product/report-agent/latest")
+def get_latest_product_report_agent_api(event_id: str) -> dict:
+    try:
+        latest = get_latest_product_report_agent_result(event_id)
+        if latest is None:
+            raise HTTPException(status_code=404, detail="No cached product report found.")
+        return latest
+    except HTTPException:
+        raise
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/voc/events/{event_id}/sales/report-agent/run")
+def run_sales_report_agent_api(event_id: str) -> dict:
+    try:
+        return run_sales_report_agent(event_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI sales report request timed out.")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"AI sales report service returned error: {exc.response.status_code} {exc.response.text[:300]}")
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"AI sales report request failed: {exc}")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/voc/events/{event_id}/sales/report-agent/latest")
+def get_latest_sales_report_agent_api(event_id: str) -> dict:
+    try:
+        latest = get_latest_sales_report_agent_result(event_id)
+        if latest is None:
+            raise HTTPException(status_code=404, detail="No cached sales report found.")
+        return latest
+    except HTTPException:
+        raise
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 

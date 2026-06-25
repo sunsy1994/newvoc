@@ -1,5 +1,6 @@
 import { BriefcaseBusiness } from "lucide-react";
 
+import { SalesAiSummaryCard } from "@/components/voc/SalesAiSummaryCard";
 import { SalesLeadQualityStoryCard } from "@/components/voc/SalesLeadQualityStoryCard";
 import { SalesLeadSourceEfficiencyPanel } from "@/components/voc/SalesLeadSourceEfficiencyPanel";
 import { VocDashboardHeader } from "@/components/voc/VocDashboardHeader";
@@ -48,6 +49,7 @@ export default async function SalesDashboardPage({ searchParams }: PageProps) {
 
         {dashboard ? (
           <>
+            <SalesAiSummaryCard eventId={dashboard.event.event_id} />
             <SalesLeadQualityStoryCard quality={dashboard.sales_lead_quality} eventId={dashboard.event?.event_id ?? selectedEventId} />
             <SalesLeadSourceEfficiencyPanel
               sourceEfficiency={dashboard.sales_lead_source_efficiency}

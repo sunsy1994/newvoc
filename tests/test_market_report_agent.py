@@ -103,19 +103,18 @@ def test_render_market_report_prompt_injects_json_context() -> None:
     assert "只使用给定信息" in prompt
 
 
-def test_normalize_market_report_summary_fills_fixed_story_fields() -> None:
+def test_normalize_market_report_summary_keeps_markdown_report_and_notes() -> None:
     from app.services.report_agent import normalize_market_report_summary
 
-    summary = normalize_market_report_summary({"event_overview": "launch event", "kol_summary": "KOL driven"})
+    summary = normalize_market_report_summary(
+        {
+            "report_markdown": "# Market Report\n\n## Event\nLaunch event",
+            "data_notes": ["Comment location is not real user residence."],
+        }
+    )
 
-    assert summary["event_overview"] == "launch event"
-    assert summary["kol_summary"] == "KOL driven"
-    assert summary["scale_summary"] == ""
-    assert summary["topic_summary"] == ""
-    assert summary["audience_summary"] == ""
-    assert summary["feedback_summary"] == ""
-    assert summary["market_conclusion"] == ""
-    assert summary["data_limits"] == ""
+    assert summary["report_markdown"].startswith("# Market Report")
+    assert summary["data_notes"] == ["Comment location is not real user residence."]
 
 
 def test_run_market_report_agent_returns_prompt_and_context_for_transparency(monkeypatch) -> None:
@@ -145,23 +144,19 @@ def test_run_market_report_agent_returns_prompt_and_context_for_transparency(mon
     def fake_call(prompt, *, base_url, api_key, model, timeout_seconds):
         captured.update({"prompt": prompt, "base_url": base_url, "api_key": api_key, "model": model, "timeout_seconds": timeout_seconds})
         return {
-            "event_overview": "This is a new launch event.",
-            "scale_summary": "The event generated 273 total volume.",
-            "topic_summary": "#T6 was the leading topic.",
-            "kol_summary": "Vehicle review KOLs drove the conversation.",
-            "audience_summary": "Family travel users were visible.",
-            "feedback_summary": "Positive and mid-high purchase signals were present.",
-            "market_conclusion": "Reuse review KOLs and topic assets.",
-            "data_limits": "",
+            "report_markdown": "# Market Report\n\n## Event Overview\nThis is a new launch event.",
+            "data_notes": ["Input is based on event-level VOC data."],
         }
 
     monkeypatch.setattr(report_agent, "call_openai_compatible_json", fake_call)
+    monkeypatch.setattr(report_agent, "save_market_report_agent_result", lambda result, database_url=None: result)
 
     result = report_agent.run_market_report_agent("event_001")
 
     assert result["event_id"] == "event_001"
     assert result["prompt_version"] == "market_report_v1"
-    assert result["summary"]["event_overview"] == "This is a new launch event."
+    assert result["summary"]["report_markdown"].startswith("# Market Report")
+    assert result["summary"]["data_notes"] == ["Input is based on event-level VOC data."]
     assert result["context"]["event_overview"]["event_name"] == "ID.AURA T6 launch"
     assert result["rendered_prompt"] == captured["prompt"]
     assert "ID.AURA T6 launch" in result["rendered_prompt"]
@@ -184,12 +179,13 @@ def test_run_market_report_agent_falls_back_to_builtin_prompt(monkeypatch) -> No
         },
     )
     monkeypatch.setattr(report_agent, "get_default_prompt_template", lambda scene, database_url=None: (_ for _ in ()).throw(ValueError("missing")))
-    monkeypatch.setattr(report_agent, "call_openai_compatible_json", lambda *args, **kwargs: {"event_overview": "ok"})
+    monkeypatch.setattr(report_agent, "call_openai_compatible_json", lambda *args, **kwargs: {"report_markdown": "# ok"})
+    monkeypatch.setattr(report_agent, "save_market_report_agent_result", lambda result, database_url=None: result)
 
     result = report_agent.run_market_report_agent("event_001")
 
     assert result["prompt_version"] == report_agent.DEFAULT_MARKET_REPORT_PROMPT_VERSION
-    assert result["summary"]["event_overview"] == "ok"
+    assert result["summary"]["report_markdown"] == "# ok"
 
 
 def test_market_report_agent_api_runs_summary(tmp_path, monkeypatch) -> None:
@@ -205,14 +201,8 @@ def test_market_report_agent_api_runs_summary(tmp_path, monkeypatch) -> None:
             "event_id": event_id,
             "prompt_version": "market_report_v1",
             "summary": {
-                "event_overview": "This is a launch event.",
-                "scale_summary": "",
-                "topic_summary": "",
-                "kol_summary": "",
-                "audience_summary": "",
-                "feedback_summary": "",
-                "market_conclusion": "",
-                "data_limits": "",
+                "report_markdown": "# Market Report\n\nThis is a launch event.",
+                "data_notes": [],
             },
             "context": {"event_overview": {"event_name": "ID.AURA T6 launch"}},
             "rendered_prompt": "Market report",
@@ -224,6 +214,51 @@ def test_market_report_agent_api_runs_summary(tmp_path, monkeypatch) -> None:
     response = client.post("/api/voc/events/event_001/market/report-agent/run")
 
     assert response.status_code == 200
-    assert response.json()["summary"]["event_overview"] == "This is a launch event."
+    assert response.json()["summary"]["report_markdown"].startswith("# Market Report")
     assert response.json()["rendered_prompt"] == "Market report"
     assert captured["event_id"] == "event_001"
+
+
+def test_market_report_agent_api_returns_latest_cached_summary(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    captured = {}
+
+    def fake_latest(event_id, **kwargs):
+        captured["event_id"] = event_id
+        return {
+            "event_id": event_id,
+            "prompt_version": "market_report_v1",
+            "generated_at": "2026-06-22T10:00:00",
+            "summary": {
+                "report_markdown": "# Cached Market Report\n\nThis is cached.",
+                "data_notes": [],
+            },
+            "context": {"event_overview": {"event_name": "ID.AURA T6 launch"}},
+            "rendered_prompt": "Cached prompt",
+        }
+
+    monkeypatch.setattr("app.routers.tasks.get_latest_market_report_agent_result", fake_latest)
+    client = TestClient(create_app(tasks_dir=tmp_path / "tasks"))
+
+    response = client.get("/api/voc/events/event_001/market/report-agent/latest")
+
+    assert response.status_code == 200
+    assert response.json()["summary"]["report_markdown"].startswith("# Cached Market Report")
+    assert response.json()["rendered_prompt"] == "Cached prompt"
+    assert captured["event_id"] == "event_001"
+
+
+def test_market_report_agent_api_returns_404_without_cached_summary(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    monkeypatch.setattr("app.routers.tasks.get_latest_market_report_agent_result", lambda event_id, **kwargs: None)
+    client = TestClient(create_app(tasks_dir=tmp_path / "tasks"))
+
+    response = client.get("/api/voc/events/event_001/market/report-agent/latest")
+
+    assert response.status_code == 404

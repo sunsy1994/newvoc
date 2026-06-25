@@ -324,25 +324,22 @@ export type PostDetailPayload = {
   sort: PostDetailSort;
 };
 
-export type MarketReportSummary = {
-  event_overview: string;
-  scale_summary: string;
-  topic_summary: string;
-  kol_summary: string;
-  audience_summary: string;
-  feedback_summary: string;
-  market_conclusion: string;
-  data_limits: string;
+export type ReportAgentSummary = {
+  report_markdown: string;
+  data_notes: string[];
 };
 
-export type MarketReportAgentPayload = {
+export type ReportAgentPayload = {
   event_id: string;
   prompt_version: string;
   generated_at?: string | null;
-  summary: MarketReportSummary;
+  summary: ReportAgentSummary;
   context?: unknown;
   rendered_prompt?: string | null;
 };
+
+export type MarketReportSummary = ReportAgentSummary;
+export type MarketReportAgentPayload = ReportAgentPayload;
 
 export type MarketDashboardPayload = {
   event: VocEvent;

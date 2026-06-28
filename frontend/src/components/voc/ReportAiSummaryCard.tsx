@@ -3,6 +3,7 @@
 import { Bot, Check, Clipboard, Loader2, Sparkles, X } from "lucide-react";
 import { Fragment, useState } from "react";
 
+import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
 import { apiBaseUrl } from "@/config/navigation";
 import type { ReportAgentPayload } from "@/types/vocMarket";
 
@@ -201,15 +202,16 @@ export function ReportAiSummaryCard({
   return (
     <>
       <div className="flex justify-end">
-        <button
-          type="button"
+        <HoverBorderGradient
+          as="button"
           onClick={openSummary}
-          className="group relative inline-flex h-10 items-center gap-2 overflow-hidden rounded-xl bg-[linear-gradient(135deg,var(--theme-primary),var(--theme-selected-text),var(--theme-status-text))] px-4 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(26,32,44,0.14)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(26,32,44,0.18)]"
+          duration={1.4}
+          containerClassName="rounded-xl shadow-[0_8px_20px_rgba(26,32,44,0.08)] hover:shadow-[0_12px_26px_rgba(26,32,44,0.12)]"
+          className="inline-flex h-9 items-center gap-2 px-3.5 py-0 text-sm font-semibold transition-colors hover:bg-[var(--theme-hover-bg)]"
         >
-          <span className="absolute inset-y-0 -left-10 w-8 rotate-12 bg-white/30 blur-md transition-transform duration-700 group-hover:translate-x-40" />
-          <Sparkles className="relative h-4 w-4" />
-          <span className="relative">AI 总结</span>
-        </button>
+          <Sparkles className="h-4 w-4 text-[var(--theme-primary)]" />
+          <span>AI 总结</span>
+        </HoverBorderGradient>
       </div>
 
       {isOpen ? (

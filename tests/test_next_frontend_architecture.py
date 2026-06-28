@@ -1,6 +1,13 @@
 from pathlib import Path
 
 
+def test_root_route_redirects_to_auto_voc_home() -> None:
+    root_page = Path("frontend/src/app/page.tsx").read_text(encoding="utf-8")
+
+    assert 'redirect("/auto-voc")' in root_page
+    assert 'redirect("/voc/events/market")' not in root_page
+
+
 def test_next_frontend_uses_app_router_src_tailwind_and_typed_navigation() -> None:
     root = Path("frontend")
 
@@ -1225,6 +1232,16 @@ def test_report_ai_summary_card_generates_when_no_cached_summary() -> None:
     assert shared_card.index("response.status === 404") < shared_card.index("await regenerateSummary()")
 
 
+def test_report_ai_summary_card_uses_shared_hover_border_gradient_button() -> None:
+    shared_card = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+    gradient_component = Path("frontend/src/components/ui/hover-border-gradient.tsx").read_text(encoding="utf-8")
+
+    assert 'from "@/components/ui/hover-border-gradient"' in shared_card
+    assert "<HoverBorderGradient" in shared_card
+    assert "AI 总结" in shared_card
+    assert "export function HoverBorderGradient" in gradient_component
+
+
 def test_auto_voc_home_copilot_skills_switch_prompt_groups() -> None:
     component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
 
@@ -1236,3 +1253,59 @@ def test_auto_voc_home_copilot_skills_switch_prompt_groups() -> None:
     assert 'id: "report"' in component
     assert 'id: "insight"' in component
     assert "setActiveSkillId" in component
+
+
+def test_auto_voc_home_copilot_has_data_question_entry() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+
+    assert "/agents/data-question/run" in component
+    assert "apiBaseUrl" in component
+    assert "payload.key_events[0]?.event_id" not in component
+    assert "event_id: null" in component
+    assert "submitDataQuestion" in component
+    assert "history: messages.slice(-10)" in component
+    assert "dataQuestionResult.trace" not in component
+
+
+def test_auto_voc_home_copilot_expanded_workspace_can_ask_data_questions() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+
+    assert "ExpandedAiWorkspace" in component
+    assert "onSubmit={submitDataQuestion}" in component
+    assert "onQuestionChange={setQuestion}" in component
+    assert "value={question}" in component
+    assert "messages={messages}" in component
+
+
+def test_auto_voc_home_uses_shared_persistent_chatbi_conversation() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    message_list = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
+
+    assert "type ChatMessage" in component
+    assert 'CHAT_STORAGE_KEY = "auto-voc-chat-history-v1"' in component
+    assert "localStorage.getItem(CHAT_STORAGE_KEY)" in component
+    assert "localStorage.setItem(CHAT_STORAGE_KEY" in component
+    assert "history: messages.slice(-10)" in component
+    assert "messages={messages}" in component
+    assert "ChatMessageList" in component
+    assert "suggested_questions" in component
+    assert "dataQuestionResult.trace" not in component
+    assert "whitespace-pre-wrap break-words" in message_list
+
+
+def test_auto_voc_chat_keeps_skill_switcher_and_uses_available_compact_height() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+
+    assert "CompactSkillSwitcher" in component
+    assert "hasConversation ? (" in component
+    assert "<CompactSkillSwitcher" in component
+    assert 'className="mt-5 min-h-0 flex-1"' in component
+    assert "max-h-[430px]" not in component
+
+
+def test_auto_voc_compact_chat_is_capped_to_the_viewport() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+
+    assert "xl:h-[calc(100vh-4rem)]" in component
+    assert "xl:max-h-[900px]" in component
+    assert 'className="flex h-full min-h-[860px]' not in component

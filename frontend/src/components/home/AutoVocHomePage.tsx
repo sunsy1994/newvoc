@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
   BarChart3,
-  Bot,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -15,7 +14,6 @@ import {
   Maximize2,
   MessageCircle,
   MessagesSquare,
-  Paperclip,
   RadioTower,
   Search,
   Send,
@@ -31,14 +29,33 @@ import type {
   AutoVocHotTopic,
   AutoVocKeyEvent,
 } from "@/types/autoVocHome";
+import { apiBaseUrl } from "@/config/navigation";
+import { ChatMessageList, type ChatMessage } from "@/components/home/ChatMessageList";
 
 type AutoVocHomePageProps = {
   payload: AutoVocHomePayload | null;
 };
 
+type DataQuestionResult = {
+  status: string;
+  answer: string;
+  suggested_questions: string[];
+  requires_clarification: boolean;
+};
+
 const formatNumber = (value?: number | null) => Number(value ?? 0).toLocaleString("zh-CN");
 const formatDate = (value?: string | null) => (value ? value.slice(0, 10) : "未知时间");
 const ALL_BRANDS = "全部品牌";
+const CHAT_STORAGE_KEY = "auto-voc-chat-history-v1";
+
+function createChatMessage(role: ChatMessage["role"], content: string, options?: Pick<ChatMessage, "suggestions" | "isError">): ChatMessage {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    role,
+    content,
+    ...options,
+  };
+}
 
 function toDateKey(value?: string | null) {
   return value ? value.slice(0, 10) : "";
@@ -601,12 +618,57 @@ function SkillButton({ item, isActive, onClick }: { item: (typeof aiCapabilities
   );
 }
 
-function ExpandedAiWorkspace({ activeSkillId, onSkillChange, onClose }: { activeSkillId: AiSkillId; onSkillChange: (skillId: AiSkillId) => void; onClose: () => void }) {
+function CompactSkillSwitcher({ activeSkillId, onSkillChange }: { activeSkillId: AiSkillId; onSkillChange: (skillId: AiSkillId) => void }) {
+  return (
+    <div className="grid grid-cols-4 gap-2 rounded-2xl bg-[var(--theme-soft-panel)] p-1.5">
+      {aiCapabilities.map((item) => {
+        const Icon = item.icon;
+        const isActive = item.id === activeSkillId;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onSkillChange(item.id)}
+            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold transition ${
+              isActive
+                ? "bg-white text-[var(--sys-icon-fill)] shadow-[0_6px_16px_rgba(20,24,38,0.07)]"
+                : "text-[var(--sys-muted)] hover:bg-white/70 hover:text-[var(--sys-ink)]"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{item.title}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExpandedAiWorkspace({
+  activeSkillId,
+  onSkillChange,
+  onClose,
+  question,
+  onQuestionChange,
+  onSubmit,
+  messages,
+  isAskingDataQuestion,
+}: {
+  activeSkillId: AiSkillId;
+  onSkillChange: (skillId: AiSkillId) => void;
+  onClose: () => void;
+  question: string;
+  onQuestionChange: (question: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  messages: ChatMessage[];
+  isAskingDataQuestion: boolean;
+}) {
   const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
+  const hasConversation = messages.length > 0 || isAskingDataQuestion;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(248,250,252,0.88)] p-6 backdrop-blur-xl">
-      <section className="relative flex h-full max-h-[760px] w-full max-w-5xl flex-col rounded-[34px] border border-[var(--sys-border)] bg-[var(--sys-card)] p-8 shadow-[0_32px_90px_rgba(20,24,38,0.18)]">
+      <section className="relative flex h-full max-h-[820px] w-full max-w-5xl flex-col overflow-hidden rounded-[34px] border border-[var(--sys-border)] bg-[var(--sys-card)] shadow-[0_32px_90px_rgba(20,24,38,0.18)]">
         <button
           type="button"
           onClick={onClose}
@@ -616,63 +678,76 @@ function ExpandedAiWorkspace({ activeSkillId, onSkillChange, onClose }: { active
           <X className="h-4 w-4" />
         </button>
 
-        <div className="mx-auto w-full max-w-3xl pt-10">
-          <div className="mb-8 flex items-center gap-4">
+        <div className="border-b border-[var(--sys-border)] px-8 py-5">
+          <div className="mx-auto flex w-full max-w-3xl items-center gap-4">
             <div className="scale-75">
               <AiOrb />
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sys-muted)]">AUTO VOC Copilot</p>
-              <h2 className="mt-2 text-4xl font-semibold leading-[0.98] tracking-tight text-[var(--sys-ink)]">
-                Hi there,
-                <span className="block bg-[linear-gradient(90deg,var(--theme-primary),var(--voc-chart-5),var(--voc-chart-3))] bg-clip-text text-transparent">
-                  What would you like to know?
-                </span>
-              </h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--sys-muted)]">
-                选择一个方向开始，下面的问题会随着能力切换。后续这里会接入 CopilotKit。
-              </p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--sys-ink)]">AUTO VOC 智能分析助手</h2>
+              <p className="mt-1 text-sm text-[var(--sys-muted)]">当前能力：{selectedSkill.title}</p>
             </div>
           </div>
+        </div>
 
-          <div className="grid gap-3 md:grid-cols-4">
-            {aiCapabilities.map((item) => (
-              <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => onSkillChange(item.id)} />
-            ))}
+        <div className="min-h-0 flex-1 overflow-hidden px-8 py-6">
+          <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
+            {hasConversation ? (
+              <>
+                <CompactSkillSwitcher activeSkillId={activeSkillId} onSkillChange={onSkillChange} />
+                <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={onQuestionChange} className="mt-4 min-h-0 flex-1" />
+              </>
+            ) : (
+              <div className="my-auto">
+                <h2 className="text-3xl font-semibold tracking-tight text-[var(--sys-ink)]">
+                  想从 VOC 中了解什么？
+                </h2>
+                <p className="mt-2 text-sm text-[var(--sys-muted)]">选择一个能力，或直接输入你的问题。</p>
+                <div className="mt-6 grid gap-3 md:grid-cols-4">
+                  {aiCapabilities.map((item) => (
+                    <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => onSkillChange(item.id)} />
+                  ))}
+                </div>
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  {selectedSkill.prompts.slice(0, 4).map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => onQuestionChange(prompt)}
+                      className="rounded-full border border-[var(--sys-border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--sys-body)] transition hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-icon-fill)]"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+        </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            {selectedSkill.prompts.slice(0, 4).map((prompt) => (
-              <button key={prompt} className="rounded-full border border-[var(--sys-border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--sys-body)] transition hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-icon-fill)]">
-                {prompt}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-8 overflow-hidden rounded-[24px] border border-[var(--sys-border)] bg-white shadow-[0_18px_42px_rgba(20,24,38,0.07)]">
+        <div className="border-t border-[var(--sys-border)] px-8 py-5">
+          <form onSubmit={onSubmit} className="mx-auto w-full max-w-3xl overflow-hidden rounded-[24px] border border-[var(--sys-border)] bg-white shadow-[0_18px_42px_rgba(20,24,38,0.07)]">
             <textarea
+              value={question}
+              onChange={(event) => onQuestionChange(event.target.value)}
               className="h-32 w-full resize-none bg-transparent px-5 py-4 text-sm font-medium text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)]"
-              placeholder={`Ask AUTO VOC about ${selectedSkill.title}...`}
+              placeholder={`问 AUTO VOC 的${selectedSkill.title}能力...`}
             />
             <div className="flex items-center justify-between border-t border-[var(--sys-border)] px-4 py-3">
-              <div className="flex items-center gap-3 text-xs font-medium text-[var(--sys-muted)]">
-                <button className="inline-flex items-center gap-1.5 transition hover:text-[var(--sys-icon-fill)]">
-                  <Paperclip className="h-4 w-4" />
-                  添加附件
-                </button>
-                <button className="inline-flex items-center gap-1.5 transition hover:text-[var(--sys-icon-fill)]">
-                  <Bot className="h-4 w-4" />
-                  使用看板上下文
-                </button>
-              </div>
+              <span className="text-xs font-medium text-[var(--sys-muted)]">会自动结合当前看板上下文</span>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-[var(--theme-soft-panel)] px-3 py-1.5 text-xs font-medium text-[var(--sys-muted)]">{selectedSkill.title}</span>
-                <button className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--sys-icon-fill)] text-white shadow-[0_12px_26px_rgba(93,150,145,0.22)]">
+                <button
+                  type="submit"
+                  disabled={!question.trim() || isAskingDataQuestion}
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--sys-icon-fill)] text-white shadow-[0_12px_26px_rgba(93,150,145,0.22)] transition disabled:cursor-not-allowed disabled:opacity-45"
+                >
                   <Send className="h-4 w-4" />
                 </button>
               </div>
             </div>
-          </div>
+          </form>
         </div>
       </section>
     </div>
@@ -682,12 +757,94 @@ function ExpandedAiWorkspace({ activeSkillId, onSkillChange, onClose }: { active
 function AiCopilotPanel({ prompts }: { prompts: string[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeSkillId, setActiveSkillId] = useState<AiSkillId>("data");
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [isAskingDataQuestion, setIsAskingDataQuestion] = useState(false);
   const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
   const selectedPrompts = selectedSkill.prompts.length ? selectedSkill.prompts : prompts;
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as unknown;
+        if (Array.isArray(parsed)) {
+          const restored = parsed.filter(
+            (item): item is ChatMessage =>
+              Boolean(item) &&
+              typeof item === "object" &&
+              typeof (item as ChatMessage).id === "string" &&
+              ((item as ChatMessage).role === "user" || (item as ChatMessage).role === "assistant") &&
+              typeof (item as ChatMessage).content === "string",
+          );
+          setMessages(restored.slice(-50));
+        }
+      }
+    } catch {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    } finally {
+      setHistoryReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (historyReady) {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages.slice(-50)));
+    }
+  }, [historyReady, messages]);
+
+  async function submitDataQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion || isAskingDataQuestion) return;
+
+    setMessages((current) => [...current, createChatMessage("user", trimmedQuestion)]);
+    setQuestion("");
+    setIsAskingDataQuestion(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/agents/data-question/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: trimmedQuestion,
+          event_id: null,
+          history: messages.slice(-10).map(({ role, content }) => ({ role, content })),
+        }),
+      });
+      if (!response.ok) {
+        const detail = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(detail?.detail ?? `AI 问数失败：${response.status}`);
+      }
+      const result = (await response.json()) as DataQuestionResult;
+      setMessages((current) => [
+        ...current,
+        createChatMessage("assistant", result.answer, { suggestions: result.suggested_questions }),
+      ]);
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        createChatMessage("assistant", error instanceof Error ? error.message : "AI 问数失败，请稍后重试。", { isError: true }),
+      ]);
+    } finally {
+      setIsAskingDataQuestion(false);
+    }
+  }
+
   return (
-    <aside className="flex h-full min-h-[860px] flex-col rounded-[30px] border border-[var(--sys-border)] bg-[var(--sys-card)] p-5 shadow-[var(--sys-card-shadow)] xl:sticky xl:top-8">
-      {isExpanded ? <ExpandedAiWorkspace activeSkillId={activeSkillId} onSkillChange={setActiveSkillId} onClose={() => setIsExpanded(false)} /> : null}
+    <aside className="flex min-h-[680px] flex-col rounded-[30px] border border-[var(--sys-border)] bg-[var(--sys-card)] p-5 shadow-[var(--sys-card-shadow)] xl:sticky xl:top-8 xl:h-[calc(100vh-4rem)] xl:max-h-[900px]">
+      {isExpanded ? (
+        <ExpandedAiWorkspace
+          activeSkillId={activeSkillId}
+          onSkillChange={setActiveSkillId}
+          onClose={() => setIsExpanded(false)}
+          question={question}
+          onQuestionChange={setQuestion}
+          onSubmit={submitDataQuestion}
+          messages={messages}
+          isAskingDataQuestion={isAskingDataQuestion}
+        />
+      ) : null}
 
       <div className="relative rounded-[26px] bg-[linear-gradient(145deg,var(--theme-soft-panel),var(--theme-card))] px-5 py-6 text-center">
         <button
@@ -706,44 +863,64 @@ function AiCopilotPanel({ prompts }: { prompts: string[] }) {
         </p>
       </div>
 
-      <div className="mt-5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Skills</p>
-          <span className="text-[11px] font-medium text-[var(--sys-muted)]">当前：{selectedSkill.title}</span>
+      {messages.length || isAskingDataQuestion ? (
+        <div className="mt-5 flex min-h-0 flex-1 flex-col">
+          <CompactSkillSwitcher activeSkillId={activeSkillId} onSkillChange={setActiveSkillId} />
+          <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={setQuestion} className="mt-5 min-h-0 flex-1" />
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-          {aiCapabilities.map((item) => (
-            <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => setActiveSkillId(item.id)} />
-          ))}
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="mt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Skills</p>
+              <span className="text-[11px] font-medium text-[var(--sys-muted)]">当前：{selectedSkill.title}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              {aiCapabilities.map((item) => (
+                <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => setActiveSkillId(item.id)} />
+              ))}
+            </div>
+          </div>
 
-      <div className="mt-5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Prompts</p>
-          <span className="text-[11px] font-medium text-[var(--sys-muted)]">{selectedSkill.title}问题</span>
-        </div>
-        <div className="mt-3 space-y-2">
-          {selectedPrompts.map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[var(--sys-border)] bg-white px-3.5 py-3 text-left text-sm font-medium text-[var(--sys-ink)] transition hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-hover-bg)]"
-            >
-              <span>{prompt}</span>
-              <Sparkles className="h-4 w-4 shrink-0 text-[var(--sys-icon-fill)]" />
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="mt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Prompts</p>
+              <span className="text-[11px] font-medium text-[var(--sys-muted)]">{selectedSkill.title}问题</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {selectedPrompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => setQuestion(prompt)}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[var(--sys-border)] bg-white px-3.5 py-3 text-left text-sm font-medium text-[var(--sys-ink)] transition hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-hover-bg)]"
+                >
+                  <span>{prompt}</span>
+                  <Sparkles className="h-4 w-4 shrink-0 text-[var(--sys-icon-fill)]" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="mt-auto pt-5">
-        <div className="flex items-center gap-2 rounded-2xl border border-[var(--sys-border)] bg-white px-3 py-2">
-          <input className="min-w-0 flex-1 bg-transparent text-sm text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)]" placeholder={`问 AUTO VOC 的${selectedSkill.title}能力...`} />
-          <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--sys-icon-fill)] text-white">
+        <form onSubmit={submitDataQuestion} className="flex items-center gap-2 rounded-2xl border border-[var(--sys-border)] bg-white px-3 py-2">
+          <input
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            className="min-w-0 flex-1 bg-transparent text-sm text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)]"
+            placeholder={`问 AUTO VOC 的${selectedSkill.title}能力...`}
+          />
+          <button
+            type="submit"
+            disabled={!question.trim() || isAskingDataQuestion}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--sys-icon-fill)] text-white transition disabled:cursor-not-allowed disabled:opacity-45"
+            aria-label="提交问数问题"
+          >
             <Send className="h-4 w-4" />
           </button>
-        </div>
+        </form>
       </div>
     </aside>
   );

@@ -4,13 +4,13 @@ from io import BytesIO
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote
 
 import psycopg
 import pandas as pd
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
@@ -19,6 +19,7 @@ from app.config import TEMPLATE_DIR
 from app.config import PROJECT_ROOT
 from app.services.comment_user_ai_flow import build_comment_user_ai_flow
 from app.services.comment_user_ai_profile import DEFAULT_PROMPT_FILE, run_comment_user_ai_profile
+from app.agents.core import AgentCapability, AgentCapabilityUnavailableError, dispatch_agent
 from app.services.asset_library import list_assets
 from app.services.competitor_library import (
     get_competitor_options,
@@ -121,6 +122,24 @@ class AiConfigSaveRequest(BaseModel):
     model_name: str
     timeout_seconds: int = 60
     is_enabled: bool = True
+
+
+class DataQuestionHistoryItem(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class DataQuestionAgentRunRequest(BaseModel):
+    question: str
+    event_id: str | None = None
+    history: list[DataQuestionHistoryItem] = Field(default_factory=list)
+
+
+class AgentRunRequest(BaseModel):
+    capability: AgentCapability
+    message: str = Field(min_length=1)
+    event_id: str | None = None
+    history: list[DataQuestionHistoryItem] = Field(default_factory=list)
 
 
 class PromptTemplateSaveRequest(BaseModel):
@@ -265,6 +284,45 @@ def get_auto_voc_home_api(days: int = 30) -> dict:
         return get_auto_voc_home(days=days)
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+def execute_agent_request(
+    capability: AgentCapability,
+    message: str,
+    event_id: str | None,
+    history_items: list[DataQuestionHistoryItem],
+) -> dict:
+    try:
+        history = [item.model_dump() for item in history_items[-10:]]
+        return dispatch_agent(capability, message, event_id=event_id, history=history)
+    except AgentCapabilityUnavailableError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"AI service request failed: {exc}")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/agents/run")
+def run_agent_api(payload: AgentRunRequest) -> dict:
+    return execute_agent_request(
+        payload.capability,
+        payload.message,
+        payload.event_id,
+        payload.history,
+    )
+
+
+@router.post("/api/agents/data-question/run")
+def run_data_question_agent_api(payload: DataQuestionAgentRunRequest) -> dict:
+    return execute_agent_request(
+        "data_question",
+        payload.question,
+        payload.event_id,
+        payload.history,
+    )
 
 
 @router.get("/api/assets/{asset_key}/export")

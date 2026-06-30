@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -668,9 +668,17 @@ function ExpandedAiWorkspace({
   onClearHistory: () => void;
 }) {
   const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
-  const hasConversation = messages.length > 0 || isAskingDataQuestion;
+  const initialMessageCountRef = useRef(messages.length);
+  const [showConversation, setShowConversation] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const hasConversation = showConversation || isAskingDataQuestion;
   const firstQuestion = messages.find((message) => message.role === "user")?.content;
+
+  useEffect(() => {
+    if (isAskingDataQuestion || messages.length > initialMessageCountRef.current) {
+      setShowConversation(true);
+    }
+  }, [isAskingDataQuestion, messages.length]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -816,6 +824,16 @@ function ExpandedAiWorkspace({
                 <div className="mt-6 rounded-2xl border border-[var(--sys-border)] bg-white p-4 shadow-[var(--sys-card-shadow)]">
                   <p className="line-clamp-3 text-sm font-semibold leading-6 text-[var(--sys-ink)]">{firstQuestion}</p>
                   <p className="mt-3 text-xs text-[var(--sys-muted)]">当前记录共 {messages.length} 条消息</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowConversation(true);
+                      setIsHistoryOpen(false);
+                    }}
+                    className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-xl bg-[var(--sys-icon-fill)] text-xs font-semibold text-white transition hover:bg-[var(--theme-primary-hover)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)]"
+                  >
+                    查看历史对话
+                  </button>
                 </div>
               ) : (
                 <div className="mt-6 rounded-2xl border border-dashed border-[var(--sys-border)] bg-[var(--theme-soft-panel)] p-5 text-sm text-[var(--sys-muted)]">还没有对话记录。</div>
@@ -825,6 +843,8 @@ function ExpandedAiWorkspace({
                 type="button"
                 onClick={() => {
                   onClearHistory();
+                  initialMessageCountRef.current = 0;
+                  setShowConversation(false);
                   setIsHistoryOpen(false);
                 }}
                 disabled={!messages.length}

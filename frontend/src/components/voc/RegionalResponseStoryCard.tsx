@@ -33,7 +33,7 @@ export function RegionalResponseStoryCard({ story, eventId }: RegionalResponseSt
     "暂无评论位置数据。地区响应只基于评论位置统计，不代表主贴发布地区。";
 
   return (
-    <article className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-card)] p-5 shadow-[0_12px_32px_rgba(20,24,38,0.04)]">
+    <article className="voc-story-card rounded-[20px] border border-[var(--theme-border)] bg-[var(--theme-card)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Regional Response</p>

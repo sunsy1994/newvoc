@@ -277,7 +277,7 @@ export function CommentQualityStoryCard({ eventId, quality }: CommentQualityStor
   }, [rows, selectedAspect]);
 
   return (
-    <article className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-card)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <article className="voc-story-card rounded-[20px] border border-[var(--theme-border)] bg-[var(--theme-card)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Discussion Quality Story</p>
@@ -289,7 +289,7 @@ export function CommentQualityStoryCard({ eventId, quality }: CommentQualityStor
         </span>
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-r from-[var(--theme-soft-panel)] to-[var(--theme-selected-bg)] p-4 text-sm leading-6 text-[var(--theme-body)]">
+      <div className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4 text-sm leading-6 text-[var(--theme-body)]">
         {decisionText}
       </div>
 

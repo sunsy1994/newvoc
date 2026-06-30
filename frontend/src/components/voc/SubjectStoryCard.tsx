@@ -119,7 +119,7 @@ export function SubjectStoryCard({ story, userProfiles }: SubjectStoryCardProps)
   const conclusion = summary?.rule_based_conclusion ?? "暂无作者主体数据，暂时无法判断是谁带动本次传播。";
 
   return (
-    <article className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <article className="voc-story-card rounded-[20px] border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Subject Drive Story</p>
@@ -134,7 +134,7 @@ export function SubjectStoryCard({ story, userProfiles }: SubjectStoryCardProps)
         </div>
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-r from-[var(--theme-soft-panel)] to-[var(--theme-selected-bg)] p-4 text-sm leading-6 text-[var(--theme-body)]">
+      <div className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4 text-sm leading-6 text-[var(--theme-body)]">
         {conclusion}
       </div>
 

@@ -54,11 +54,11 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
 
   return (
     <VocDashboardThemeFrame>
-      <div className="space-y-5">
+      <div className="mx-auto max-w-[1560px] space-y-5">
         <VocDashboardHeader kind="market" events={events} selectedEventId={selectedEventId} event={dashboard?.event} />
 
         {metrics ? (
-          <section className="grid gap-3 md:grid-cols-5">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <MetricCard label="总声量" value={formatNumber(metrics.total_volume)} hint="主贴 + 评论" tone="purple" icon={<Activity className="h-4 w-4" />} />
             <MetricCard label="主贴数" value={formatNumber(metrics.content_count)} tone="blue" icon={<FileText className="h-4 w-4" />} />
             <MetricCard label="评论数" value={formatNumber(metrics.comment_count)} tone="teal" icon={<MessageCircle className="h-4 w-4" />} />
@@ -66,8 +66,9 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
             <MetricCard label="总互动量" value={formatNumber(metrics.total_engagement)} tone="neutral" icon={<Repeat2 className="h-4 w-4" />} />
           </section>
         ) : (
-          <div className="rounded-2xl border border-dashed border-[var(--theme-border)] bg-[var(--theme-card)] p-10 text-center text-sm text-[var(--theme-muted)]">
-            暂无事件数据，请先导入并运行 ETL。
+          <div className="rounded-[20px] border border-dashed border-[var(--theme-border)] bg-[var(--theme-card)] p-10 text-center shadow-[0_12px_32px_rgba(31,43,39,0.04)]">
+            <p className="font-semibold text-[var(--theme-ink)]">暂无事件数据</p>
+            <p className="mt-2 text-sm text-[var(--theme-muted)]">请先导入事件数据并运行 ETL，完成后可在上方选择事件。</p>
           </div>
         )}
 
@@ -75,7 +76,7 @@ export default async function MarketDashboardPage({ searchParams }: PageProps) {
           <>
             <MarketAiSummaryCard eventId={dashboard.event.event_id} />
 
-            <section className="grid gap-4 lg:grid-cols-[1.18fr_0.82fr]">
+            <section className="grid gap-4 xl:grid-cols-[1.18fr_0.82fr]">
               <VolumeRhythmStoryCard trend={dashboard.volume_trend} rhythm={dashboard.volume_rhythm} />
               <SubjectStoryCard story={dashboard.subject_story} userProfiles={dashboard.user_profile_distribution ?? []} />
             </section>

@@ -33,7 +33,7 @@ export function VocDashboardThemeFrame({ children }: VocDashboardThemeFrameProps
 
   return (
     <VocDashboardThemeContext.Provider value={{ theme, setTheme }}>
-      <div data-voc-theme={theme} className="voc-theme-frame voc-dashboard-page-shell min-h-full rounded-[28px] p-4 transition-colors duration-300">
+      <div data-voc-theme={theme} className="voc-theme-frame voc-dashboard-page-shell min-h-full rounded-[24px] border border-white/70 bg-[var(--theme-page)] p-3 shadow-[0_18px_55px_rgba(31,43,39,0.04)] transition-colors duration-300 sm:p-5">
         {children}
       </div>
     </VocDashboardThemeContext.Provider>
@@ -50,7 +50,7 @@ export function ThemeSelect() {
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
-        className="inline-flex h-10 min-w-[116px] items-center justify-between gap-3 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-white)] px-3 text-sm font-semibold text-[var(--theme-ink)] shadow-[0_8px_20px_rgba(26,32,44,0.04)] outline-none transition hover:bg-[var(--theme-hover-bg)] focus:border-[var(--theme-selected-border)]"
+        className="inline-flex h-10 min-w-[112px] items-center justify-between gap-3 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] px-3 text-sm font-semibold text-[var(--theme-ink)] shadow-[0_6px_16px_rgba(31,43,39,0.035)] outline-none transition hover:border-[var(--theme-selected-border)] hover:bg-[var(--theme-hover-bg)]"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
@@ -61,7 +61,7 @@ export function ThemeSelect() {
         <ChevronDown className={`h-4 w-4 text-[var(--theme-muted)] transition ${isOpen ? "rotate-180" : ""}`} />
       </button>
       {isOpen ? (
-        <div className="absolute right-0 top-12 z-30 w-40 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-card)] p-1.5 shadow-[0_18px_46px_rgba(26,32,44,0.16)]" role="listbox">
+        <div className="absolute right-0 top-12 z-30 w-40 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-card)] p-1.5 shadow-[0_20px_50px_rgba(31,43,39,0.14)]" role="listbox">
           {themeOptions.map((option) => {
             const isActive = option.key === theme;
             return (

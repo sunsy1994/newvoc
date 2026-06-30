@@ -115,3 +115,19 @@ Inspect the diff and confirm no API URL, request body, storage key, capability d
 git add frontend/src/components/home/ChatMessageList.tsx
 git commit -m "feat: refine AI conversation stream"
 ```
+
+### Task 3: Aurora Soft visual atmosphere
+
+**Files:**
+- Modify: `frontend/src/app/globals.css`
+- Modify: `frontend/src/components/home/AutoVocHomePage.tsx`
+
+**Interfaces:**
+- Consumes: existing workspace and capability markup.
+- Produces: visual-only Aurora classes; no state or API changes.
+
+- [ ] Add low-opacity cyan, blue, and peach ambient gradients to the empty workspace.
+- [ ] Add capability-specific pastel gradients and a restrained selected border.
+- [ ] Add focus glow to the composer and subtle colored elevation to prompt cards.
+- [ ] Reduce ambient color strength in conversation state and under `prefers-reduced-motion`.
+- [ ] Run `npm run typecheck` and `git diff --check`, then commit.

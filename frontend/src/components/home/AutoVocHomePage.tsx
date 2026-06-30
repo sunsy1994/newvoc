@@ -597,16 +597,29 @@ const aiCapabilities: Array<{
   },
 ];
 
+const aiSkillToneClasses: Record<AiSkillId, string> = {
+  data: "from-[#e4f5f0] via-white to-[#edf7ff]",
+  qa: "from-[#edf1ff] via-white to-[#f5efff]",
+  report: "from-[#fff0e8] via-white to-[#fff8e9]",
+  insight: "from-[#f2ecff] via-white to-[#eef5ff]",
+};
+
+const promptToneClasses = [
+  "shadow-[0_12px_32px_rgba(79,166,157,0.08)] hover:bg-[#f2faf8]",
+  "shadow-[0_12px_32px_rgba(102,126,191,0.08)] hover:bg-[#f4f6ff]",
+  "shadow-[0_12px_32px_rgba(211,141,105,0.08)] hover:bg-[#fff7f2]",
+];
+
 function SkillButton({ item, isActive, onClick }: { item: (typeof aiCapabilities)[number]; isActive: boolean; onClick: () => void }) {
   const Icon = item.icon;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group flex min-h-[104px] flex-col justify-between rounded-[22px] border p-3.5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(20,24,38,0.07)] ${
+      className={`group flex min-h-[104px] flex-col justify-between rounded-[22px] border bg-gradient-to-br p-3.5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(31,43,39,0.09)] ${aiSkillToneClasses[item.id]} ${
         isActive
-          ? "border-[var(--sys-icon-fill)] bg-[var(--theme-selected-bg)] shadow-[0_14px_30px_rgba(20,24,38,0.07)]"
-          : "border-[var(--sys-border)] bg-white hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-hover-bg)]"
+          ? "border-[var(--sys-icon-fill)] shadow-[0_14px_34px_rgba(82,127,121,0.12)] ring-2 ring-[rgba(93,150,145,0.09)]"
+          : "border-white/80 hover:border-[var(--sys-icon-fill)]"
       }`}
     >
       <div>
@@ -697,7 +710,13 @@ function ExpandedAiWorkspace({
   return (
     <div className="fixed inset-0 z-[80] flex min-h-[100dvh] items-center justify-center bg-[rgba(241,244,241,0.9)] p-2 backdrop-blur-xl sm:p-4 lg:p-6">
       <section className="relative flex h-[calc(100dvh-16px)] w-full max-w-[1440px] flex-col overflow-hidden rounded-[24px] border border-[var(--sys-border)] bg-[var(--sys-card)] shadow-[0_32px_90px_rgba(31,43,39,0.16)] sm:h-[calc(100dvh-32px)] sm:rounded-[30px] lg:h-[calc(100dvh-48px)]">
-        <header className="flex min-h-[72px] items-center justify-between gap-4 border-b border-[var(--sys-border)] px-4 sm:px-6 lg:px-8">
+        <div aria-hidden="true" className={`pointer-events-none absolute inset-0 overflow-hidden transition-opacity duration-500 ${hasConversation ? "opacity-30" : "opacity-100"}`}>
+          <div className="ai-workspace-aurora-blob absolute -left-24 top-[22%] h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(95,204,193,0.24),rgba(95,204,193,0)_68%)] blur-2xl" />
+          <div className="ai-workspace-aurora-blob absolute right-[5%] top-[8%] h-96 w-96 rounded-full bg-[radial-gradient(circle,rgba(128,134,222,0.2),rgba(128,134,222,0)_68%)] blur-3xl" />
+          <div className="ai-workspace-aurora-blob absolute bottom-[-18%] left-[42%] h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(245,170,134,0.18),rgba(245,170,134,0)_70%)] blur-3xl" />
+        </div>
+
+        <header className="relative z-10 flex min-h-[72px] items-center justify-between gap-4 border-b border-white/70 bg-white/55 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--sys-icon-fill)] text-xs font-semibold text-white shadow-[var(--sys-btn-shadow)]">A</span>
@@ -727,7 +746,7 @@ function ExpandedAiWorkspace({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
           {hasConversation ? (
             <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
               <CompactSkillSwitcher activeSkillId={activeSkillId} onSkillChange={onSkillChange} />
@@ -746,20 +765,23 @@ function ExpandedAiWorkspace({
                 </div>
 
                 <div className="mx-auto my-auto w-full max-w-3xl py-8 text-center sm:py-10">
-                  <div className="mx-auto scale-[0.72] sm:scale-[0.82]">
-                    <AiOrb />
+                  <div className="relative mx-auto w-fit">
+                    <div className="absolute inset-4 rounded-full bg-[conic-gradient(from_110deg,rgba(83,202,192,0.32),rgba(124,126,218,0.3),rgba(244,166,132,0.28),rgba(83,202,192,0.32))] blur-2xl" />
+                    <div className="relative scale-[0.72] sm:scale-[0.82]">
+                      <AiOrb />
+                    </div>
                   </div>
                   <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--sys-ink)] sm:text-3xl">今天想从 VOC 中了解什么？</h2>
                   <p className="mt-2 text-sm text-[var(--sys-muted)]">选择一种分析能力，或直接描述你想解决的业务问题。</p>
                   <div className="mt-6 text-left">
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--sys-muted)]">推荐问题</p>
                     <div className="grid gap-2.5 md:grid-cols-3">
-                      {selectedSkill.prompts.slice(0, 3).map((prompt) => (
+                      {selectedSkill.prompts.slice(0, 3).map((prompt, index) => (
                         <button
                           key={prompt}
                           type="button"
                           onClick={() => onQuestionChange(prompt)}
-                          className="min-h-[74px] rounded-2xl border border-[var(--sys-border)] bg-white px-4 py-3 text-left text-xs font-medium leading-5 text-[var(--sys-body)] shadow-[0_8px_22px_rgba(31,43,39,0.035)] transition hover:-translate-y-0.5 hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-ink)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)]"
+                          className={`min-h-[74px] rounded-2xl border border-white/80 bg-white/82 px-4 py-3 text-left text-xs font-medium leading-5 text-[var(--sys-body)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-ink)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)] ${promptToneClasses[index]}`}
                         >
                           {prompt}
                         </button>
@@ -772,8 +794,8 @@ function ExpandedAiWorkspace({
           )}
         </div>
 
-        <footer className="border-t border-[var(--sys-border)] bg-[color-mix(in_srgb,var(--sys-card)_94%,white)] px-3 py-3 sm:px-6 sm:py-4 lg:px-8">
-          <form onSubmit={onSubmit} className="mx-auto w-full max-w-4xl overflow-hidden rounded-[20px] border border-[var(--sys-border)] bg-white shadow-[0_16px_40px_rgba(31,43,39,0.07)] focus-within:border-[var(--sys-icon-fill)] focus-within:shadow-[var(--sys-focus-ring)]">
+        <footer className="relative z-10 border-t border-white/75 bg-white/62 px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4 lg:px-8">
+          <form onSubmit={onSubmit} className="ai-workspace-composer mx-auto w-full max-w-4xl overflow-hidden rounded-[20px] border border-[var(--sys-border)] bg-white/90 shadow-[0_16px_40px_rgba(31,43,39,0.07)] backdrop-blur-xl">
             <textarea
               value={question}
               onChange={(event) => onQuestionChange(event.target.value)}

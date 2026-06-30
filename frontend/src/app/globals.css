@@ -433,6 +433,46 @@ body {
   outline-offset: 2px;
 }
 
+.ai-workspace-aurora-blob {
+  animation: ai-workspace-aurora-drift 14s ease-in-out infinite alternate;
+}
+
+.ai-workspace-aurora-blob:nth-child(2) {
+  animation-delay: -5s;
+}
+
+.ai-workspace-aurora-blob:nth-child(3) {
+  animation-delay: -9s;
+}
+
+.ai-workspace-composer {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.ai-workspace-composer:focus-within {
+  border-color: rgba(93, 150, 145, 0.62);
+  box-shadow:
+    0 0 0 3px rgba(93, 150, 145, 0.12),
+    -18px 18px 48px rgba(92, 193, 186, 0.1),
+    18px 18px 48px rgba(126, 121, 207, 0.09);
+  transform: translateY(-1px);
+}
+
+@keyframes ai-workspace-aurora-drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(0.96); }
+  to { transform: translate3d(3%, 2%, 0) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-workspace-aurora-blob {
+    animation: none;
+  }
+
+  .ai-workspace-composer:focus-within {
+    transform: none;
+  }
+}
+
 [data-voc-theme="nexus"] {
   --theme-page: var(--classic-page);
   --theme-card: var(--classic-card);

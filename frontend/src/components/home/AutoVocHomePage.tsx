@@ -10,6 +10,7 @@ import {
   ChevronRight,
   FileSearch,
   FileText,
+  History,
   Lightbulb,
   Maximize2,
   MessageCircle,
@@ -18,6 +19,7 @@ import {
   Search,
   Send,
   Sparkles,
+  Trash2,
   UsersRound,
   X,
 } from "lucide-react";
@@ -653,6 +655,7 @@ function ExpandedAiWorkspace({
   onSubmit,
   messages,
   isAskingDataQuestion,
+  onClearHistory,
 }: {
   activeSkillId: AiSkillId;
   onSkillChange: (skillId: AiSkillId) => void;
@@ -662,93 +665,177 @@ function ExpandedAiWorkspace({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   messages: ChatMessage[];
   isAskingDataQuestion: boolean;
+  onClearHistory: () => void;
 }) {
   const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
   const hasConversation = messages.length > 0 || isAskingDataQuestion;
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const firstQuestion = messages.find((message) => message.role === "user")?.content;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (isHistoryOpen) {
+        setIsHistoryOpen(false);
+        return;
+      }
+      onClose();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isHistoryOpen, onClose]);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(248,250,252,0.88)] p-6 backdrop-blur-xl">
-      <section className="relative flex h-full max-h-[820px] w-full max-w-5xl flex-col overflow-hidden rounded-[34px] border border-[var(--sys-border)] bg-[var(--sys-card)] shadow-[0_32px_90px_rgba(20,24,38,0.18)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--sys-border)] bg-white text-[var(--sys-muted)] transition hover:text-[var(--sys-ink)]"
-          aria-label="关闭 AI 工作台"
-        >
-          <X className="h-4 w-4" />
-        </button>
-
-        <div className="border-b border-[var(--sys-border)] px-8 py-5">
-          <div className="mx-auto flex w-full max-w-3xl items-center gap-4">
-            <div className="scale-75">
-              <AiOrb />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sys-muted)]">AUTO VOC Copilot</p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--sys-ink)]">AUTO VOC 智能分析助手</h2>
-              <p className="mt-1 text-sm text-[var(--sys-muted)]">当前能力：{selectedSkill.title}</p>
+    <div className="fixed inset-0 z-[80] flex min-h-[100dvh] items-center justify-center bg-[rgba(241,244,241,0.9)] p-2 backdrop-blur-xl sm:p-4 lg:p-6">
+      <section className="relative flex h-[calc(100dvh-16px)] w-full max-w-[1440px] flex-col overflow-hidden rounded-[24px] border border-[var(--sys-border)] bg-[var(--sys-card)] shadow-[0_32px_90px_rgba(31,43,39,0.16)] sm:h-[calc(100dvh-32px)] sm:rounded-[30px] lg:h-[calc(100dvh-48px)]">
+        <header className="flex min-h-[72px] items-center justify-between gap-4 border-b border-[var(--sys-border)] px-4 sm:px-6 lg:px-8">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--sys-icon-fill)] text-xs font-semibold text-white shadow-[var(--sys-btn-shadow)]">A</span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[var(--sys-ink)]">AUTO VOC Copilot</p>
+                <p className="truncate text-xs text-[var(--sys-muted)]">当前能力：{selectedSkill.title}</p>
+              </div>
             </div>
           </div>
-        </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--sys-border)] bg-white px-3 text-xs font-semibold text-[var(--sys-body)] transition hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-icon-fill)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)]"
+            >
+              <History className="h-4 w-4" />
+              <span className="hidden sm:inline">历史记录</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--sys-border)] bg-white text-[var(--sys-muted)] transition hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-ink)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)]"
+              aria-label="关闭 AI 工作台"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </header>
 
-        <div className="min-h-0 flex-1 overflow-hidden px-8 py-6">
-          <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
-            {hasConversation ? (
-              <>
-                <CompactSkillSwitcher activeSkillId={activeSkillId} onSkillChange={onSkillChange} />
-                <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={onQuestionChange} className="mt-4 min-h-0 flex-1" />
-              </>
-            ) : (
-              <div className="my-auto">
-                <h2 className="text-3xl font-semibold tracking-tight text-[var(--sys-ink)]">
-                  想从 VOC 中了解什么？
-                </h2>
-                <p className="mt-2 text-sm text-[var(--sys-muted)]">选择一个能力，或直接输入你的问题。</p>
-                <div className="mt-6 grid gap-3 md:grid-cols-4">
-                  {aiCapabilities.map((item) => (
-                    <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => onSkillChange(item.id)} />
-                  ))}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {hasConversation ? (
+            <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
+              <CompactSkillSwitcher activeSkillId={activeSkillId} onSkillChange={onSkillChange} />
+              <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={onQuestionChange} className="mt-4 min-h-0 flex-1 pb-5" />
+            </div>
+          ) : (
+            <div className="h-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+              <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">AI 能力</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {aiCapabilities.map((item) => (
+                      <SkillButton key={item.id} item={item} isActive={item.id === activeSkillId} onClick={() => onSkillChange(item.id)} />
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-5 flex flex-wrap items-center gap-2">
-                  {selectedSkill.prompts.slice(0, 4).map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => onQuestionChange(prompt)}
-                      className="rounded-full border border-[var(--sys-border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--sys-body)] transition hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-icon-fill)]"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
+
+                <div className="mx-auto my-auto w-full max-w-3xl py-8 text-center sm:py-10">
+                  <div className="mx-auto scale-[0.72] sm:scale-[0.82]">
+                    <AiOrb />
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--sys-ink)] sm:text-3xl">今天想从 VOC 中了解什么？</h2>
+                  <p className="mt-2 text-sm text-[var(--sys-muted)]">选择一种分析能力，或直接描述你想解决的业务问题。</p>
+                  <div className="mt-6 text-left">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--sys-muted)]">推荐问题</p>
+                    <div className="grid gap-2.5 md:grid-cols-3">
+                      {selectedSkill.prompts.slice(0, 3).map((prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => onQuestionChange(prompt)}
+                          className="min-h-[74px] rounded-2xl border border-[var(--sys-border)] bg-white px-4 py-3 text-left text-xs font-medium leading-5 text-[var(--sys-body)] shadow-[0_8px_22px_rgba(31,43,39,0.035)] transition hover:-translate-y-0.5 hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-ink)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)]"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        <div className="border-t border-[var(--sys-border)] px-8 py-5">
-          <form onSubmit={onSubmit} className="mx-auto w-full max-w-3xl overflow-hidden rounded-[24px] border border-[var(--sys-border)] bg-white shadow-[0_18px_42px_rgba(20,24,38,0.07)]">
+        <footer className="border-t border-[var(--sys-border)] bg-[color-mix(in_srgb,var(--sys-card)_94%,white)] px-3 py-3 sm:px-6 sm:py-4 lg:px-8">
+          <form onSubmit={onSubmit} className="mx-auto w-full max-w-4xl overflow-hidden rounded-[20px] border border-[var(--sys-border)] bg-white shadow-[0_16px_40px_rgba(31,43,39,0.07)] focus-within:border-[var(--sys-icon-fill)] focus-within:shadow-[var(--sys-focus-ring)]">
             <textarea
               value={question}
               onChange={(event) => onQuestionChange(event.target.value)}
-              className="h-32 w-full resize-none bg-transparent px-5 py-4 text-sm font-medium text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)]"
-              placeholder={`问 AUTO VOC 的${selectedSkill.title}能力...`}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+              className={`${hasConversation ? "h-20" : "h-24"} w-full resize-none bg-transparent px-4 py-3.5 text-sm font-medium leading-6 text-[var(--sys-ink)] outline-none placeholder:text-[var(--sys-muted)] sm:px-5`}
+              placeholder={`问 AUTO VOC 的${selectedSkill.title}能力…`}
             />
-            <div className="flex items-center justify-between border-t border-[var(--sys-border)] px-4 py-3">
-              <span className="text-xs font-medium text-[var(--sys-muted)]">会自动结合当前看板上下文</span>
-              <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[var(--theme-soft-panel)] px-3 py-1.5 text-xs font-medium text-[var(--sys-muted)]">{selectedSkill.title}</span>
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--sys-border)] px-3 py-2.5 sm:px-4">
+              <span className="truncate text-[11px] font-medium text-[var(--sys-muted)]">Enter 发送 · Shift + Enter 换行 · 自动结合当前看板上下文</span>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="hidden rounded-lg bg-[var(--theme-soft-panel)] px-2.5 py-1.5 text-xs font-medium text-[var(--sys-muted)] sm:inline">{selectedSkill.title}</span>
                 <button
                   type="submit"
                   disabled={!question.trim() || isAskingDataQuestion}
-                  className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--sys-icon-fill)] text-white shadow-[0_12px_26px_rgba(93,150,145,0.22)] transition disabled:cursor-not-allowed disabled:opacity-45"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--sys-icon-fill)] text-white shadow-[0_10px_22px_rgba(82,127,121,0.22)] transition hover:bg-[var(--theme-primary-hover)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)] disabled:cursor-not-allowed disabled:opacity-45"
+                  aria-label="发送问题"
                 >
                   <Send className="h-4 w-4" />
                 </button>
               </div>
             </div>
           </form>
-        </div>
+        </footer>
+
+        {isHistoryOpen ? (
+          <div className="absolute inset-0 z-20 flex justify-end bg-black/10 backdrop-blur-[2px]" onMouseDown={() => setIsHistoryOpen(false)}>
+            <aside
+              className="flex h-full w-full max-w-sm flex-col border-l border-[var(--sys-border)] bg-[var(--sys-card)] p-5 shadow-[-20px_0_60px_rgba(31,43,39,0.12)]"
+              onMouseDown={(event) => event.stopPropagation()}
+              aria-label="AI 对话历史"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sys-muted)]">History</p>
+                  <h2 className="mt-1 text-lg font-semibold text-[var(--sys-ink)]">最近一次对话</h2>
+                </div>
+                <button type="button" onClick={() => setIsHistoryOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--sys-border)] bg-white text-[var(--sys-muted)]" aria-label="关闭历史记录">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {firstQuestion ? (
+                <div className="mt-6 rounded-2xl border border-[var(--sys-border)] bg-white p-4 shadow-[var(--sys-card-shadow)]">
+                  <p className="line-clamp-3 text-sm font-semibold leading-6 text-[var(--sys-ink)]">{firstQuestion}</p>
+                  <p className="mt-3 text-xs text-[var(--sys-muted)]">当前记录共 {messages.length} 条消息</p>
+                </div>
+              ) : (
+                <div className="mt-6 rounded-2xl border border-dashed border-[var(--sys-border)] bg-[var(--theme-soft-panel)] p-5 text-sm text-[var(--sys-muted)]">还没有对话记录。</div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClearHistory();
+                  setIsHistoryOpen(false);
+                }}
+                disabled={!messages.length}
+                className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[var(--sys-border)] bg-white text-sm font-semibold text-[var(--sys-body)] transition hover:border-[var(--theme-negative)] hover:text-[var(--theme-negative)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-4 w-4" />
+                清空当前记录
+              </button>
+            </aside>
+          </div>
+        ) : null}
       </section>
     </div>
   );
@@ -843,6 +930,7 @@ function AiCopilotPanel({ prompts }: { prompts: string[] }) {
           onSubmit={submitDataQuestion}
           messages={messages}
           isAskingDataQuestion={isAskingDataQuestion}
+          onClearHistory={() => setMessages([])}
         />
       ) : null}
 

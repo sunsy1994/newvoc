@@ -12,10 +12,10 @@ type VocDashboardHeaderProps = {
   event?: VocEvent | null;
 };
 
-const dashboardMeta: Record<DashboardKind, { eyebrow: string; title: string }> = {
-  market: { eyebrow: "VOC Event Intelligence", title: "市场看板" },
-  product: { eyebrow: "VOC Product Intelligence", title: "产品看板" },
-  sales: { eyebrow: "VOC Sales Intelligence", title: "销售看板" },
+const dashboardMeta: Record<DashboardKind, { eyebrow: string; title: string; description: string }> = {
+  market: { eyebrow: "VOC Event Intelligence", title: "市场看板", description: "从声量节奏、讨论主体与传播质量中提炼可行动的市场判断。" },
+  product: { eyebrow: "VOC Product Intelligence", title: "产品看板", description: "从产品感知、机会优先级与竞品对比中识别产品决策重点。" },
+  sales: { eyebrow: "VOC Sales Intelligence", title: "销售看板", description: "从线索质量、来源效率与用户意向中定位值得跟进的销售机会。" },
 };
 
 export function VocDashboardHeader({ kind, events, selectedEventId, event }: VocDashboardHeaderProps) {
@@ -27,7 +27,7 @@ export function VocDashboardHeader({ kind, events, selectedEventId, event }: Voc
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--theme-subtle)]">{meta.eyebrow}</p>
           <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.03em] text-[var(--theme-ink)]">{meta.title}</h1>
-          <p className="mt-1.5 text-sm text-[var(--theme-muted)]">从声量节奏、讨论主体与传播质量中提炼可行动的市场判断。</p>
+          <p className="mt-1.5 text-sm text-[var(--theme-muted)]">{meta.description}</p>
         </div>
 
         <div className="voc-dashboard-controls flex w-full flex-col items-stretch gap-2 lg:w-auto lg:items-end">

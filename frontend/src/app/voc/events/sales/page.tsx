@@ -44,7 +44,7 @@ export default async function SalesDashboardPage({ searchParams }: PageProps) {
 
   return (
     <VocDashboardThemeFrame>
-      <div className="space-y-5">
+      <div className="mx-auto max-w-[1560px] space-y-5">
         <VocDashboardHeader kind="sales" events={events} selectedEventId={selectedEventId} event={dashboard?.event} />
 
         {dashboard ? (

@@ -284,20 +284,20 @@ export function ProductOpportunityStoryCard({ opportunity }: ProductOpportunityS
     "暂未形成稳定的产品机会优先级。补充评论标签后，可识别惊喜点、吐槽点和转化点。";
 
   return (
-    <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <section className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Product Opportunity Story</p>
-          <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">产品机会优先级</h2>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">产品机会优先级</h2>
         </div>
         <RuleTooltip />
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-r from-[var(--theme-soft-panel)] via-[var(--theme-white)] to-[var(--theme-selected-bg)] p-4 text-sm leading-6 text-[var(--theme-body)]">
+      <div className="rounded-[18px] border border-[var(--theme-track)] bg-[var(--theme-soft-panel)] px-4 py-3.5 text-sm leading-6 text-[var(--theme-body)]">
         {conclusion}
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
         <StrategyCard
           label="放大传播"
           aspect={opportunity?.summary.surprise_point}
@@ -349,7 +349,7 @@ export function ProductOpportunityStoryCard({ opportunity }: ProductOpportunityS
       </div>
 
       {ranked.length ? (
-        <div className="mt-5 grid auto-rows-fr gap-3 md:grid-cols-12">
+        <div className="mt-5 grid auto-rows-fr gap-3 lg:grid-cols-12">
           {ranked.map((item, index) => (
             <OpportunityBentoCard key={`${item.type_label}-${item.aspect}`} item={item} rank={index + 1} />
           ))}

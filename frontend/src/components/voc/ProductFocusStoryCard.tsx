@@ -1,4 +1,4 @@
-import { Crosshair, HelpCircle, PackageSearch } from "lucide-react";
+import { BarChart3, Crosshair, HelpCircle, PackageSearch, TrendingDown, TrendingUp } from "lucide-react";
 
 import type { ProductFocusAspectItem, ProductFocusStory } from "@/types/vocMarket";
 
@@ -11,7 +11,7 @@ const formatPercent = (value?: number | null) => `${Number(value ?? 0).toFixed(1
 
 function ProductMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--theme-border)] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(26,32,44,0.03)]">
+    <div className="rounded-2xl border border-[var(--theme-track)] bg-[var(--theme-card)] px-4 py-3 shadow-[0_8px_20px_rgba(26,32,44,0.025)]">
       <p className="text-[11px] font-medium text-[var(--theme-muted)]">{label}</p>
       <strong className="mt-2 block text-lg font-semibold text-[var(--theme-ink)]">{value}</strong>
     </div>
@@ -70,7 +70,7 @@ function ProductQuadrantChart({ aspects }: { aspects: ProductFocusAspectItem[] }
         </div>
       </div>
 
-      <div className="relative h-[420px] overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-white">
+      <div className="relative h-[390px] overflow-hidden rounded-[20px] border border-[var(--theme-border)] bg-white">
         <div className="absolute inset-y-8 left-1/2 w-px bg-[var(--theme-border)]" />
         <div className="absolute inset-x-8 top-1/2 h-px bg-[var(--theme-border)]" />
         <div className="absolute right-4 top-4 rounded-lg bg-[var(--theme-chip)] px-2 py-1 text-[11px] font-medium text-[var(--voc-chart-3)]">高提及 · 正向强</div>
@@ -113,6 +113,32 @@ function ProductQuadrantChart({ aspects }: { aspects: ProductFocusAspectItem[] }
   );
 }
 
+function ProductAspectRail({ aspects }: { aspects: ProductFocusAspectItem[] }) {
+  const rows = aspects.slice(0, 6);
+  const maxRate = Math.max(...rows.map((item) => item.mention_rate), 1);
+  return (
+    <aside className="rounded-[22px] border border-[var(--theme-track)] bg-[var(--theme-card)] p-4 shadow-[0_12px_28px_rgba(31,43,39,0.045)]">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-[11px] font-medium text-[var(--theme-subtle)]">Focus Ranking</p><h3 className="mt-1 text-sm font-semibold text-[var(--theme-ink)]">关注点排行</h3></div>
+        <BarChart3 className="h-4 w-4 text-[var(--theme-icon)]" />
+      </div>
+      <div className="mt-4 space-y-3">
+        {rows.map((item, index) => {
+          const isPositive = item.positive_rate >= item.negative_rate;
+          return (
+            <div key={item.aspect} className="rounded-2xl border border-[var(--theme-track)] bg-[var(--theme-soft-panel)] p-3">
+              <div className="flex items-center justify-between gap-3 text-xs"><span className="min-w-0 truncate font-semibold text-[var(--theme-ink)]"><b className="mr-2 text-[var(--theme-subtle)]">{String(index + 1).padStart(2, "0")}</b>{item.aspect}</span><span className="shrink-0 font-semibold text-[var(--theme-primary)]">{formatPercent(item.mention_rate)}</span></div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-[var(--theme-icon)]" style={{ width: `${Math.max(8, (item.mention_rate / maxRate) * 100)}%` }} /></div>
+              <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--theme-muted)]"><span>{formatNumber(item.comment_count)} 条评论</span><span className={`inline-flex items-center gap-1 ${isPositive ? "text-[var(--theme-status-text)]" : "text-[var(--voc-chart-6)]"}`}>{isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}{isPositive ? `正向 ${formatPercent(item.positive_rate)}` : `负向 ${formatPercent(item.negative_rate)}`}</span></div>
+            </div>
+          );
+        })}
+        {!rows.length ? <div className="py-16 text-center text-xs text-[var(--theme-muted)]">暂无关注点排行</div> : null}
+      </div>
+    </aside>
+  );
+}
+
 export function ProductFocusStoryCard({ story }: ProductFocusStoryCardProps) {
   const summary = story?.summary;
   const aspects = story?.aspects ?? [];
@@ -121,11 +147,11 @@ export function ProductFocusStoryCard({ story }: ProductFocusStoryCardProps) {
     "暂未从 comment_label_json 中解析到产品关注点。补充 mentioned_aspect 后，这里会展示用户记住了哪些产品点。";
 
   return (
-    <article className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <article className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Product Focus Story</p>
-          <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">产品关注点总览</h2>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">产品关注点总览</h2>
         </div>
         <div className="flex items-center gap-2">
           <RuleTooltip />
@@ -136,7 +162,7 @@ export function ProductFocusStoryCard({ story }: ProductFocusStoryCardProps) {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-r from-[var(--theme-soft-panel)] to-[var(--theme-chip)] p-4 text-sm leading-6 text-[var(--theme-body)]">
+      <div className="rounded-[18px] border border-[var(--theme-track)] bg-[var(--theme-soft-panel)] px-4 py-3.5 text-sm leading-6 text-[var(--theme-body)]">
         {conclusion}
       </div>
 
@@ -147,8 +173,9 @@ export function ProductFocusStoryCard({ story }: ProductFocusStoryCardProps) {
         <ProductMetric label="最高负向点" value={summary?.top_negative_aspect ?? "暂无"} />
       </div>
 
-      <div className="mt-5">
+      <div className="mt-5 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <ProductQuadrantChart aspects={aspects} />
+        <ProductAspectRail aspects={aspects} />
       </div>
     </article>
   );

@@ -309,11 +309,11 @@ export function ProductPkoStoryCard({ pkoStory }: ProductPkoStoryCardProps) {
   }, [activeTarget, pkoStory?.evidence_comments]);
 
   return (
-    <article className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <article className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Product PKO Story</p>
-          <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">PKO 对比与竞争位置</h2>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">PKO 对比与竞争位置</h2>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--theme-selected-bg)] px-3 py-1.5 text-xs font-medium text-[var(--theme-primary)]">
@@ -324,7 +324,7 @@ export function ProductPkoStoryCard({ pkoStory }: ProductPkoStoryCardProps) {
         </div>
       </div>
 
-      <p className="mb-4 rounded-[20px] border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] px-4 py-3 text-sm leading-6 text-[var(--theme-body)]">
+      <p className="mb-4 rounded-[18px] border border-[var(--theme-track)] bg-[var(--theme-soft-panel)] px-4 py-3.5 text-sm leading-6 text-[var(--theme-body)]">
         {pkoStory?.summary?.rule_based_conclusion ?? "暂未解析到 PKO 对比评论。"}
       </p>
 

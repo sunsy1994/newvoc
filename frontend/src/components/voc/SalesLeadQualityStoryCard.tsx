@@ -1,8 +1,8 @@
 "use client";
 
-import { HelpCircle, MoreHorizontal, Search, SignalHigh, UserRound, UserRoundCheck, UsersRound, X } from "lucide-react";
+import { CarFront, FileCheck2, HelpCircle, MessageSquareText, MoreHorizontal, Search, SignalHigh, UserRound, UserRoundCheck, UsersRound, X, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { apiBaseUrl } from "@/config/navigation";
 import type {
@@ -21,6 +21,15 @@ type SalesLeadQualityStoryCardProps = {
 
 const formatNumber = (value?: number | null) => Number(value ?? 0).toLocaleString("zh-CN");
 const formatPercent = (value?: number | null) => `${Number(value ?? 0).toFixed(1)}%`;
+
+function LeadKpi({ label, value, helper, icon }: { label: string; value: string; helper: string; icon: ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-[var(--theme-track)] bg-[var(--theme-card)] px-4 py-3 shadow-[0_8px_20px_rgba(31,43,39,0.025)]">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[var(--theme-selected-bg)] text-[var(--theme-icon)]">{icon}</span>
+      <div className="min-w-0"><p className="truncate text-[10px] font-medium text-[var(--theme-muted)]">{label}</p><strong className="mt-0.5 block text-lg font-semibold text-[var(--theme-ink)]">{value}</strong><p className="truncate text-[10px] text-[var(--theme-subtle)]">{helper}</p></div>
+    </div>
+  );
+}
 
 const nodeColors: Record<string, string> = {
   all: "var(--sales-sankey-root)",
@@ -874,11 +883,11 @@ export function SalesLeadQualityStoryCard({ quality, eventId }: SalesLeadQuality
     : "补充 comment_label_json.purchase_signal 和 comment_intent 后，这里会展示销售线索漏斗。";
 
   return (
-    <article className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <article className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Sales Lead Funnel</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--theme-ink)]">线索质量</h2>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">线索质量</h2>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--theme-body)]">{headline}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -894,7 +903,15 @@ export function SalesLeadQualityStoryCard({ quality, eventId }: SalesLeadQuality
         </div>
       </div>
 
-      <div className="grid items-stretch gap-4 xl:grid-cols-[2fr_1fr]">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <LeadKpi label="已标注评论" value={formatNumber(summary?.labeled_comment_count)} helper="线索识别基础" icon={<FileCheck2 className="h-4 w-4" />} />
+        <LeadKpi label="车型相关" value={formatNumber(summary?.vehicle_related_count)} helper={formatPercent(summary?.vehicle_related_rate)} icon={<CarFront className="h-4 w-4" />} />
+        <LeadKpi label="销售意向" value={formatNumber(summary?.sales_intent_comment_count)} helper={formatPercent(summary?.sales_intent_rate)} icon={<MessageSquareText className="h-4 w-4" />} />
+        <LeadKpi label="中高购买信号" value={formatNumber(summary?.mid_high_purchase_signal_count)} helper={formatPercent(summary?.mid_high_purchase_signal_rate)} icon={<SignalHigh className="h-4 w-4" />} />
+        <LeadKpi label="强购买信号" value={formatNumber(summary?.strong_purchase_signal_count)} helper={formatPercent(summary?.strong_purchase_signal_rate)} icon={<Zap className="h-4 w-4" />} />
+      </div>
+
+      <div className="grid items-stretch gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
         {quality?.sankey ? (
           <SalesLeadSankey nodes={quality.sankey.nodes} links={quality.sankey.links} selectedSegmentId={selectedSegmentId} onSelectSegment={setSelectedSegmentId} />
         ) : (

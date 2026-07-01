@@ -328,12 +328,12 @@ export function SalesLeadSourceEfficiencyPanel({ sourceEfficiency, eventId }: Sa
     : "补充 purchase_signal 与 comment_intent 后，这里会展示渠道、内容入口与建议跟进用户。";
 
   return (
-    <section className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_10px_28px_rgba(26,32,44,0.04)]">
+    <section className="rounded-[24px] border border-[var(--theme-border)] bg-[var(--theme-white)] p-5 shadow-[0_12px_32px_rgba(31,43,39,0.045)]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--theme-muted)]">Sales Source Efficiency</p>
-          <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">线索来源效率</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--theme-body)]">{conclusion}</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">线索来源效率</h2>
+          <p className="mt-3 max-w-4xl rounded-[18px] border border-[var(--theme-track)] bg-[var(--theme-soft-panel)] px-4 py-3 text-sm leading-6 text-[var(--theme-body)]">{conclusion}</p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--theme-selected-bg)] px-3 py-2 text-xs font-medium text-[var(--theme-selected-border)]">
           <MessageCircleMore className="h-3.5 w-3.5" />
@@ -341,7 +341,7 @@ export function SalesLeadSourceEfficiencyPanel({ sourceEfficiency, eventId }: Sa
         </span>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 inline-flex max-w-full flex-wrap gap-1 rounded-2xl border border-[var(--theme-track)] bg-[var(--theme-soft-panel)] p-1">
         {sourceModeOptions.map((option) => (
           <button
             key={option.key}
@@ -356,7 +356,7 @@ export function SalesLeadSourceEfficiencyPanel({ sourceEfficiency, eventId }: Sa
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]">
         <SeparatedDonutChart data={platformRows} mode={selectedMode} selectedPlatform={activePlatform} onSelectPlatform={setSelectedPlatform} />
         <KeyContentList contents={filteredContents} selectedPlatform={activePlatform} onSelectContent={setSelectedContent} />
       </div>

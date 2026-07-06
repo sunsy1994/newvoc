@@ -30,12 +30,52 @@ def test_dispatcher_routes_data_question_with_context(monkeypatch) -> None:
     }
 
 
-@pytest.mark.parametrize("capability", ["qa", "report", "insight"])
+@pytest.mark.parametrize("capability", ["report", "insight"])
 def test_dispatcher_rejects_known_but_unavailable_capability(capability: str) -> None:
     from app.agents.core.dispatcher import AgentCapabilityUnavailableError, dispatch_agent
 
     with pytest.raises(AgentCapabilityUnavailableError, match="尚未接入"):
         dispatch_agent(capability, "测试问题")
+
+
+def test_dispatcher_registers_qa_agent() -> None:
+    from app.agents.core import dispatcher
+    from app.agents.qa import run_qa_agent
+
+    assert dispatcher.AGENT_RUNNERS["qa"] is run_qa_agent
+
+
+def test_unified_agent_api_returns_qa_scope_metadata(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    captured = {}
+
+    def fake_dispatch(capability: str, message: str, **kwargs) -> dict:
+        captured.update(capability=capability, message=message, **kwargs)
+        return {
+            "status": "answered",
+            "answer": "传播峰值集中在首日。",
+            "suggested_questions": [],
+            "requires_clarification": False,
+            "event_name": "IDT6上市",
+            "time_scope": {"label": "2026-05-17 至 2026-05-20（事件完整周期）"},
+            "data_scope": "市场看板结构化数据",
+            "react_rounds": 2,
+        }
+
+    monkeypatch.setattr("app.routers.tasks.dispatch_agent", fake_dispatch)
+    client = TestClient(create_app(tasks_dir=tmp_path / "tasks"))
+    response = client.post(
+        "/api/agents/run",
+        json={"capability": "qa", "message": "这个事件为什么爆发？", "event_id": "event_001", "history": []},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["event_name"] == "IDT6上市"
+    assert response.json()["react_rounds"] == 2
+    assert captured["capability"] == "qa"
 
 
 def test_unified_agent_api_dispatches_selected_capability(tmp_path, monkeypatch) -> None:

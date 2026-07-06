@@ -45,6 +45,8 @@ def execute_tool_node(state: QaAgentState) -> QaAgentState:
     arguments = dict(state.get("arguments") or {})
     if state.get("event_id") and not arguments.get("event_id"):
         arguments["event_id"] = state["event_id"]
+    if (state.get("event") or {}).get("event_name") and not arguments.get("event_name"):
+        arguments["event_name"] = state["event"]["event_name"]
     observation = tools.execute_qa_tool(state["action"], arguments, state["time_scope"])
     state["round_count"] = int(state.get("round_count") or 0) + 1
     event = observation.get("event") or state.get("event") or {}

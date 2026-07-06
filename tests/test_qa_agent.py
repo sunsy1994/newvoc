@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
+
 
 def test_qa_agent_has_focused_package_boundary() -> None:
     root = Path("app/agents/qa")
@@ -117,6 +119,75 @@ def test_market_tool_wraps_existing_dashboard_with_scope(monkeypatch) -> None:
     assert result["time_scope"] == scope
     assert result["facts"]["scale"]["total_volume"] == 273
     assert result["data_scope"] == "市场看板结构化数据"
+
+
+def test_explicit_scope_routes_market_tool_to_time_slice(monkeypatch) -> None:
+    from app.agents.qa import tools
+
+    captured: dict[str, str] = {}
+
+    def fake_slice(event_id: str, start_date: str, end_date: str) -> dict:
+        captured.update(event_id=event_id, start_date=start_date, end_date=end_date)
+        return {"summary": {"content_count": 9}, "hot_posts": []}
+
+    monkeypatch.setattr(tools.time_slice, "get_market_slice", fake_slice)
+    monkeypatch.setattr(
+        tools,
+        "get_voc_event_market_dashboard",
+        lambda event_id: (_ for _ in ()).throw(AssertionError("explicit scope must not use full dashboard")),
+    )
+    scope = {
+        "mode": "explicit",
+        "start_date": "2026-05-01",
+        "end_date": "2026-05-10",
+        "label": "用户指定",
+    }
+
+    result = tools.execute_qa_tool("get_market_story", {"event_id": "event_001"}, scope)
+
+    assert captured == {"event_id": "event_001", "start_date": "2026-05-01", "end_date": "2026-05-10"}
+    assert result["facts"]["summary"]["content_count"] == 9
+    assert result["data_scope"] == "市场数据（按统计区间切片）"
+
+
+def test_discussion_evidence_always_uses_resolved_time_scope(monkeypatch) -> None:
+    from app.agents.qa import tools
+
+    captured: dict[str, str] = {}
+
+    def fake_slice(event_id: str, aspect: str, start_date: str, end_date: str) -> dict:
+        captured.update(event_id=event_id, aspect=aspect, start_date=start_date, end_date=end_date)
+        return {"total": 1, "comments": [{"comment_text": "外观不错"}]}
+
+    monkeypatch.setattr(tools.time_slice, "get_discussion_slice", fake_slice)
+    scope = {
+        "mode": "event_period",
+        "start_date": "2026-05-17",
+        "end_date": "2026-05-20",
+        "label": "事件完整周期",
+    }
+
+    result = tools.execute_qa_tool(
+        "get_discussion_evidence",
+        {"event_id": "event_001", "event_name": "IDT6上市", "aspect": "外观"},
+        scope,
+    )
+
+    assert captured == {
+        "event_id": "event_001",
+        "aspect": "外观",
+        "start_date": "2026-05-17",
+        "end_date": "2026-05-20",
+    }
+    assert result["facts"] == {"aspect": "外观", "total": 1}
+    assert result["evidence"][0]["comment_text"] == "外观不错"
+
+
+def test_explicit_time_scope_rejects_reversed_dates() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    with pytest.raises(ValueError, match="开始日期"):
+        resolve_time_scope("分析2026-05-10到2026-05-01的事件")
 
 
 def test_qa_tools_reject_unregistered_action() -> None:

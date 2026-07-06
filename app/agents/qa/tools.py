@@ -6,13 +6,14 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.services.event_voc_insights import (
-    get_voc_event_discussion_point_comments,
     get_voc_event_market_dashboard,
     get_voc_event_product_dashboard,
     get_voc_event_sales_dashboard,
     list_voc_events,
 )
 from app.services.report_agent import build_market_report_context, build_product_report_context, build_sales_report_context
+
+from app.agents.qa import time_slice
 
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
@@ -48,6 +49,7 @@ def resolve_time_scope(
     if explicit:
         start_date = explicit.group("start")
         end_date = explicit.group("end")
+        time_slice.date_bounds(start_date, end_date)
         return {
             "mode": "explicit",
             "start_date": start_date,
@@ -146,7 +148,23 @@ def execute_qa_tool(tool_name: str, arguments: dict[str, Any], time_scope: dict[
             raise ValueError(f"没有找到名称包含“{event_name}”的事件。")
         event_id = str(rows[0]["event_id"])
 
+    event = {
+        "event_id": event_id,
+        "event_name": arguments.get("event_name") or "当前事件",
+    }
+    use_time_slice = time_scope.get("mode") != "event_period"
+
     if tool_name == "get_market_story":
+        if use_time_slice:
+            facts = time_slice.get_market_slice(event_id, time_scope["start_date"], time_scope["end_date"])
+            return _envelope(
+                tool_name,
+                event=event,
+                time_scope=time_scope,
+                data_scope="市场数据（按统计区间切片）",
+                facts=facts,
+                evidence=facts.get("hot_posts") or [],
+            )
         dashboard = get_voc_event_market_dashboard(event_id)
         context = build_market_report_context(dashboard)
         return _envelope(
@@ -159,6 +177,18 @@ def execute_qa_tool(tool_name: str, arguments: dict[str, Any], time_scope: dict[
         )
 
     if tool_name == "get_product_story":
+        if use_time_slice:
+            facts = time_slice.get_product_slice(event_id, time_scope["start_date"], time_scope["end_date"])
+            aspects = (facts.get("product_focus_story") or {}).get("aspects") or []
+            evidence = [comment for aspect_item in aspects for comment in (aspect_item.get("evidence_comments") or [])]
+            return _envelope(
+                tool_name,
+                event=event,
+                time_scope=time_scope,
+                data_scope="产品数据（按统计区间切片）",
+                facts=facts,
+                evidence=evidence[:20],
+            )
         dashboard = get_voc_event_product_dashboard(event_id)
         context = build_product_report_context(dashboard)
         return _envelope(
@@ -171,6 +201,17 @@ def execute_qa_tool(tool_name: str, arguments: dict[str, Any], time_scope: dict[
         )
 
     if tool_name == "get_sales_story":
+        if use_time_slice:
+            facts = time_slice.get_sales_slice(event_id, time_scope["start_date"], time_scope["end_date"])
+            evidence = (facts.get("sales_lead_source_efficiency") or {}).get("lead_comments") or []
+            return _envelope(
+                tool_name,
+                event=event,
+                time_scope=time_scope,
+                data_scope="销售数据（按统计区间切片）",
+                facts=facts,
+                evidence=evidence,
+            )
         dashboard = get_voc_event_sales_dashboard(event_id)
         context = build_sales_report_context(dashboard)
         return _envelope(
@@ -185,12 +226,17 @@ def execute_qa_tool(tool_name: str, arguments: dict[str, Any], time_scope: dict[
     aspect = str(arguments.get("aspect") or "").strip()
     if not aspect:
         raise ValueError("查询评论证据时必须提供产品关注点。")
-    payload = get_voc_event_discussion_point_comments(event_id, aspect, limit=20, offset=0)
+    payload = time_slice.get_discussion_slice(
+        event_id,
+        aspect,
+        time_scope["start_date"],
+        time_scope["end_date"],
+    )
     return _envelope(
         tool_name,
-        event={"event_id": event_id, "event_name": arguments.get("event_name") or "当前事件"},
+        event=event,
         time_scope=time_scope,
-        data_scope="产品关注点原始评论",
+        data_scope="产品关注点原始评论（按统计区间切片）",
         facts={"aspect": aspect, "total": payload.get("total", 0)},
         evidence=payload.get("comments") or [],
     )

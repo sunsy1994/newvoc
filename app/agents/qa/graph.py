@@ -133,7 +133,7 @@ def run_qa_agent(
         "answer": result.get("answer") or "",
         "suggested_questions": result.get("suggested_questions") or [],
         "requires_clarification": needs_clarification,
-        "event_name": (result.get("event") or {}).get("event_name") or None,
+        "event_name": (result.get("event") or {}).get("event_name") or "跨事件范围",
         "time_scope": result.get("time_scope") or {},
         "data_scope": result.get("data_scope") or "",
         "react_rounds": int(result.get("round_count") or 0),

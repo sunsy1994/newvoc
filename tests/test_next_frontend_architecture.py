@@ -1267,6 +1267,19 @@ def test_auto_voc_home_copilot_has_data_question_entry() -> None:
     assert "dataQuestionResult.trace" not in component
 
 
+def test_auto_voc_home_routes_qa_to_unified_agent_and_blocks_unfinished_skills() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+
+    assert "/agents/run" in component
+    assert 'capability: "qa"' in component
+    assert 'activeSkillId === "qa"' in component
+    assert "自动识别事件" in component
+    assert "selectedEventId" in component
+    assert "events={payload.key_events}" in component
+    assert "该能力即将接入" in component
+    assert "/agents/data-question/run" in component
+
+
 def test_auto_voc_home_copilot_expanded_workspace_can_ask_data_questions() -> None:
     component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
 

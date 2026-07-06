@@ -15,6 +15,48 @@ def test_qa_agent_has_focused_package_boundary() -> None:
     assert callable(run_qa_agent)
 
 
+def test_qa_history_keeps_latest_six_valid_bounded_messages() -> None:
+    from app.agents.qa.parser import normalize_qa_history
+
+    history = [
+        {"role": "system", "content": "不可进入上下文"},
+        *({"role": "user" if index % 2 == 0 else "assistant", "content": f"消息{index}"} for index in range(7)),
+        {"role": "assistant", "content": "  "},
+        {"role": "user", "content": "价格" * 700},
+    ]
+
+    normalized = normalize_qa_history(history)
+
+    assert len(normalized) == 6
+    assert [item["content"] for item in normalized[:2]] == ["消息2", "消息3"]
+    assert normalized[-1]["role"] == "user"
+    assert len(normalized[-1]["content"]) == 1200
+
+
+def test_qa_prompts_include_follow_up_history_as_context_not_facts() -> None:
+    from app.agents.qa.prompts import build_decision_prompt, build_revision_prompt
+
+    state = {
+        "question": "那价格呢？",
+        "history": [
+            {"role": "user", "content": "IDT6上市的用户主要认可什么？"},
+            {"role": "assistant", "content": "用户主要认可外观。"},
+        ],
+        "event": {"event_name": "IDT6上市"},
+        "time_scope": {"label": "事件完整周期"},
+        "observations": [],
+        "round_count": 0,
+    }
+
+    decision_prompt = build_decision_prompt(state)
+    revision_prompt = build_revision_prompt(state)
+
+    for prompt in (decision_prompt, revision_prompt):
+        assert "IDT6上市的用户主要认可什么" in prompt
+        assert "那价格呢" in prompt
+        assert "历史回答不是事实来源" in prompt
+
+
 def test_default_time_scope_is_last_30_calendar_days_in_shanghai() -> None:
     from app.agents.qa.tools import resolve_time_scope
 

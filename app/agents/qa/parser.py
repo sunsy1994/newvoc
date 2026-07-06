@@ -2,9 +2,24 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.agents.data_question.parser import call_configured_llm, normalize_history
+from app.agents.data_question.parser import call_configured_llm
 from app.agents.qa.prompts import build_decision_prompt, build_revision_prompt
 from app.agents.qa.state import QaAgentState
+
+
+def normalize_qa_history(
+    history: list[dict[str, Any]] | None,
+    *,
+    limit: int = 6,
+    max_chars: int = 1200,
+) -> list[dict[str, str]]:
+    normalized = []
+    for item in history or []:
+        role = str(item.get("role") or "")
+        content = str(item.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            normalized.append({"role": role, "content": content[:max_chars]})
+    return normalized[-limit:]
 
 
 def decide(state: QaAgentState) -> dict[str, Any]:

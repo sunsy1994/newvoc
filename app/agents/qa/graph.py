@@ -123,7 +123,7 @@ def run_qa_agent(
         {
             "question": question.strip(),
             "event_id": event_id,
-            "history": parser.normalize_history(history),
+            "history": parser.normalize_qa_history(history),
             "asked_at": anchor.isoformat(),
         }
     )

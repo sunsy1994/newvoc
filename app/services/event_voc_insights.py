@@ -953,14 +953,14 @@ def build_product_opportunity_story(aspects: list[dict[str, Any]]) -> dict[str, 
                     "purchase_signal_rate": float(aspect.get("purchase_signal_rate") or 0),
                     "opportunity_score": score,
                     "score_key": score_key,
-                    "reason": f"鎻愬強鐜?{mention_rate:.1f}% 脳 {category}鐜?{rate:.1f}%",
+                    "reason": f"提及率 {mention_rate:.1f}% × {category}率 {rate:.1f}%",
                 }
             )
         return sorted(items, key=lambda item: (item["opportunity_score"], item["comment_count"]), reverse=True)[:5]
 
-    surprise_points = build_items("surprise_score", "positive_rate", "鎯婂枩")
-    pain_points = build_items("pain_score", "negative_rate", "鍚愭Ы")
-    conversion_points = build_items("conversion_score", "purchase_signal_rate", "杞寲")
+    surprise_points = build_items("surprise_score", "positive_rate", "惊喜")
+    pain_points = build_items("pain_score", "negative_rate", "风险")
+    conversion_points = build_items("conversion_score", "purchase_signal_rate", "转化")
 
     surprise_point = surprise_points[0]["aspect"] if surprise_points else None
     pain_point = pain_points[0]["aspect"] if pain_points else None
@@ -1130,15 +1130,15 @@ def build_product_opportunity_story(aspects: list[dict[str, Any]]) -> dict[str, 
                     "purchase_signal_rate": float(aspect.get("purchase_signal_rate") or 0),
                     "opportunity_score": score,
                     "score_key": score_key,
-                    "reason": f"鎻愬強鐜?{mention_rate:.1f}% 脳 {category}鐜?{rate:.1f}%",
+                    "reason": f"提及率 {mention_rate:.1f}% × {category}率 {rate:.1f}%",
                     "evidence_comments": aspect.get("evidence_comments") or [],
                 }
             )
         return sorted(items, key=lambda item: (item["opportunity_score"], item["comment_count"]), reverse=True)[:5]
 
-    surprise_points = build_items("surprise_score", "positive_rate", "鎯婂枩")
-    pain_points = build_items("pain_score", "negative_rate", "鍚愭Ы")
-    conversion_points = build_items("conversion_score", "purchase_signal_rate", "杞寲")
+    surprise_points = build_items("surprise_score", "positive_rate", "惊喜")
+    pain_points = build_items("pain_score", "negative_rate", "风险")
+    conversion_points = build_items("conversion_score", "purchase_signal_rate", "转化")
 
     surprise_point = surprise_points[0]["aspect"] if surprise_points else None
     pain_point = pain_points[0]["aspect"] if pain_points else None

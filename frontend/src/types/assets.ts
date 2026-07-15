@@ -11,7 +11,7 @@ export type AssetListPayload = {
   rows: Record<string, unknown>[];
 };
 
-export type AssetKey = "events" | "contents" | "comments" | "authors" | "kols" | "comment_users";
+export type AssetKey = "events" | "contents" | "comments" | "authors" | "kols" | "comment_users" | "reports";
 
 export type AssetPageConfig = {
   assetKey: AssetKey;

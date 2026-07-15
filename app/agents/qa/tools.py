@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from app.services.event_voc_insights import (
     get_voc_event_market_dashboard,
@@ -13,13 +12,10 @@ from app.services.event_voc_insights import (
 )
 from app.services.report_agent import build_market_report_context, build_product_report_context, build_sales_report_context
 
-from app.agents.qa import time_slice
+from app.agents.qa import time_scope_resolver, time_slice
 
 
-SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
-EXPLICIT_RANGE_PATTERN = re.compile(
-    r"(?P<start>\d{4}-\d{2}-\d{2})\s*(?:到|至|~|—|–)\s*(?P<end>\d{4}-\d{2}-\d{2})"
-)
+SHANGHAI_TZ = time_scope_resolver.SHANGHAI_TZ
 ALLOWED_TOOLS = {
     "list_events",
     "get_market_story",
@@ -39,45 +35,7 @@ def resolve_time_scope(
     asked_at: datetime | None = None,
     event: dict[str, Any] | None = None,
 ) -> dict[str, str]:
-    anchor = asked_at or datetime.now(SHANGHAI_TZ)
-    if anchor.tzinfo is None:
-        anchor = anchor.replace(tzinfo=SHANGHAI_TZ)
-    else:
-        anchor = anchor.astimezone(SHANGHAI_TZ)
-
-    explicit = EXPLICIT_RANGE_PATTERN.search(question)
-    if explicit:
-        start_date = explicit.group("start")
-        end_date = explicit.group("end")
-        time_slice.date_bounds(start_date, end_date)
-        return {
-            "mode": "explicit",
-            "start_date": start_date,
-            "end_date": end_date,
-            "label": f"{start_date} 至 {end_date}（用户指定）",
-        }
-
-    if event:
-        start_date = _date_text(event.get("start_time") or event.get("end_time"))
-        end_date = _date_text(event.get("end_time") or event.get("start_time"))
-        if start_date and end_date:
-            return {
-                "mode": "event_period",
-                "start_date": start_date,
-                "end_date": end_date,
-                "label": f"{start_date} 至 {end_date}（事件完整周期）",
-            }
-
-    end = anchor.date()
-    start = end - timedelta(days=29)
-    start_date = start.isoformat()
-    end_date = end.isoformat()
-    return {
-        "mode": "default_30_days",
-        "start_date": start_date,
-        "end_date": end_date,
-        "label": f"{start_date} 至 {end_date}（提问时点近30天）",
-    }
+    return time_scope_resolver.resolve_time_scope(question, asked_at=asked_at, event=event)
 
 
 def _event_summary(event: dict[str, Any] | None) -> dict[str, Any]:
@@ -99,6 +57,33 @@ def resolve_event_context(*, event_id: str | None = None, event_name: str | None
     if event_id:
         return next((row for row in rows if str(row.get("event_id")) == str(event_id)), None)
     return rows[0] if rows else None
+
+
+def _event_match_text(value: Any) -> str:
+    return re.sub(r"[\s\-_./·]+", "", str(value or "").lower())
+
+
+def _event_text_candidates(value: Any) -> list[str]:
+    text = _event_match_text(value)
+    if not text:
+        return []
+    candidates = [text]
+    for suffix in ("上市", "发布", "预热", "亮相", "首发", "活动", "事件"):
+        if text.endswith(suffix):
+            candidates.append(text[: -len(suffix)])
+    return [candidate for candidate in candidates if len(candidate) >= 2]
+
+
+def infer_event_context_from_question(question: str) -> dict[str, Any] | None:
+    normalized_question = _event_match_text(question)
+    if not normalized_question:
+        return None
+    rows = list_voc_events(limit=100).get("events") or []
+    for row in rows:
+        for key in ("event_name", "model_name", "brand_name"):
+            if any(candidate in normalized_question for candidate in _event_text_candidates(row.get(key))):
+                return row
+    return None
 
 
 def _envelope(

@@ -196,6 +196,10 @@ def build_market_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
             ["event_id", "event_name", "brand_name", "model_name", "event_type", "event_status", "start_time", "end_time"],
         ),
         "scale": pick_keys(metrics, ["total_volume", "content_count", "comment_count", "kol_count", "kol_content_count", "total_engagement"]),
+        "volume_trend": [
+            pick_keys(item, ["date", "content_count", "comment_count", "total_volume"])
+            for item in (dashboard.get("volume_trend") or [])[:30]
+        ],
         "rhythm": pick_keys(
             rhythm_summary,
             [

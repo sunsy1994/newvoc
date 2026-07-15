@@ -1,7 +1,11 @@
 "use client";
 
-import { Bot, Loader2 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Bot, FileSearch, Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import { StructuredReportView } from "@/components/voc/ReportAiSummaryCard";
+import { InsightResultCard } from "@/components/home/InsightResultCard";
+import type { InsightResult, ReportAgentPayload } from "@/types/vocMarket";
 
 export type ChatMessage = {
   id: string;
@@ -9,6 +13,8 @@ export type ChatMessage = {
   content: string;
   suggestions?: string[];
   isError?: boolean;
+  reportPayload?: ReportAgentPayload;
+  insightPayload?: InsightResult;
 };
 
 type ChatMessageListProps = {
@@ -21,6 +27,7 @@ type ChatMessageListProps = {
 export function ChatMessageList({ messages, isLoading, onSuggestionClick, className = "" }: ChatMessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
+  const [openReport, setOpenReport] = useState<ReportAgentPayload | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -63,6 +70,7 @@ export function ChatMessageList({ messages, isLoading, onSuggestionClick, classN
             >
               {message.content}
             </div>
+            {message.role === "assistant" && message.insightPayload ? <InsightResultCard result={message.insightPayload} /> : null}
             {message.role === "assistant" && message.suggestions?.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {message.suggestions.map((suggestion) => (
@@ -77,6 +85,16 @@ export function ChatMessageList({ messages, isLoading, onSuggestionClick, classN
                 ))}
               </div>
             ) : null}
+            {message.role === "assistant" && message.reportPayload?.summary.structured_report ? (
+              <button
+                type="button"
+                onClick={() => setOpenReport(message.reportPayload ?? null)}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[var(--sys-border)] bg-[var(--theme-soft-panel)] px-3 py-2 text-xs font-semibold text-[var(--sys-icon-fill)] transition hover:border-[var(--sys-icon-fill)] hover:bg-white"
+              >
+                <FileSearch className="h-4 w-4" />
+                查看报告
+              </button>
+            ) : null}
           </div>
         </div>
       ))}
@@ -85,6 +103,29 @@ export function ChatMessageList({ messages, isLoading, onSuggestionClick, classN
           <div className="flex items-center gap-2 rounded-[18px] border border-[var(--sys-border)] bg-white px-4 py-3 text-xs text-[var(--sys-muted)] shadow-[0_10px_28px_rgba(31,43,39,0.04)]">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             正在查询并整理答案…
+          </div>
+        </div>
+      ) : null}
+      {openReport?.summary.structured_report ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[var(--theme-border)] bg-[var(--theme-white)] shadow-[0_24px_80px_rgba(26,32,44,0.2)]">
+            <header className="flex items-center justify-between gap-3 border-b border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-selected-bg),var(--theme-card))] p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-muted)]">Event Report</p>
+                <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">{openReport.summary.structured_report.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenReport(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] text-[var(--theme-body)] transition hover:bg-[var(--theme-hover-bg)]"
+                aria-label="关闭报告"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="max-h-[calc(88vh-86px)] overflow-auto p-5">
+              <StructuredReportView report={openReport.summary.structured_report} />
+            </div>
           </div>
         </div>
       ) : null}

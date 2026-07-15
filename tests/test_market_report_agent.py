@@ -31,6 +31,10 @@ def sample_market_dashboard() -> dict:
                 "rule_based_conclusion": "The event volume concentrated on one peak day.",
             }
         },
+        "volume_trend": [
+            {"date": "2026-05-16", "content_count": 2, "comment_count": 18, "total_volume": 20},
+            {"date": "2026-05-17", "content_count": 8, "comment_count": 203, "total_volume": 211},
+        ],
         "subject_story": {
             "summary": {
                 "dominant_subject_type": "KOL",
@@ -83,6 +87,9 @@ def test_build_market_report_context_keeps_business_story_sections() -> None:
     assert context["event_overview"]["start_time"] == "2026-05-10"
     assert context["scale"]["total_volume"] == 273
     assert context["rhythm"]["rhythm_type"] == "burst"
+    assert context["volume_trend"][1]["date"] == "2026-05-17"
+    assert context["volume_trend"][1]["content_count"] == 8
+    assert context["volume_trend"][1]["comment_count"] == 203
     assert context["hot_topics"]["summary"]["top_topic"] == "#T6"
     assert context["kol_and_authors"]["summary"]["top_kol_type"] == "vehicle review KOL"
     assert context["audience"]["user_profile_distribution"][0]["main_label"] == "family travel"

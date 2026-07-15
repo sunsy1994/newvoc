@@ -5,7 +5,7 @@ import { Fragment, useState } from "react";
 
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
 import { apiBaseUrl } from "@/config/navigation";
-import type { ReportAgentPayload } from "@/types/vocMarket";
+import type { ReportAgentPayload, ReportChartSpec, StructuredReport, StructuredReportTemplateSection } from "@/types/vocMarket";
 
 type ReportAiSummaryCardProps = {
   eventId: string;
@@ -18,6 +18,7 @@ type ReportAiSummaryCardProps = {
 };
 
 type LoadingMode = "latest" | "generate" | "";
+type ReportViewMode = "dashboard" | "report";
 
 function buildUrl(path: string, eventId: string) {
   return `${apiBaseUrl}${path.replace("{eventId}", encodeURIComponent(eventId))}`;
@@ -110,6 +111,281 @@ function renderMarkdownReport(markdown: string) {
   });
 }
 
+function formatCell(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+}
+
+function renderChart(chart: ReportChartSpec) {
+  if (chart.chart_type === "metric_cards") {
+    return (
+      <div key={chart.chart_id} className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4">
+        <p className="text-sm font-semibold text-[var(--theme-ink)]">{chart.title}</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {chart.data.map((item, index) => (
+            <div key={`${chart.chart_id}-${index}`} className="rounded-xl bg-[var(--theme-soft-panel)] p-3">
+              <p className="text-xs text-[var(--theme-muted)]">{formatCell(item.label)}</p>
+              <p className="mt-1 text-xl font-semibold text-[var(--theme-ink)]">{formatCell(item.value)}</p>
+              <p className="mt-1 text-[11px] leading-4 text-[var(--theme-muted)]">{formatCell(item.method)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (chart.chart_type === "bar") {
+    const yField = chart.y_field ?? "value";
+    const maxValue = Math.max(1, ...chart.data.map((item) => Number(item[yField]) || 0));
+    return (
+      <div key={chart.chart_id} className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4">
+        <p className="text-sm font-semibold text-[var(--theme-ink)]">{chart.title}</p>
+        <div className="mt-3 space-y-2">
+          {chart.data.map((item, index) => {
+            const value = Number(item[yField]) || 0;
+            return (
+              <div key={`${chart.chart_id}-${index}`} className="grid grid-cols-[72px_1fr_48px] items-center gap-2 text-xs">
+                <span className="truncate text-[var(--theme-body)]">{formatCell(item[chart.x_field ?? "label"])}</span>
+                <span className="h-2 overflow-hidden rounded-full bg-[var(--theme-soft-panel)]">
+                  <span className="block h-full rounded-full bg-[var(--theme-primary)]" style={{ width: `${Math.max(6, (value / maxValue) * 100)}%` }} />
+                </span>
+                <span className="text-right font-semibold text-[var(--theme-ink)]">{value}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  if (chart.chart_type === "trend") {
+    const hasDailyBars = chart.data.some((item) => "content_count" in item || "comment_count" in item);
+    if (hasDailyBars) {
+      const maxValue = Math.max(1, ...chart.data.flatMap((item) => [Number(item.content_count) || 0, Number(item.comment_count) || 0]));
+      return (
+        <div key={chart.chart_id} className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-sm font-semibold text-[var(--theme-ink)]">{chart.title}</p>
+            <div className="flex items-center gap-3 text-[11px] text-[var(--theme-muted)]">
+              <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-[var(--theme-primary)]" />内容</span>
+              <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-[var(--theme-selected-text)]" />评论</span>
+            </div>
+          </div>
+          <div className="mt-4 flex min-h-[180px] items-end gap-3 overflow-x-auto pb-2">
+            {chart.data.map((item, index) => {
+              const contentCount = Number(item.content_count) || 0;
+              const commentCount = Number(item.comment_count) || 0;
+              return (
+                <div key={`${chart.chart_id}-${index}`} className="flex min-w-[54px] flex-1 flex-col items-center gap-2">
+                  <div className="flex h-32 items-end gap-1.5">
+                    <span
+                      title={`内容：${contentCount}`}
+                      className="w-3 rounded-t-md bg-[var(--theme-primary)]"
+                      style={{ height: `${Math.max(4, (contentCount / maxValue) * 128)}px` }}
+                    />
+                    <span
+                      title={`评论：${commentCount}`}
+                      className="w-3 rounded-t-md bg-[var(--theme-selected-text)]"
+                      style={{ height: `${Math.max(4, (commentCount / maxValue) * 128)}px` }}
+                    />
+                  </div>
+                  <span className="max-w-[64px] truncate text-[10px] text-[var(--theme-muted)]">{formatCell(item[chart.x_field ?? "date"])}</span>
+                </div>
+              );
+            })}
+          </div>
+          {chart.note ? <p className="mt-2 text-xs leading-5 text-[var(--theme-muted)]">{chart.note}</p> : null}
+        </div>
+      );
+    }
+    return (
+      <div key={chart.chart_id} className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4">
+        <p className="text-sm font-semibold text-[var(--theme-ink)]">{chart.title}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {chart.data.map((item, index) => (
+            <span key={`${chart.chart_id}-${index}`} className="rounded-full bg-[var(--theme-soft-panel)] px-3 py-1 text-xs text-[var(--theme-body)]">
+              {formatCell(item.label ?? item.date)}：{formatCell(item.volume)}
+            </span>
+          ))}
+        </div>
+        {chart.note ? <p className="mt-3 text-xs leading-5 text-[var(--theme-muted)]">{chart.note}</p> : null}
+      </div>
+    );
+  }
+  return (
+    <div key={chart.chart_id} className="overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)]">
+      <p className="border-b border-[var(--theme-border)] px-4 py-3 text-sm font-semibold text-[var(--theme-ink)]">{chart.title}</p>
+      <table className="w-full text-left text-xs">
+        <tbody className="divide-y divide-[var(--theme-border)]">
+          {chart.data.map((item, index) => (
+            <tr key={`${chart.chart_id}-${index}`}>
+              {(chart.columns ?? Object.keys(item)).map((column) => (
+                <td key={column} className="px-4 py-3 align-top leading-5 text-[var(--theme-body)]">
+                  {formatCell(item[column])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const templateToneStyles: Record<StructuredReportTemplateSection["tone"], { label: string; shell: string; chip: string; card: string; accent: string }> = {
+  red: {
+    label: "bg-[#b84545] text-white",
+    shell: "bg-[#fff4f4] border-[#f3d7d7]",
+    chip: "bg-[#ffe8e8] text-[#a43b3b]",
+    card: "bg-white border-[#f0d7d7]",
+    accent: "bg-[#d75a5a]",
+  },
+  green: {
+    label: "bg-[#4f9b42] text-white",
+    shell: "bg-[#f4fbf0] border-[#dcefd5]",
+    chip: "bg-[#e8f7e0] text-[#427b32]",
+    card: "bg-white border-[#d8ead0]",
+    accent: "bg-[#68af55]",
+  },
+  brown: {
+    label: "bg-[#9a7246] text-white",
+    shell: "bg-[#fbf7f0] border-[#eadfce]",
+    chip: "bg-[#f3eadc] text-[#795631]",
+    card: "bg-white border-[#e8dac5]",
+    accent: "bg-[#b58a55]",
+  },
+  blue: {
+    label: "bg-[#3d7b9f] text-white",
+    shell: "bg-[#f0f8fb] border-[#d4e8f0]",
+    chip: "bg-[#e1f2f8] text-[#2d6d91]",
+    card: "bg-white border-[#cfdee7]",
+    accent: "bg-[#4f9ec5]",
+  },
+};
+
+function renderTemplateSection(section: StructuredReportTemplateSection) {
+  const tone = templateToneStyles[section.tone] ?? templateToneStyles.blue;
+  return (
+    <section key={`${section.code}-${section.title}`} className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className={`rounded-sm px-2.5 py-1 text-xs font-bold tracking-wide ${tone.label}`}>
+          {section.code} / {section.title}
+        </span>
+        {section.subtitle ? <span className="text-xs text-[var(--theme-muted)]">{section.subtitle}</span> : null}
+      </div>
+      <div className={`rounded-2xl border p-4 ${tone.shell}`}>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {section.cards.map((card) => (
+            <article key={`${section.code}-${card.title}`} className={`relative overflow-hidden rounded-xl border p-4 shadow-[0_10px_24px_rgba(26,32,44,0.05)] ${tone.card}`}>
+              <span className={`absolute left-0 top-4 h-10 w-1 rounded-r-full ${tone.accent}`} />
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="pl-2 text-sm font-semibold text-[var(--theme-ink)]">{card.title}</h3>
+                {card.badge ? <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${tone.chip}`}>{card.badge}</span> : null}
+              </div>
+              <p className="mt-3 min-h-[44px] text-sm leading-6 text-[var(--theme-body)]">{card.body}</p>
+              {card.bullets.length ? (
+                <ul className="mt-3 space-y-1 rounded-lg bg-[rgba(248,250,252,0.78)] p-3">
+                  {card.bullets.map((bullet) => (
+                    <li key={`${card.title}-${bullet}`} className="flex gap-2 text-xs leading-5 text-[var(--theme-body)]">
+                      <span className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${tone.accent}`} />
+                      <span>{bullet}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function StructuredReportView({ report }: { report: StructuredReport }) {
+  const [reportViewMode, setReportViewMode] = useState<ReportViewMode>("dashboard");
+  const templateSections = report.template_sections?.length
+    ? report.template_sections
+    : [
+        {
+          code: "01",
+          title: "核心结论",
+          subtitle: "兼容旧报告结构生成的摘要区",
+          tone: "red" as const,
+          cards: [
+            {
+              title: "执行摘要",
+              badge: "摘要",
+              body: report.executive_summary[0] || "当前数据不足以生成执行摘要。",
+              bullets: report.executive_summary.slice(1, 4),
+            },
+            {
+              title: "判断补充",
+              badge: "判断",
+              body: report.recommendations[0] || "当前报告按固定模板展示事件判断。",
+              bullets: report.recommendations.slice(1, 4),
+            },
+          ],
+        },
+      ];
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-[var(--theme-border)] bg-[linear-gradient(135deg,#ffffff,#f7fbfb)] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--theme-primary)]">Event Report</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--theme-ink)]">{report.title}</h1>
+            <p className="mt-2 text-sm text-[var(--theme-muted)]">
+              {reportViewMode === "dashboard"
+                ? "看板模式：优先展示事件总判断、市场传播判断、产品机会与风险、销售转化判断和业务口径。"
+                : "报告模式：展开图表、证据引用和数据计算方式。"}
+            </p>
+          </div>
+          <div className="inline-flex rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-1 text-xs font-semibold shadow-[0_8px_18px_rgba(26,32,44,0.06)]">
+            <button
+              type="button"
+              onClick={() => setReportViewMode("dashboard")}
+              className={`rounded-lg px-3 py-1.5 transition ${reportViewMode === "dashboard" ? "bg-[var(--theme-primary)] text-white" : "text-[var(--theme-body)] hover:bg-[var(--theme-hover-bg)]"}`}
+            >
+              看板模式
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportViewMode("report")}
+              className={`rounded-lg px-3 py-1.5 transition ${reportViewMode === "report" ? "bg-[var(--theme-primary)] text-white" : "text-[var(--theme-body)] hover:bg-[var(--theme-hover-bg)]"}`}
+            >
+              报告模式
+            </button>
+          </div>
+        </div>
+      </div>
+      {reportViewMode === "dashboard" ? (
+        <div className="space-y-5">{templateSections.map(renderTemplateSection)}</div>
+      ) : null}
+      {reportViewMode === "report" ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-2">{report.charts.map(renderChart)}</div>
+          <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
+            <p className="text-sm font-semibold text-[var(--theme-ink)]">证据引用</p>
+            <div className="mt-2 space-y-2">
+              {report.evidence_references.map((item, index) => (
+                <p key={`${item.source_path}-${index}`} className="text-xs leading-5 text-[var(--theme-body)]">
+                  - {item.source}：{item.quote}
+                </p>
+              ))}
+            </div>
+          </section>
+          <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
+            <p className="text-sm font-semibold text-[var(--theme-ink)]">数据计算方式</p>
+            <div className="mt-2 space-y-2">
+              {report.calculation_notes.map((item) => (
+                <p key={item.metric} className="text-xs leading-5 text-[var(--theme-body)]">- {item.metric}：{item.method}</p>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DetailsBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <details className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
@@ -138,6 +414,7 @@ export function ReportAiSummaryCard({
   const [copied, setCopied] = useState(false);
   const reportMarkdown = payload?.summary.report_markdown ?? "";
   const dataNotes = payload?.summary.data_notes ?? [];
+  const structuredReport = payload?.summary.structured_report;
   const isLoading = Boolean(loadingMode);
 
   async function loadLatestSummary() {
@@ -274,6 +551,8 @@ export function ReportAiSummaryCard({
                     <Loader2 className="h-4 w-4 animate-spin" />
                     正在读取最近一次 AI 总结...
                   </div>
+                ) : structuredReport ? (
+                  <StructuredReportView report={structuredReport} />
                 ) : reportMarkdown ? (
                   <div className="space-y-1">{renderMarkdownReport(reportMarkdown)}</div>
                 ) : (

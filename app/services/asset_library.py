@@ -8,6 +8,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from app.config import DATABASE_URL
+from app.agents.report.storage import EVENT_REPORT_CACHE_TABLE_SQL
 
 
 @dataclass(frozen=True)
@@ -179,6 +180,20 @@ ASSET_DEFINITIONS: dict[str, AssetDefinition] = {
         search_columns=["cm.platform", "cm.comment_author_name", "cm.location"],
         order_sql="comment_cnt DESC NULLS LAST, latest_comment_at DESC NULLS LAST",
     ),
+    "reports": AssetDefinition(
+        key="reports",
+        label="报告资产",
+        columns=[
+            {"key": "generated_at", "label": "生成时间"},
+            {"key": "event_name", "label": "事件名称"},
+        ],
+        from_sql=(
+            "FROM data_asset.event_report_agent_run r "
+            "LEFT JOIN data_asset.dwd_event e ON r.event_id = e.event_id"
+        ),
+        search_columns=["e.event_name", "r.event_id", "r.prompt_version"],
+        order_sql="r.generated_at DESC NULLS LAST, r.report_run_id DESC",
+    ),
 }
 
 
@@ -189,6 +204,7 @@ SELECT_SQL = {
     "authors": "SELECT a.platform, a.author_name, a.author_type, a.fans_cnt, a.author_home_url, a.author_desc, coalesce(s.content_cnt, 0) AS content_cnt, coalesce(r.received_comment_cnt, 0) AS received_comment_cnt, coalesce(s.total_engagement, 0) AS total_engagement",
     "kols": "SELECT a.platform, a.author_name, a.author_type, a.fans_cnt, a.author_home_url, a.author_desc, coalesce(s.content_cnt, 0) AS content_cnt, coalesce(r.received_comment_cnt, 0) AS received_comment_cnt, coalesce(s.total_engagement, 0) AS total_engagement",
     "comment_users": "SELECT cm.platform, cm.comment_author_name, coalesce(nullif(cm.location, ''), '') AS location, count(DISTINCT cm.comment_id) AS comment_cnt, count(DISTINCT cm.content_id) AS participated_content_cnt, count(DISTINCT c.event_id) AS participated_event_cnt, coalesce(sum(cm.like_cnt), 0) AS like_cnt, coalesce(sum(cm.reply_cnt), 0) AS reply_cnt, max(cm.published_at) AS latest_comment_at",
+    "reports": "SELECT r.report_run_id, r.event_id, coalesce(e.event_name, r.event_id) AS event_name, r.generated_at, r.prompt_version, r.summary_json, r.context_json, r.rendered_prompt",
 }
 
 GROUP_SQL = {
@@ -231,6 +247,9 @@ def list_assets(
         f"ORDER BY {definition.order_sql} LIMIT %s OFFSET %s"
     )
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        if asset_key == "reports":
+            with conn.cursor() as cur:
+                cur.execute(EVENT_REPORT_CACHE_TABLE_SQL)
         with conn.cursor() as cur:
             cur.execute(count_sql, params)
             total = cur.fetchone()["count"]

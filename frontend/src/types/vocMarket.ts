@@ -327,6 +327,57 @@ export type PostDetailPayload = {
 export type ReportAgentSummary = {
   report_markdown: string;
   data_notes: string[];
+  structured_report?: StructuredReport;
+};
+
+export type ReportChartSpec = {
+  chart_id: string;
+  chart_type: "metric_cards" | "bar" | "trend" | "table";
+  title: string;
+  data: Array<Record<string, unknown>>;
+  columns?: string[];
+  x_field?: string;
+  y_field?: string;
+  note?: string;
+};
+
+export type StructuredReportEvidence = {
+  source: string;
+  quote: string;
+  metric?: unknown;
+  source_path: string;
+};
+
+export type StructuredReportCalculation = {
+  metric: string;
+  method: string;
+};
+
+export type StructuredReportTemplateCard = {
+  title: string;
+  badge?: string;
+  body: string;
+  bullets: string[];
+};
+
+export type StructuredReportTemplateSection = {
+  code: string;
+  title: string;
+  subtitle?: string;
+  tone: "red" | "green" | "brown" | "blue";
+  cards: StructuredReportTemplateCard[];
+};
+
+export type StructuredReport = {
+  title: string;
+  event?: Record<string, unknown>;
+  executive_summary: string[];
+  recommendations: string[];
+  sections: Array<Record<string, unknown>>;
+  template_sections?: StructuredReportTemplateSection[];
+  charts: ReportChartSpec[];
+  evidence_references: StructuredReportEvidence[];
+  calculation_notes: StructuredReportCalculation[];
 };
 
 export type ReportAgentPayload = {
@@ -336,6 +387,81 @@ export type ReportAgentPayload = {
   summary: ReportAgentSummary;
   context?: unknown;
   rendered_prompt?: string | null;
+};
+
+export type InsightStatus = "completed" | "partial" | "insufficient_data" | "needs_clarification";
+
+export type InsightScenario = {
+  action_type?: string;
+  affected_aspects?: string[];
+  compensation?: string[];
+  target?: string;
+  brand_name?: string;
+  model_name?: string;
+  expected_scope?: string;
+};
+
+export type InsightReactionCard = {
+  reaction: "支持" | "观望" | "反对" | string;
+  strength: string;
+  summary: string;
+  audiences: string[];
+  reasons: string[];
+  evidence_event_ids: string[];
+};
+
+export type InsightAudienceCard = {
+  audience: string;
+  reaction: string;
+  concerns: string[];
+  evidence_event_ids: string[];
+};
+
+export type InsightImpactCard = {
+  dimension: string;
+  direction: string;
+  summary: string;
+  evidence_event_ids: string[];
+};
+
+export type InsightEvidenceComment = {
+  comment_id?: string | null;
+  comment_text: string;
+  platform?: string | null;
+  published_at?: string | null;
+  event_id?: string | null;
+  event_name?: string | null;
+  relation_type?: "same_model" | "same_brand" | "cross_brand" | string;
+};
+
+export type InsightSimilarEvent = {
+  event_id?: string | null;
+  event_name?: string | null;
+  brand_name?: string | null;
+  model_name?: string | null;
+  relation_type?: "same_model" | "same_brand" | "cross_brand" | string;
+  similarity?: "strong" | "medium" | string;
+  similarities: string[];
+  differences: string[];
+  comment_count: number;
+};
+
+export type InsightResult = {
+  status?: InsightStatus;
+  scenario: InsightScenario;
+  confidence: "high" | "medium" | "low" | "insufficient" | string;
+  data_scope: {
+    candidate_event_count?: number;
+    similar_event_count?: number;
+    relevant_comment_count?: number;
+  };
+  reaction_cards: InsightReactionCard[];
+  audience_cards: InsightAudienceCard[];
+  impact_cards: InsightImpactCard[];
+  expression_themes: string[];
+  evidence_comments: InsightEvidenceComment[];
+  similar_events: InsightSimilarEvent[];
+  limitations: string[];
 };
 
 export type MarketReportSummary = ReportAgentSummary;

@@ -9,10 +9,31 @@ from app.agents.qa import parser, tools
 from app.agents.qa.state import MAX_REACT_ROUNDS, QaAgentState
 
 
+COMMON_PRODUCT_ASPECTS = ("智能化", "舒适性", "外观", "价格", "空间", "内饰", "动力", "续航", "配置", "安全", "操控")
+
+
+def infer_product_aspect(question: str) -> str:
+    return next((aspect for aspect in COMMON_PRODUCT_ASPECTS if aspect in question), "")
+
+
+def is_kol_profile_overlap_question(question: str) -> bool:
+    normalized = question.lower()
+    return ("kol" in normalized or "koc" in normalized) and any(keyword in question for keyword in ("粉丝", "画像", "目标用户", "受众", "重合"))
+
+
+def event_inference_text(state: QaAgentState) -> str:
+    history_text = "\n".join(item.get("content") or "" for item in state.get("history") or [])
+    return f"{state.get('question') or ''}\n{history_text}"
+
+
 def initialize_node(state: QaAgentState) -> QaAgentState:
     asked_at = datetime.fromisoformat(state["asked_at"])
     event = tools.resolve_event_context(event_id=state.get("event_id"), event_name=None)
+    if not event and not state.get("event_id"):
+        event = tools.infer_event_context_from_question(event_inference_text(state))
     state["event"] = event or {}
+    if event and event.get("event_id"):
+        state["event_id"] = str(event["event_id"])
     state["time_scope"] = tools.resolve_time_scope(state["question"], asked_at=asked_at, event=event)
     state["round_count"] = 0
     state["observations"] = []
@@ -28,6 +49,16 @@ def decide_node(state: QaAgentState) -> QaAgentState:
     state["needs_clarification"] = bool(decision.get("needs_clarification"))
     state["clarification_question"] = decision.get("clarification_question") or ""
     state["sufficient"] = bool(decision.get("finish"))
+    if is_kol_profile_overlap_question(state.get("question") or ""):
+        state["action"] = "get_market_story"
+        state["arguments"].pop("aspect", None)
+    if state["action"] == "get_discussion_evidence" and not str(state["arguments"].get("aspect") or "").strip():
+        inferred_aspect = infer_product_aspect(state.get("question") or "")
+        if inferred_aspect:
+            state["arguments"]["aspect"] = inferred_aspect
+            return state
+        state["needs_clarification"] = True
+        state["clarification_question"] = "你想查看哪个产品关注点的评论证据？例如外观、价格、空间、智能化。"
     if not state["needs_clarification"] and not state["sufficient"] and state["action"] not in tools.ALLOWED_TOOLS:
         raise ValueError(f"不支持的问答工具：{state['action'] or '空工具'}。")
     return state

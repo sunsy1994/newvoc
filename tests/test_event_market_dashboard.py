@@ -288,9 +288,12 @@ def test_build_product_opportunity_story_ranks_surprise_pain_and_conversion_poin
     assert story["summary"]["pain_point"] == "price"
     assert story["summary"]["conversion_point"] == "smart cockpit"
     assert story["surprise_points"][0]["opportunity_score"] == 40.0
+    assert story["surprise_points"][0]["reason"] == "提及率 50.0% × 惊喜率 80.0%"
     assert story["surprise_points"][0]["evidence_comments"][0]["comment_text"] == "space is excellent"
     assert story["pain_points"][0]["opportunity_score"] == 20.0
+    assert story["pain_points"][0]["reason"] == "提及率 30.0% × 风险率 66.7%"
     assert story["conversion_points"][0]["opportunity_score"] == 12.5
+    assert story["conversion_points"][0]["reason"] == "提及率 20.0% × 转化率 62.5%"
     assert story["summary"]["rule_based_conclusion"]
 
 

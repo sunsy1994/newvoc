@@ -41,6 +41,66 @@ def test_home_page_serves_task_management_ui(tmp_path: Path) -> None:
     assert "任务管理" in response.text
 
 
+def test_data_lineage_list_and_detail_api(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    monkeypatch.setattr(
+        "app.routers.tasks.list_lineage_nodes",
+        lambda **kwargs: {"summary": {"node_count": 1}, "nodes": [{"lineage_code": "metric.content_count"}]},
+    )
+    monkeypatch.setattr(
+        "app.routers.tasks.get_lineage_detail",
+        lambda lineage_code: {"node": {"lineage_code": lineage_code}, "upstream": [], "downstream": []},
+    )
+
+    list_response = client.get("/api/system/data-lineage?business_domain=market")
+    detail_response = client.get("/api/system/data-lineage/metric.content_count")
+
+    assert list_response.status_code == 200
+    assert list_response.json()["nodes"][0]["lineage_code"] == "metric.content_count"
+    assert detail_response.status_code == 200
+    assert detail_response.json()["node"]["lineage_code"] == "metric.content_count"
+
+
+def test_data_lineage_node_and_edge_mutation_api(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    monkeypatch.setattr("app.routers.tasks.create_lineage_node", lambda payload: {**payload, "is_system": False})
+    monkeypatch.setattr(
+        "app.routers.tasks.update_lineage_node",
+        lambda lineage_code, payload: {"lineage_code": lineage_code, **payload, "is_system": True},
+    )
+    monkeypatch.setattr("app.routers.tasks.create_lineage_edge", lambda payload: {"edge_id": 8, **payload})
+    monkeypatch.setattr("app.routers.tasks.delete_lineage_edge", lambda edge_id: edge_id == 8)
+
+    node_payload = {
+        "lineage_code": "metric.custom",
+        "lineage_name": "自定义指标",
+        "node_kind": "metric",
+        "generation_type": "derived_metric",
+        "business_domain": "sales",
+    }
+    assert client.post("/api/system/data-lineage/nodes", json=node_payload).status_code == 200
+    assert client.put(
+        "/api/system/data-lineage/nodes/metric.content_count",
+        json={"business_definition": "事件内去重内容数"},
+    ).status_code == 200
+    assert client.post(
+        "/api/system/data-lineage/edges",
+        json={"upstream_code": "metric.a", "downstream_code": "metric.b", "relation_type": "depends_on"},
+    ).json()["edge_id"] == 8
+    assert client.delete("/api/system/data-lineage/edges/8").status_code == 200
+
+
+def test_data_lineage_api_maps_missing_and_validation_errors(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    monkeypatch.setattr("app.routers.tasks.get_lineage_detail", lambda lineage_code: None)
+    monkeypatch.setattr("app.routers.tasks.create_lineage_node", lambda payload: (_ for _ in ()).throw(ValueError("非法节点")))
+    monkeypatch.setattr("app.routers.tasks.delete_lineage_edge", lambda edge_id: False)
+
+    assert client.get("/api/system/data-lineage/missing").status_code == 404
+    assert client.post("/api/system/data-lineage/nodes", json={}).status_code == 400
+    assert client.delete("/api/system/data-lineage/edges/99").status_code == 404
+
+
 def test_template_download(tmp_path: Path) -> None:
     client = make_client(tmp_path)
 

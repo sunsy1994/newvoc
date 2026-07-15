@@ -85,6 +85,79 @@ def test_explicit_time_scope_overrides_default_range() -> None:
     assert "用户指定" in scope["label"]
 
 
+def test_relative_month_time_scope_overrides_default_range() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    asked_at = datetime(2026, 7, 7, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    scope = resolve_time_scope("idt6上市这个事件，近三个月用户在外观维度热议什么？", asked_at=asked_at)
+
+    assert scope["mode"] == "relative"
+    assert scope["start_date"] == "2026-04-07"
+    assert scope["end_date"] == "2026-07-07"
+    assert scope["source"] == "user_relative_phrase"
+    assert scope["anchor_date"] == "2026-07-07"
+    assert "自然月" in scope["label"]
+
+
+def test_relative_time_scope_overrides_event_period() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    asked_at = datetime(2026, 7, 7, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    event = {"event_name": "IDT6上市", "start_time": "2026-05-17T09:00:00", "end_time": "2026-05-20T18:00:00"}
+    scope = resolve_time_scope("这个事件近三个月外观热议什么？", asked_at=asked_at, event=event)
+
+    assert scope["mode"] == "relative"
+    assert scope["start_date"] == "2026-04-07"
+    assert scope["end_date"] == "2026-07-07"
+
+
+def test_today_and_yesterday_time_scope_use_ask_date() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    asked_at = datetime(2026, 7, 7, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    today_scope = resolve_time_scope("今天外观讨论怎么样？", asked_at=asked_at)
+    yesterday_scope = resolve_time_scope("昨天外观讨论怎么样？", asked_at=asked_at)
+
+    assert today_scope["start_date"] == "2026-07-07"
+    assert today_scope["end_date"] == "2026-07-07"
+    assert today_scope["source"] == "user_relative_phrase"
+    assert yesterday_scope["start_date"] == "2026-07-06"
+    assert yesterday_scope["end_date"] == "2026-07-06"
+
+
+def test_business_week_and_month_time_scopes_do_not_include_future_dates() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    asked_at = datetime(2026, 7, 7, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    this_week = resolve_time_scope("本周外观讨论怎么样？", asked_at=asked_at)
+    last_week = resolve_time_scope("上周外观讨论怎么样？", asked_at=asked_at)
+    this_month = resolve_time_scope("本月外观讨论怎么样？", asked_at=asked_at)
+    last_month = resolve_time_scope("上月外观讨论怎么样？", asked_at=asked_at)
+
+    assert this_week["start_date"] == "2026-07-06"
+    assert this_week["end_date"] == "2026-07-07"
+    assert last_week["start_date"] == "2026-06-29"
+    assert last_week["end_date"] == "2026-07-05"
+    assert this_month["start_date"] == "2026-07-01"
+    assert this_month["end_date"] == "2026-07-07"
+    assert last_month["start_date"] == "2026-06-01"
+    assert last_month["end_date"] == "2026-06-30"
+
+
+def test_named_month_time_scope_uses_anchor_year_and_past_month() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    asked_at = datetime(2026, 1, 8, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    scope = resolve_time_scope("12月外观讨论怎么样？", asked_at=asked_at)
+
+    assert scope["mode"] == "named_month"
+    assert scope["start_date"] == "2025-12-01"
+    assert scope["end_date"] == "2025-12-31"
+    assert scope["source"] == "user_month_phrase"
+
+
 def test_specific_event_uses_full_event_period_when_time_is_not_explicit() -> None:
     from app.agents.qa.tools import resolve_time_scope
 
@@ -294,3 +367,266 @@ def test_qa_agent_rejects_invalid_tool_before_execution(monkeypatch) -> None:
         assert "不支持的问答工具" in str(exc)
     else:
         raise AssertionError("invalid action must be rejected")
+
+
+def test_qa_agent_asks_for_aspect_before_discussion_evidence(monkeypatch) -> None:
+    from app.agents.qa import graph, parser, tools
+
+    monkeypatch.setattr(
+        parser,
+        "decide",
+        lambda state: {
+            "tool_name": "get_discussion_evidence",
+            "arguments": {"event_id": "event_001"},
+            "finish": False,
+        },
+    )
+    monkeypatch.setattr(
+        tools,
+        "resolve_event_context",
+        lambda **kwargs: {
+            "event_id": "event_001",
+            "event_name": "IDT6上市",
+            "start_time": "2026-05-17",
+            "end_time": "2026-05-20",
+        },
+    )
+    monkeypatch.setattr(tools, "execute_qa_tool", lambda *args: (_ for _ in ()).throw(AssertionError("tool must not run without aspect")))
+
+    result = graph.run_qa_agent("把这个事件的评论证据列出来", event_id="event_001")
+
+    assert result["status"] == "needs_clarification"
+    assert result["requires_clarification"] is True
+    assert "产品关注点" in result["answer"]
+    assert result["react_rounds"] == 0
+
+
+def test_qa_agent_infers_discussion_aspect_from_question(monkeypatch) -> None:
+    from app.agents.qa import graph, parser, tools
+
+    captured_arguments: dict[str, str] = {}
+    monkeypatch.setattr(
+        parser,
+        "decide",
+        lambda state: {
+            "tool_name": "get_discussion_evidence",
+            "arguments": {"event_id": "event_001"},
+            "finish": False,
+        },
+    )
+    monkeypatch.setattr(
+        parser,
+        "revise",
+        lambda state: {
+            "answer": "外观惊喜点主要来自造型和辨识度。",
+            "sufficient": True,
+            "suggested_questions": [],
+        },
+    )
+    monkeypatch.setattr(
+        tools,
+        "resolve_event_context",
+        lambda **kwargs: {
+            "event_id": "event_001",
+            "event_name": "IDT6上市",
+            "start_time": "2026-05-17",
+            "end_time": "2026-05-20",
+        },
+    )
+
+    def fake_tool(name: str, arguments: dict, scope: dict) -> dict:
+        captured_arguments.update(arguments)
+        return {
+            "tool_name": name,
+            "event": {"event_id": "event_001", "event_name": "IDT6上市"},
+            "time_scope": scope,
+            "data_scope": "产品关注点原始评论（按统计区间切片）",
+            "facts": {"aspect": arguments["aspect"], "total": 1},
+            "evidence": [{"comment_text": "外观很惊艳"}],
+            "notes": [],
+        }
+
+    monkeypatch.setattr(tools, "execute_qa_tool", fake_tool)
+
+    result = graph.run_qa_agent("idt6上市外观的惊喜点说了什么", event_id="event_001")
+
+    assert captured_arguments["aspect"] == "外观"
+    assert result["status"] == "answered"
+    assert result["react_rounds"] == 1
+
+
+def test_qa_agent_infers_event_from_question(monkeypatch) -> None:
+    from app.agents.qa import graph, parser, tools
+
+    captured_arguments: dict[str, str] = {}
+    monkeypatch.setattr(
+        parser,
+        "decide",
+        lambda state: {
+            "tool_name": "get_discussion_evidence",
+            "arguments": {},
+            "finish": False,
+        },
+    )
+    monkeypatch.setattr(
+        parser,
+        "revise",
+        lambda state: {
+            "answer": "外观惊喜点主要来自造型和辨识度。",
+            "sufficient": True,
+            "suggested_questions": [],
+        },
+    )
+    monkeypatch.setattr(
+        tools,
+        "list_voc_events",
+        lambda q=None, limit=20: {
+            "events": [
+                {
+                    "event_id": "EVT-2026-001",
+                    "event_name": "IDT6上市",
+                    "brand_name": "一汽大众",
+                    "model_name": "ID.AURA T6",
+                    "start_time": "2026-05-14",
+                    "end_time": "2026-05-20",
+                }
+            ]
+        },
+    )
+
+    def fake_tool(name: str, arguments: dict, scope: dict) -> dict:
+        captured_arguments.update(arguments)
+        return {
+            "tool_name": name,
+            "event": {"event_id": arguments["event_id"], "event_name": "IDT6上市"},
+            "time_scope": scope,
+            "data_scope": "产品关注点原始评论（按统计区间切片）",
+            "facts": {"aspect": arguments["aspect"], "total": 1},
+            "evidence": [{"comment_text": "外观很惊艳"}],
+            "notes": [],
+        }
+
+    monkeypatch.setattr(tools, "execute_qa_tool", fake_tool)
+
+    result = graph.run_qa_agent("idt6上市外观的惊喜点说了什么")
+
+    assert captured_arguments["event_id"] == "EVT-2026-001"
+    assert captured_arguments["aspect"] == "外观"
+    assert result["event_name"] == "IDT6上市"
+
+
+def test_qa_agent_routes_kol_profile_overlap_to_market_story(monkeypatch) -> None:
+    from app.agents.qa import graph, parser, tools
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        parser,
+        "decide",
+        lambda state: {
+            "tool_name": "get_discussion_evidence",
+            "arguments": {},
+            "finish": False,
+        },
+    )
+    monkeypatch.setattr(
+        parser,
+        "revise",
+        lambda state: {
+            "answer": "KOL画像与目标用户重合度需要结合KOL类型和已画像用户分布判断。",
+            "sufficient": True,
+            "suggested_questions": [],
+        },
+    )
+    monkeypatch.setattr(
+        tools,
+        "list_voc_events",
+        lambda q=None, limit=20: {
+            "events": [
+                {
+                    "event_id": "EVT-2026-001",
+                    "event_name": "IDT6上市",
+                    "start_time": "2026-05-14",
+                    "end_time": "2026-05-20",
+                }
+            ]
+        },
+    )
+
+    def fake_tool(name: str, arguments: dict, scope: dict) -> dict:
+        calls.append(name)
+        return {
+            "tool_name": name,
+            "event": {"event_id": arguments["event_id"], "event_name": "IDT6上市"},
+            "time_scope": scope,
+            "data_scope": "市场看板结构化数据",
+            "facts": {"kol_and_authors": {}, "audience": {}},
+            "evidence": [],
+            "notes": [],
+        }
+
+    monkeypatch.setattr(tools, "execute_qa_tool", fake_tool)
+
+    result = graph.run_qa_agent("这些KOL的粉丝画像与IDT6的目标用户重合度如何？")
+
+    assert calls == ["get_market_story"]
+    assert result["status"] == "answered"
+
+
+def test_qa_agent_carries_event_from_history_for_follow_up(monkeypatch) -> None:
+    from app.agents.qa import graph, parser, tools
+
+    captured_arguments: dict[str, str] = {}
+    monkeypatch.setattr(
+        parser,
+        "decide",
+        lambda state: {
+            "tool_name": "get_market_story",
+            "arguments": {},
+            "finish": False,
+        },
+    )
+    monkeypatch.setattr(
+        parser,
+        "revise",
+        lambda state: {
+            "answer": "这些KOL与目标用户有一定重合。",
+            "sufficient": True,
+            "suggested_questions": [],
+        },
+    )
+    monkeypatch.setattr(
+        tools,
+        "list_voc_events",
+        lambda q=None, limit=20: {
+            "events": [
+                {
+                    "event_id": "EVT-2026-001",
+                    "event_name": "IDT6上市",
+                    "start_time": "2026-05-14",
+                    "end_time": "2026-05-20",
+                }
+            ]
+        },
+    )
+
+    def fake_tool(name: str, arguments: dict, scope: dict) -> dict:
+        captured_arguments.update(arguments)
+        return {
+            "tool_name": name,
+            "event": {"event_id": arguments["event_id"], "event_name": "IDT6上市"},
+            "time_scope": scope,
+            "data_scope": "市场看板结构化数据",
+            "facts": {},
+            "evidence": [],
+            "notes": [],
+        }
+
+    monkeypatch.setattr(tools, "execute_qa_tool", fake_tool)
+
+    result = graph.run_qa_agent(
+        "这些KOL的粉丝画像与目标用户重合度如何？",
+        history=[{"role": "assistant", "content": "事件名称：IDT6上市\n统计区间：2026-05-14 至 2026-05-20"}],
+    )
+
+    assert captured_arguments["event_id"] == "EVT-2026-001"
+    assert result["event_name"] == "IDT6上市"

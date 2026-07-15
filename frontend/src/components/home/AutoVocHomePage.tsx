@@ -33,6 +33,7 @@ import type {
 } from "@/types/autoVocHome";
 import { apiBaseUrl } from "@/config/navigation";
 import { ChatMessageList, type ChatMessage } from "@/components/home/ChatMessageList";
+import type { InsightResult, ReportAgentPayload } from "@/types/vocMarket";
 
 type AutoVocHomePageProps = {
   payload: AutoVocHomePayload | null;
@@ -47,6 +48,13 @@ type DataQuestionResult = {
   time_scope?: { label?: string };
   data_scope?: string;
   react_rounds?: number;
+  summary?: ReportAgentPayload["summary"];
+  prompt_version?: string;
+  generated_at?: string | null;
+  context?: unknown;
+  rendered_prompt?: string | null;
+  event_id?: string;
+  insight_result?: InsightResult;
 };
 
 const formatNumber = (value?: number | null) => Number(value ?? 0).toLocaleString("zh-CN");
@@ -54,7 +62,7 @@ const formatDate = (value?: string | null) => (value ? value.slice(0, 10) : "未
 const ALL_BRANDS = "全部品牌";
 const CHAT_STORAGE_KEY = "auto-voc-chat-history-v1";
 
-function createChatMessage(role: ChatMessage["role"], content: string, options?: Pick<ChatMessage, "suggestions" | "isError">): ChatMessage {
+function createChatMessage(role: ChatMessage["role"], content: string, options?: Pick<ChatMessage, "suggestions" | "isError" | "reportPayload" | "insightPayload">): ChatMessage {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     role,
@@ -894,10 +902,9 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [historyReady, setHistoryReady] = useState(false);
   const [isAskingDataQuestion, setIsAskingDataQuestion] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState("");
   const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
   const selectedPrompts = selectedSkill.prompts.length ? selectedSkill.prompts : prompts;
-  const isActiveSkillAvailable = activeSkillId === "data" || activeSkillId === "qa";
+  const isActiveSkillAvailable = activeSkillId === "data" || activeSkillId === "qa" || activeSkillId === "report" || activeSkillId === "insight";
 
   useEffect(() => {
     try {
@@ -945,16 +952,16 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
     }
     setIsAskingDataQuestion(true);
     try {
-      const isQaRequest = activeSkillId === "qa";
-      const response = await fetch(`${apiBaseUrl}${isQaRequest ? "/agents/run" : "/agents/data-question/run"}`, {
+      const isUnifiedAgentRequest = activeSkillId === "qa" || activeSkillId === "report" || activeSkillId === "insight";
+      const response = await fetch(`${apiBaseUrl}${isUnifiedAgentRequest ? "/agents/run" : "/agents/data-question/run"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          isQaRequest
+          isUnifiedAgentRequest
             ? {
-                capability: "qa",
+                capability: activeSkillId,
                 message: trimmedQuestion,
-                event_id: selectedEventId || null,
+                event_id: activeSkillId === "report" ? events[0]?.event_id ?? null : null,
                 history: messages.slice(-10).map(({ role, content }) => ({ role, content })),
               }
             : {
@@ -969,9 +976,24 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
         throw new Error(detail?.detail ?? `AI ${selectedSkill.title}失败：${response.status}`);
       }
       const result = (await response.json()) as DataQuestionResult;
+      const reportPayload: ReportAgentPayload | undefined =
+        activeSkillId === "report" && result.summary?.structured_report
+          ? {
+              event_id: result.event_id ?? "",
+              prompt_version: result.prompt_version ?? "",
+              generated_at: result.generated_at,
+              summary: result.summary,
+              context: result.context,
+              rendered_prompt: result.rendered_prompt,
+            }
+          : undefined;
       setMessages((current) => [
         ...current,
-        createChatMessage("assistant", result.answer, { suggestions: result.suggested_questions }),
+        createChatMessage("assistant", result.answer, {
+          suggestions: result.suggested_questions,
+          reportPayload,
+          insightPayload: activeSkillId === "insight" ? result.insight_result : undefined,
+        }),
       ]);
     } catch (error) {
       setMessages((current) => [
@@ -1058,19 +1080,6 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
       )}
 
       <div className="mt-auto pt-5">
-        {activeSkillId === "qa" ? (
-          <label className="mb-2 block text-[11px] font-medium text-[var(--sys-muted)]">
-            问答事件
-            <select
-              value={selectedEventId}
-              onChange={(event) => setSelectedEventId(event.target.value)}
-              className="mt-1.5 h-10 w-full rounded-xl border border-[var(--sys-border)] bg-white px-3 text-sm font-medium text-[var(--sys-ink)] outline-none transition focus:border-[var(--sys-icon-fill)]"
-            >
-              <option value="">自动识别事件</option>
-              {events.map((item) => <option key={item.event_id} value={item.event_id}>{item.event_name}</option>)}
-            </select>
-          </label>
-        ) : null}
         <form onSubmit={submitDataQuestion} className="flex items-center gap-2 rounded-2xl border border-[var(--sys-border)] bg-white px-3 py-2">
           <input
             value={question}

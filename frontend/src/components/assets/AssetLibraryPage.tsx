@@ -1,11 +1,13 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Database, Download, RefreshCw, Search, TableProperties } from "lucide-react";
+import { Database, Download, RefreshCw, Search, TableProperties, X } from "lucide-react";
 
 import { DataPagination } from "@/components/shared/DataPagination";
+import { StructuredReportView } from "@/components/voc/ReportAiSummaryCard";
 import { apiBaseUrl } from "@/config/navigation";
 import type { AssetListPayload, AssetPageConfig } from "@/types/assets";
+import type { StructuredReport } from "@/types/vocMarket";
 
 const defaultPageSize = 10;
 
@@ -52,10 +54,12 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
   const [draftQuery, setDraftQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [openReport, setOpenReport] = useState<StructuredReport | null>(null);
 
   const total = payload?.total ?? 0;
   const rows = payload?.rows ?? [];
   const columns = payload?.columns ?? [];
+  const isReportAsset = config.assetKey === "reports";
 
   const params = useMemo(() => {
     const nextParams = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
@@ -158,6 +162,7 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
                       {column.label}
                     </th>
                   ))}
+                  {isReportAsset ? <th className="whitespace-nowrap px-4 py-3">操作</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#eef1f6]">
@@ -168,6 +173,20 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
                         <span className="block overflow-hidden text-ellipsis">{formatCellValue(row[column.key])}</span>
                       </td>
                     ))}
+                    {isReportAsset ? (
+                      <td className="whitespace-nowrap px-4 py-3 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const summary = row.summary_json as { structured_report?: StructuredReport } | undefined;
+                            setOpenReport(summary?.structured_report ?? null);
+                          }}
+                          className="rounded-lg border border-[var(--sys-border)] bg-white px-3 py-1.5 font-semibold text-[var(--sys-icon-fill)] transition hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-soft-panel)]"
+                        >
+                          查看
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -189,6 +208,29 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
           onPageSizeChange={setPageSize}
         />
       </section>
+      {openReport ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[var(--theme-border)] bg-[var(--theme-white)] shadow-[0_24px_80px_rgba(26,32,44,0.2)]">
+            <header className="flex items-center justify-between gap-3 border-b border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-selected-bg),var(--theme-card))] p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-muted)]">Report Asset</p>
+                <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">{openReport.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenReport(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] text-[var(--theme-body)] transition hover:bg-[var(--theme-hover-bg)]"
+                aria-label="关闭报告"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="max-h-[calc(88vh-86px)] overflow-auto p-5">
+              <StructuredReportView report={openReport} />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

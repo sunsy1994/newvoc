@@ -74,6 +74,7 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
         "src/app/assets/authors/page.tsx",
         "src/app/assets/kols/page.tsx",
         "src/app/assets/comment-users/page.tsx",
+        "src/app/assets/reports/page.tsx",
         "src/app/competitors/accounts/page.tsx",
         "src/app/competitors/works/page.tsx",
         "src/app/profiles/kols/page.tsx",
@@ -81,6 +82,8 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
         "src/app/system/parameters/page.tsx",
         "src/app/system/prompts/page.tsx",
         "src/app/system/emojis/page.tsx",
+        "src/app/system/agent-error-questions/page.tsx",
+        "src/app/system/data-lineage/page.tsx",
     ]
     for page in expected_pages:
         assert (root / page).exists()
@@ -91,9 +94,12 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
     assert "市场看板" in navigation
     assert "/voc/events/product" in navigation
     assert "/assets/comment-users" in navigation
+    assert "/assets/reports" in navigation
     assert "/system/parameters" in navigation
     assert "/system/prompts" in navigation
     assert "/system/emojis" in navigation
+    assert "/system/agent-error-questions" in navigation
+    assert "/system/data-lineage" in navigation
     assert "/tasks/ai-profile-flow" in navigation
     assert "传播内容" not in navigation
     assert "KOL与用户" not in navigation
@@ -109,16 +115,34 @@ def test_system_management_pages_use_real_api_components() -> None:
     parameter_page = (root / "src/app/system/parameters/page.tsx").read_text(encoding="utf-8")
     prompt_page = (root / "src/app/system/prompts/page.tsx").read_text(encoding="utf-8")
     emoji_page = (root / "src/app/system/emojis/page.tsx").read_text(encoding="utf-8")
+    error_page = (root / "src/app/system/agent-error-questions/page.tsx").read_text(encoding="utf-8")
+    lineage_page = (root / "src/app/system/data-lineage/page.tsx").read_text(encoding="utf-8")
     component = (root / "src/components/system/SystemSettingsPage.tsx").read_text(encoding="utf-8")
     emoji_component = (root / "src/components/system/EmojiDictionaryPage.tsx").read_text(encoding="utf-8")
+    error_component = (root / "src/components/system/AgentErrorQuestionPage.tsx").read_text(encoding="utf-8")
+    lineage_component = (root / "src/components/system/DataLineagePage.tsx").read_text(encoding="utf-8")
 
     assert "系统管理" in navigation
     assert "参数维护" in navigation
     assert "提示词维护" in navigation
     assert "表情包维护" in navigation
+    assert "异常问题记录" in navigation
+    assert "数据血缘维护" in navigation
     assert "SystemSettingsPage" in parameter_page
     assert "SystemSettingsPage" in prompt_page
     assert "EmojiDictionaryPage" in emoji_page
+    assert "AgentErrorQuestionPage" in error_page
+    assert "DataLineagePage" in lineage_page
+    assert "/system/agent-error-questions" in error_component
+    assert "异常问题记录" in error_component
+    assert "/system/data-lineage" in lineage_component
+    assert "upstream" in lineage_component
+    assert "downstream" in lineage_component
+    assert "business_definition" in lineage_component
+    assert "generation_type" in lineage_component
+    assert "is_system" in lineage_component
+    assert "createNode" in lineage_component
+    assert "新增人工节点" in lineage_component
     assert 'mode="parameters"' in parameter_page
     assert 'mode="prompts"' in prompt_page
     assert "/system/ai-config" in component
@@ -198,6 +222,7 @@ def test_asset_pages_use_real_api_component_and_exports() -> None:
         "authors": "src/app/assets/authors/page.tsx",
         "kols": "src/app/assets/kols/page.tsx",
         "comment_users": "src/app/assets/comment-users/page.tsx",
+        "reports": "src/app/assets/reports/page.tsx",
     }
 
     for asset_key, relative_path in expected_assets.items():
@@ -208,6 +233,9 @@ def test_asset_pages_use_real_api_component_and_exports() -> None:
 
     assert "fetch(buildApiUrl(`/assets/${config.assetKey}`" in asset_component
     assert "`/assets/${config.assetKey}/export`" in asset_component
+    assert "报告资产" in (root / "src/app/assets/reports/page.tsx").read_text(encoding="utf-8")
+    assert "查看" in asset_component
+    assert "StructuredReportView" in asset_component
 
 
 def test_frontend_lists_use_shared_pagination_component() -> None:
@@ -1232,6 +1260,48 @@ def test_report_ai_summary_card_generates_when_no_cached_summary() -> None:
     assert shared_card.index("response.status === 404") < shared_card.index("await regenerateSummary()")
 
 
+def test_report_ai_summary_card_renders_structured_report_charts_evidence_and_calculations() -> None:
+    shared_card = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+    types = Path("frontend/src/types/vocMarket.ts").read_text(encoding="utf-8")
+
+    assert "StructuredReport" in types
+    assert "ReportChartSpec" in types
+    assert "structured_report" in types
+    assert "StructuredReportView" in shared_card
+    assert "template_sections" in types
+    assert "renderTemplateSection" in shared_card
+    assert "reportViewMode" in shared_card
+    assert "看板模式" in shared_card
+    assert "报告模式" in shared_card
+    assert 'reportViewMode === "dashboard"' in shared_card
+    assert 'reportViewMode === "report"' in shared_card
+    assert "content_count" in shared_card
+    assert "comment_count" in shared_card
+    assert "内容" in shared_card
+    assert "评论" in shared_card
+    assert "产品机会与风险" in shared_card
+    assert "Event Report" in shared_card
+    assert "({item.source_path})" not in shared_card
+    assert "metric_cards" in shared_card
+    assert "evidence_references" in shared_card
+    assert "calculation_notes" in shared_card
+    assert "证据引用" in shared_card
+    assert "数据计算方式" in shared_card
+
+
+def test_auto_voc_chat_message_can_open_generated_event_report() -> None:
+    home = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    chat = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
+    report_card = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert "reportPayload" in home
+    assert "result.summary?.structured_report" in home
+    assert "reportPayload" in chat
+    assert "查看报告" in chat
+    assert "StructuredReportView" in chat
+    assert "export function StructuredReportView" in report_card
+
+
 def test_report_ai_summary_card_uses_shared_hover_border_gradient_button() -> None:
     shared_card = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
     gradient_component = Path("frontend/src/components/ui/hover-border-gradient.tsx").read_text(encoding="utf-8")
@@ -1260,24 +1330,57 @@ def test_auto_voc_home_copilot_has_data_question_entry() -> None:
 
     assert "/agents/data-question/run" in component
     assert "apiBaseUrl" in component
-    assert "payload.key_events[0]?.event_id" not in component
     assert "event_id: null" in component
     assert "submitDataQuestion" in component
     assert "history: messages.slice(-10)" in component
     assert "dataQuestionResult.trace" not in component
 
 
-def test_auto_voc_home_routes_qa_to_unified_agent_and_blocks_unfinished_skills() -> None:
+def test_auto_voc_home_routes_qa_report_and_insight_to_unified_agent() -> None:
     component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    qa_route = Path("frontend/src/app/api/agents/run/route.ts").read_text(encoding="utf-8")
+    data_question_route = Path("frontend/src/app/api/agents/data-question/run/route.ts").read_text(encoding="utf-8")
 
     assert "/agents/run" in component
-    assert 'capability: "qa"' in component
+    assert 'capability: activeSkillId' in component
     assert 'activeSkillId === "qa"' in component
-    assert "自动识别事件" in component
-    assert "selectedEventId" in component
-    assert "events={payload.key_events}" in component
+    assert 'activeSkillId === "report"' in component
+    assert 'activeSkillId === "insight"' in component
+    assert "activeSkillId === \"report\" ? events[0]?.event_id ?? null : null" in component
+    assert "问答事件" not in component
+    assert "selectedEventId" not in component
+    assert "event_id: null" in component
     assert "该能力即将接入" in component
     assert "/agents/data-question/run" in component
+    assert "proxyAutovocPost" in qa_route
+    assert "maxDuration = 120" in qa_route
+    assert "proxyAutovocPost" in data_question_route
+    assert "maxDuration = 120" in data_question_route
+
+
+def test_auto_voc_insight_result_renders_only_inside_conversation_cards() -> None:
+    home = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    messages = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
+    card = Path("frontend/src/components/home/InsightResultCard.tsx").read_text(encoding="utf-8")
+    types = Path("frontend/src/types/vocMarket.ts").read_text(encoding="utf-8")
+
+    assert "insight_result" in home
+    assert "insightPayload" in home
+    assert "InsightResultCard" in messages
+    assert "message.insightPayload" in messages
+    assert "export type InsightResult" in types
+    assert "用户反应判断" in card
+    assert "受影响用户群" in card
+    assert "口碑与购买信号" in card
+    assert "表达主题" in card
+    assert "真实证据原话" in card
+    assert "相似事件与推演边界" in card
+    assert "暂无此类数据推演" in card
+    assert 'status === "partial" && result.similar_events.length' in card
+    assert "部分匹配事件" in card
+    assert "cross_brand" in card
+    assert "查看报告" not in card
+    assert "asset" not in card.lower()
 
 
 def test_auto_voc_home_copilot_expanded_workspace_can_ask_data_questions() -> None:

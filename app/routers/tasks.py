@@ -19,7 +19,16 @@ from app.config import TEMPLATE_DIR
 from app.config import PROJECT_ROOT
 from app.services.comment_user_ai_flow import build_comment_user_ai_flow
 from app.services.comment_user_ai_profile import DEFAULT_PROMPT_FILE, run_comment_user_ai_profile
+from app.services.data_lineage import (
+    create_lineage_edge,
+    create_lineage_node,
+    delete_lineage_edge,
+    get_lineage_detail,
+    list_lineage_nodes,
+    update_lineage_node,
+)
 from app.agents.core import AgentCapability, AgentCapabilityUnavailableError, dispatch_agent
+from app.services.agent_error_log import AgentErrorLog
 from app.services.asset_library import list_assets
 from app.services.competitor_library import (
     get_competitor_options,
@@ -159,12 +168,128 @@ class EmojiMappingSaveRequest(BaseModel):
     is_enabled: bool = True
 
 
+class LineageNodeCreateRequest(BaseModel):
+    lineage_code: str = ""
+    lineage_name: str = ""
+    node_kind: str = ""
+    generation_type: str = ""
+    business_domain: str = ""
+    business_definition: str = ""
+    calculation_logic: str = ""
+    implementation_ref: str = ""
+    prompt_scene: str = ""
+    owner: str = ""
+    status: str = "draft"
+
+
+class LineageNodeUpdateRequest(BaseModel):
+    lineage_name: str | None = None
+    node_kind: str | None = None
+    generation_type: str | None = None
+    business_domain: str | None = None
+    business_definition: str | None = None
+    calculation_logic: str | None = None
+    implementation_ref: str | None = None
+    prompt_scene: str | None = None
+    owner: str | None = None
+    status: str | None = None
+
+
+class LineageEdgeCreateRequest(BaseModel):
+    upstream_code: str = ""
+    downstream_code: str = ""
+    relation_type: str = ""
+    relation_description: str = ""
+
+
 def get_store(request: Request) -> TaskStore:
     return request.app.state.task_store
 
 
 def get_script_manager(request: Request) -> ScriptManager:
     return request.app.state.script_manager
+
+
+def get_agent_error_log(request: Request) -> AgentErrorLog:
+    return request.app.state.agent_error_log
+
+
+@router.get("/api/system/data-lineage")
+def get_system_data_lineage(
+    q: str | None = None,
+    node_kind: str | None = None,
+    business_domain: str | None = None,
+    generation_type: str | None = None,
+    status: str | None = None,
+) -> dict:
+    try:
+        return list_lineage_nodes(
+            q=q,
+            node_kind=node_kind,
+            business_domain=business_domain,
+            generation_type=generation_type,
+            status=status,
+        )
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/system/data-lineage/{lineage_code}")
+def get_system_data_lineage_detail(lineage_code: str) -> dict:
+    try:
+        result = get_lineage_detail(lineage_code)
+        if result is None:
+            raise HTTPException(status_code=404, detail="血缘节点不存在")
+        return result
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/system/data-lineage/nodes")
+def create_system_data_lineage_node(payload: LineageNodeCreateRequest) -> dict:
+    try:
+        return create_lineage_node(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except psycopg.errors.UniqueViolation:
+        raise HTTPException(status_code=400, detail="血缘编码已存在")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.put("/api/system/data-lineage/nodes/{lineage_code}")
+def update_system_data_lineage_node(lineage_code: str, payload: LineageNodeUpdateRequest) -> dict:
+    try:
+        result = update_lineage_node(lineage_code, payload.model_dump(exclude_unset=True))
+        if result is None:
+            raise HTTPException(status_code=404, detail="血缘节点不存在")
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.post("/api/system/data-lineage/edges")
+def create_system_data_lineage_edge(payload: LineageEdgeCreateRequest) -> dict:
+    try:
+        return create_lineage_edge(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except psycopg.errors.UniqueViolation:
+        raise HTTPException(status_code=400, detail="血缘关系已存在")
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.delete("/api/system/data-lineage/edges/{edge_id}")
+def delete_system_data_lineage_edge(edge_id: int) -> dict:
+    try:
+        if not delete_lineage_edge(edge_id):
+            raise HTTPException(status_code=404, detail="关系不存在或属于受保护的系统关系")
+        return {"deleted": True, "edge_id": edge_id}
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 
 
 @router.get("/api/system/ai-config")
@@ -286,43 +411,102 @@ def get_auto_voc_home_api(days: int = 30) -> dict:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 
 
+def has_insufficient_data_support(question: str, answer: object) -> bool:
+    if not isinstance(answer, str):
+        return False
+    insufficient_terms = (
+        "缺少",
+        "没有提供",
+        "未提供",
+        "无法直接获取",
+        "无法获得",
+        "无法直接评估",
+        "无法判断",
+        "无法评估",
+        "当前没有数据支撑",
+    )
+    data_terms = ("数据", "画像", "证据", "信息", "样本")
+    if any(term in answer for term in insufficient_terms) and any(term in answer for term in data_terms):
+        return True
+    profile_overlap_question = "KOL" in question and "粉丝画像" in question and "目标用户" in question
+    return profile_overlap_question and "无法" in answer and ("粉丝" in answer or "画像" in answer)
+
+
 def execute_agent_request(
     capability: AgentCapability,
     message: str,
     event_id: str | None,
     history_items: list[DataQuestionHistoryItem],
+    error_log: AgentErrorLog | None = None,
 ) -> dict:
+    history = [item.model_dump() for item in history_items[-10:]]
+
+    def fallback_response(error_reason: str) -> dict:
+        if error_log:
+            error_log.append(
+                capability=str(capability),
+                question=message,
+                error_reason=error_reason,
+                history=history,
+            )
+        return {
+            "status": "answered",
+            "answer": "当前没有数据支撑，暂时无法反馈当前问题。这个问题已记录到系统管理的异常问题记录中，后续可用于补充数据或能力。",
+            "suggested_questions": [],
+            "requires_clarification": False,
+            "event_name": "未确定",
+            "time_scope": {},
+            "data_scope": "当前可用数据不足",
+            "react_rounds": 0,
+        }
+
     try:
-        history = [item.model_dump() for item in history_items[-10:]]
-        return dispatch_agent(capability, message, event_id=event_id, history=history)
+        result = dispatch_agent(capability, message, event_id=event_id, history=history)
+        if error_log and has_insufficient_data_support(message, result.get("answer")):
+            error_log.append(
+                capability=str(capability),
+                question=message,
+                error_reason="insufficient data support",
+                history=history,
+            )
+        return result
     except AgentCapabilityUnavailableError as exc:
         raise HTTPException(status_code=501, detail=str(exc))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        return fallback_response(str(exc))
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"AI service request failed: {exc}")
+        return fallback_response(f"AI service request failed: {exc}")
     except psycopg.Error as exc:
-        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+        return fallback_response(f"PostgreSQL connection/query failed: {exc}")
+    except Exception as exc:
+        return fallback_response(str(exc))
 
 
 @router.post("/api/agents/run")
-def run_agent_api(payload: AgentRunRequest) -> dict:
+def run_agent_api(payload: AgentRunRequest, request: Request) -> dict:
     return execute_agent_request(
         payload.capability,
         payload.message,
         payload.event_id,
         payload.history,
+        get_agent_error_log(request),
     )
 
 
 @router.post("/api/agents/data-question/run")
-def run_data_question_agent_api(payload: DataQuestionAgentRunRequest) -> dict:
+def run_data_question_agent_api(payload: DataQuestionAgentRunRequest, request: Request) -> dict:
     return execute_agent_request(
         "data_question",
         payload.question,
         payload.event_id,
         payload.history,
+        get_agent_error_log(request),
     )
+
+
+@router.get("/api/system/agent-error-questions")
+def get_agent_error_questions(request: Request, limit: int = 100) -> dict:
+    return get_agent_error_log(request).list(limit=limit)
 
 
 @router.get("/api/assets/{asset_key}/export")

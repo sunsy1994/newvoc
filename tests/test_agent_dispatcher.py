@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-
 def test_dispatcher_routes_data_question_with_context(monkeypatch) -> None:
     from app.agents.core import dispatcher
 
@@ -30,12 +27,11 @@ def test_dispatcher_routes_data_question_with_context(monkeypatch) -> None:
     }
 
 
-@pytest.mark.parametrize("capability", ["report", "insight"])
-def test_dispatcher_rejects_known_but_unavailable_capability(capability: str) -> None:
-    from app.agents.core.dispatcher import AgentCapabilityUnavailableError, dispatch_agent
+def test_dispatcher_registers_report_agent() -> None:
+    from app.agents.core import dispatcher
+    from app.agents.report import run_event_report_agent
 
-    with pytest.raises(AgentCapabilityUnavailableError, match="尚未接入"):
-        dispatch_agent(capability, "测试问题")
+    assert dispatcher.AGENT_RUNNERS["report"] is run_event_report_agent
 
 
 def test_dispatcher_registers_qa_agent() -> None:
@@ -43,6 +39,13 @@ def test_dispatcher_registers_qa_agent() -> None:
     from app.agents.qa import run_qa_agent
 
     assert dispatcher.AGENT_RUNNERS["qa"] is run_qa_agent
+
+
+def test_dispatcher_registers_insight_agent() -> None:
+    from app.agents.core import dispatcher
+    from app.agents.insight import run_insight_agent
+
+    assert dispatcher.AGENT_RUNNERS["insight"] is run_insight_agent
 
 
 def test_unified_agent_api_returns_qa_scope_metadata(tmp_path, monkeypatch) -> None:
@@ -118,16 +121,121 @@ def test_unified_agent_api_dispatches_selected_capability(tmp_path, monkeypatch)
     }
 
 
-def test_unified_agent_api_reports_unavailable_capability(tmp_path) -> None:
+def test_unified_agent_api_dispatches_insight_with_conversation_context(tmp_path, monkeypatch) -> None:
     from fastapi.testclient import TestClient
 
     from app.main import create_app
 
+    captured = {}
+
+    def fake_dispatch(capability: str, message: str, **kwargs) -> dict:
+        captured.update(capability=capability, message=message, **kwargs)
+        return {
+            "status": "insufficient_data",
+            "answer": "暂无此类数据推演。",
+            "suggested_questions": [],
+            "requires_clarification": False,
+            "insight_result": {"reaction_cards": [], "similar_events": [], "limitations": []},
+            "react_rounds": 1,
+        }
+
+    monkeypatch.setattr("app.routers.tasks.dispatch_agent", fake_dispatch)
     client = TestClient(create_app(tasks_dir=tmp_path / "tasks"))
+    history = [{"role": "user", "content": "我准备做一次配置调整"}]
     response = client.post(
         "/api/agents/run",
-        json={"capability": "insight", "message": "分析这个事件"},
+        json={"capability": "insight", "message": "取消座椅通风后用户会怎么说？", "event_id": None, "history": history},
     )
 
-    assert response.status_code == 501
-    assert "尚未接入" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["status"] == "insufficient_data"
+    assert captured == {
+        "capability": "insight",
+        "message": "取消座椅通风后用户会怎么说？",
+        "event_id": None,
+        "history": history,
+    }
+
+
+def test_unified_qa_api_logs_unexpected_errors_and_returns_fallback(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    def fake_dispatch(capability: str, message: str, **kwargs) -> dict:
+        raise RuntimeError("missing kol profile matrix")
+
+    monkeypatch.setattr("app.routers.tasks.dispatch_agent", fake_dispatch)
+    client = TestClient(create_app(tasks_dir=tmp_path / "tasks"))
+
+    response = client.post(
+        "/api/agents/run",
+        json={"capability": "qa", "message": "这些KOL的粉丝画像与IDT6的目标用户重合度如何？", "history": []},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "answered"
+    assert "当前没有数据支撑" in payload["answer"]
+    assert payload["requires_clarification"] is False
+
+    log_response = client.get("/api/system/agent-error-questions")
+
+    assert log_response.status_code == 200
+    records = log_response.json()["records"]
+    assert records[0]["question"] == "这些KOL的粉丝画像与IDT6的目标用户重合度如何？"
+    assert records[0]["capability"] == "qa"
+    assert records[0]["error_reason"] == "missing kol profile matrix"
+
+
+def test_unified_qa_api_logs_data_errors_and_returns_fallback(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    def fake_dispatch(capability: str, message: str, **kwargs) -> dict:
+        raise ValueError("no evidence rows for requested question")
+
+    monkeypatch.setattr("app.routers.tasks.dispatch_agent", fake_dispatch)
+    client = TestClient(create_app(tasks_dir=tmp_path / "tasks"))
+
+    response = client.post(
+        "/api/agents/run",
+        json={"capability": "qa", "message": "idt6上市外观的惊喜点说了什么", "history": []},
+    )
+
+    assert response.status_code == 200
+    assert "当前没有数据支撑" in response.json()["answer"]
+
+    records = client.get("/api/system/agent-error-questions").json()["records"]
+    assert records[0]["question"] == "idt6上市外观的惊喜点说了什么"
+    assert records[0]["error_reason"] == "no evidence rows for requested question"
+
+
+def test_unified_qa_api_logs_insufficient_evidence_answers(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    def fake_dispatch(capability: str, message: str, **kwargs) -> dict:
+        return {
+            "status": "answered",
+            "answer": "根据本次IDT6上市事件的数据，我们无法直接获取KOL的详细粉丝画像。",
+            "suggested_questions": [],
+            "requires_clarification": False,
+        }
+
+    monkeypatch.setattr("app.routers.tasks.dispatch_agent", fake_dispatch)
+    client = TestClient(create_app(tasks_dir=tmp_path / "tasks"))
+
+    response = client.post(
+        "/api/agents/run",
+        json={"capability": "qa", "message": "这些KOL的粉丝画像与IDT6的目标用户重合度如何？", "history": []},
+    )
+
+    assert response.status_code == 200
+    assert "无法直接获取KOL的详细粉丝画像" in response.json()["answer"]
+
+    records = client.get("/api/system/agent-error-questions").json()["records"]
+    assert records[0]["question"] == "这些KOL的粉丝画像与IDT6的目标用户重合度如何？"
+    assert records[0]["error_reason"] == "insufficient data support"

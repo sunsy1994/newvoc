@@ -181,6 +181,28 @@ def test_scope_prefers_longest_known_brand() -> None:
     assert scope["brand_defaulted"] is False
 
 
+def test_scope_does_not_match_known_brand_suffix_inside_longer_brand() -> None:
+    scope = resolve_competitor_report_scope(
+        "请输出一份上汽大众品牌的竞品动态报告",
+        today=date(2026, 7, 18),
+        known_brands=["大众"],
+    )
+
+    assert scope["brand_name"] == "上汽大众"
+    assert scope["brand_defaulted"] is True
+
+
+def test_scope_does_not_match_known_brand_possessive_inside_longer_brand() -> None:
+    scope = resolve_competitor_report_scope(
+        "上汽大众的竞品动态报告",
+        today=date(2026, 7, 18),
+        known_brands=["大众"],
+    )
+
+    assert scope["brand_name"] == "上汽大众"
+    assert scope["brand_defaulted"] is True
+
+
 def test_scope_defaults_natural_brand_without_known_brands() -> None:
     for message in ("比亚迪品牌的竞品动态报告", "比亚迪的竞品动态报告"):
         scope = resolve_competitor_report_scope(message, today=date(2026, 7, 18))

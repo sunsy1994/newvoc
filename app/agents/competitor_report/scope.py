@@ -18,6 +18,16 @@ BRAND_AFTER_LABEL = re.compile(
     rf"品牌\s*(?:是|为|[:：])\s*(?P<brand>{BRAND_CHARS}{{2,20}}?)"
     rf"(?={TIME_BOUNDARY}|(?:的)?竞品(?:动态)?报告|[，,。；;：:\s]|$)"
 )
+NATURAL_BRAND_REQUEST_PREFIX = re.compile(
+    r"(?:(?:请)?(?:输出|生成)(?:一份)?|我想看(?:一份)?|帮我看看(?:一份)?)"
+)
+
+
+def _has_only_request_prefix(surface: str, brand: str) -> bool:
+    if not surface.endswith(brand):
+        return False
+    prefix = surface[: -len(brand)]
+    return not prefix or NATURAL_BRAND_REQUEST_PREFIX.fullmatch(prefix) is not None
 
 
 def _resolve_brand(message: str, known_brands: Sequence[str] | None) -> tuple[str, bool]:
@@ -30,12 +40,13 @@ def _resolve_brand(message: str, known_brands: Sequence[str] | None) -> tuple[st
         key=lambda brand: (-len(brand), brand),
     )
     for brand in candidates:
-        if (
-            f"{brand}品牌" in message
-            or f"{brand}的竞品动态报告" in message
-            or f"{brand}的竞品报告" in message
-        ):
-            return brand, False
+        for marker in (f"{brand}品牌", f"{brand}的竞品动态报告", f"{brand}的竞品报告"):
+            marker_start = message.find(marker)
+            while marker_start >= 0:
+                surface = message[: marker_start + len(brand)]
+                if _has_only_request_prefix(surface, brand):
+                    return brand, False
+                marker_start = message.find(marker, marker_start + 1)
     return DEFAULT_BRAND, True
 
 

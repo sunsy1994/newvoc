@@ -104,27 +104,25 @@ INTERNAL_TOKEN_RE = re.compile(
     + r")(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
+DATA_ASSET_RE = re.compile(r"(?<![A-Za-z0-9_])data_asset\.", re.IGNORECASE)
 INTERNAL_LITERAL_RE = re.compile(
-    r"(?<![A-Za-z0-9_])(?:data_asset\.|skill\.md|app[./\\]agents|tool[\s_-]+name)(?![A-Za-z0-9_])",
+    r"(?<![A-Za-z0-9_])(?:skill\.md|app[./\\]agents|tool[\s_-]+name)(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
 TOOL_ASSIGNMENT_RE = re.compile(r"(?<![A-Za-z0-9_])tool\s*[:=]\s*\S+", re.IGNORECASE)
+HTTP_URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Z]:[\\/]|\\\\[^\\/\s]+[\\/])", re.IGNORECASE)
-UNIX_ABSOLUTE_PATH_RE = re.compile(
-    r"(?<![:/A-Za-z0-9])/(?:users|home|tmp|var|etc|opt|root|workspace|mnt)(?:/|$)",
-    re.IGNORECASE,
-)
+UNIX_ABSOLUTE_PATH_RE = re.compile(r"(?<!\S)/[A-Za-z0-9._~+-]+(?:/[^/\s]+)*")
+RELATIVE_SKILL_PATH_RE = re.compile(r"[\\/](?:\.(?:codex|agents|claude)|skills)[\\/]", re.IGNORECASE)
 
 
 def _reject_internal_prose(value: str) -> None:
-    if any(
-        pattern.search(value)
-        for pattern in (
-            INTERNAL_TOKEN_RE,
-            INTERNAL_LITERAL_RE,
-            TOOL_ASSIGNMENT_RE,
-            WINDOWS_ABSOLUTE_PATH_RE,
-            UNIX_ABSOLUTE_PATH_RE,
+    path_scan_value = HTTP_URL_RE.sub("", value)
+    if (
+        any(pattern.search(value) for pattern in (INTERNAL_TOKEN_RE, DATA_ASSET_RE, INTERNAL_LITERAL_RE, TOOL_ASSIGNMENT_RE))
+        or any(
+            pattern.search(path_scan_value)
+            for pattern in (WINDOWS_ABSOLUTE_PATH_RE, UNIX_ABSOLUTE_PATH_RE, RELATIVE_SKILL_PATH_RE)
         )
     ):
         raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：结论包含内部标识。")

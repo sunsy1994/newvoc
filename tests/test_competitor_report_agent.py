@@ -161,8 +161,13 @@ def test_fixed_html_renderer_contains_scope_overview_top3_and_escapes_dynamic_te
 def test_internal_leak_guard_allows_business_tool_words_urls_and_token_substrings() -> None:
     summary = _sample_llm_summary()
     summary["executive_summary"][0] = "total_engagement_rate 是业务自定义标签，不是内部字段。"
-    summary["account_summary"] = "内容工具价值提升，账号贡献达到50次互动。"
-    summary["dealer_summary"] = "公开详情见https://example.test/home/report?source=tool。"
+    summary["account_summary"] = (
+        "内容工具价值提升，公开详情见https://example.test/report?next=/home/report&source=tool#summary。"
+    )
+    summary["dealer_summary"] = (
+        "经销商证据不足，详情见https://example.test/#/reports/detail?next=/data/private/report。"
+    )
+    summary["rhythm_summary"] = "发布/互动节奏稳定，产品 /功能对比属于普通业务表述。"
 
     assert competitor_graph._validate_llm_summary(summary, _sample_report_dataset()) is summary
 
@@ -374,6 +379,8 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "rhythm_summary": r"外部路径 C:\Users\tester\.codex\skills\private\rules.txt"},
         {**_sample_llm_summary(), "dealer_summary": "调用 collect_competitor_report_dataset 获取数据。"},
         {**_sample_llm_summary(), "dealer_summary": "调用 resolve_runtime_config 获取配置。"},
+        {**_sample_llm_summary(), "account_summary": "读取 data_asset.competitor_report_agent_run。"},
+        {**_sample_llm_summary(), "rhythm_summary": "读取 data_asset.competitor_work_insight。"},
         {**_sample_llm_summary(), "account_summary": "total_engagement 等于100。"},
         {**_sample_llm_summary(), "rhythm_summary": "ACCOUNT_COUNT 等于3。"},
         {**_sample_llm_summary(), "dealer_summary": "brand_name 为比亚迪。"},
@@ -400,6 +407,17 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "account_summary": "报告位于 /Users/tester/private/report.html"},
         {**_sample_llm_summary(), "rhythm_summary": "报告位于 /home/service/report.html"},
         {**_sample_llm_summary(), "dealer_summary": "报告位于 /tmp/private/report.html"},
+        {**_sample_llm_summary(), "account_summary": "报告位于 /srv/app/config.yaml"},
+        {**_sample_llm_summary(), "rhythm_summary": "工具位于 /usr/local/bin/tool"},
+        {**_sample_llm_summary(), "dealer_summary": "报告位于 /data/private/report"},
+        {**_sample_llm_summary(), "account_summary": "读取 repo/.codex/private/rules.txt"},
+        {**_sample_llm_summary(), "rhythm_summary": "读取 repo/.agents/skills/private/rules.txt"},
+        {**_sample_llm_summary(), "dealer_summary": "读取 repo/.claude/private/rules.txt"},
+        {**_sample_llm_summary(), "account_summary": "读取 repo/skills/private/rules.txt"},
+        {**_sample_llm_summary(), "rhythm_summary": r"读取 repo\.codex\private\rules.txt"},
+        {**_sample_llm_summary(), "dealer_summary": r"读取 repo\.agents\skills\private\rules.txt"},
+        {**_sample_llm_summary(), "account_summary": r"读取 repo\.claude\private\rules.txt"},
+        {**_sample_llm_summary(), "rhythm_summary": r"读取 repo\skills\private\rules.txt"},
     ],
 )
 def test_schema_valid_internal_leak_from_prompt_injected_source_never_renders_or_saves(

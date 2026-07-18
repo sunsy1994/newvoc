@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
+import pytest
+
 import app.agents.competitor_report.tools as competitor_tools
 from app.agents.competitor_report.scope import resolve_competitor_report_scope
 from app.agents.competitor_report.tools import collect_competitor_report_dataset
@@ -81,6 +83,30 @@ def test_scope_does_not_treat_generic_request_as_brand() -> None:
     assert scope["brand_defaulted"] is True
 
 
+def test_scope_defaults_brand_for_plain_report_requests() -> None:
+    for message in (
+        "帮我做一份竞品动态报告",
+        "请输出一份竞品动态报告",
+        "生成一份专业的竞品动态报告",
+    ):
+        scope = resolve_competitor_report_scope(message, today=date(2026, 7, 18))
+
+        assert scope["brand_name"] == "上汽大众", message
+        assert scope["brand_defaulted"] is True, message
+
+
+def test_scope_stops_labeled_brand_at_explicit_date_boundary() -> None:
+    scope = resolve_competitor_report_scope(
+        "品牌为比亚迪2026-05-01至2026-05-31的竞品动态报告",
+        today=date(2026, 7, 18),
+    )
+
+    assert scope["brand_name"] == "比亚迪"
+    assert scope["brand_defaulted"] is False
+    assert scope["start_date"] == "2026-05-01"
+    assert scope["end_date"] == "2026-05-31"
+
+
 def test_scope_stops_labeled_brand_before_report_suffix() -> None:
     scope = resolve_competitor_report_scope("生成一份品牌为极氪的竞品动态报告", today=date(2026, 7, 18))
 
@@ -129,6 +155,8 @@ class FakeReportCursor:
             return
         scoped = self._scoped(query, params)
         normalized = " ".join(query.split())
+        expression = "coalesce(interaction_like_cnt,0)+coalesce(comment_cnt,0)+coalesce(favorite_cnt,0)+coalesce(share_cnt,0)"
+        assert expression in normalized
         if "AS average_engagement" in query:
             total = sum(self._engagement(work) for work in scoped)
             self.rows = [{
@@ -187,6 +215,7 @@ class FakeReportCursor:
         else:
             assert "LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id" in normalized
             assert "ORDER BY total_engagement DESC, published_at DESC, work_id ASC" in normalized
+            assert "LIMIT 3" in normalized, "Top works SQL must include LIMIT 3"
             for field in (
                 "w.title",
                 "w.author_name",
@@ -232,6 +261,25 @@ class FakeReportConnection:
 
     def cursor(self) -> FakeReportCursor:
         return FakeReportCursor(self.works, self.insights, self.calls)
+
+
+def test_fake_cursor_rejects_top_query_without_limit() -> None:
+    cursor = FakeReportCursor([], {}, [])
+
+    query = f"""
+        SELECT w.work_id AS work_id, w.title, w.author_name, w.brand_name,
+               w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url,
+               w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt,
+               {competitor_tools.TOTAL_ENGAGEMENT_SQL} AS total_engagement,
+               i.insight_markdown
+        FROM data_asset.competitor_work w
+        LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id
+        WHERE {competitor_tools.SCOPE_SQL}
+        ORDER BY total_engagement DESC, published_at DESC, work_id ASC
+    """
+
+    with pytest.raises(AssertionError, match="LIMIT 3"):
+        cursor.execute(query, ["比亚迪", datetime(2026, 7, 1), datetime(2026, 8, 1)])
 
 
 def _work(
@@ -314,10 +362,20 @@ def test_dataset_filters_before_top3_and_returns_grounded_aggregates(monkeypatch
         "data_notes",
     }
 
-    sql = "\n".join(query for query, _params in connection.calls)
     expression = "coalesce(interaction_like_cnt,0)+coalesce(comment_cnt,0)+coalesce(favorite_cnt,0)+coalesce(share_cnt,0)"
     assert "CREATE TABLE IF NOT EXISTS data_asset.competitor_work_insight" in connection.calls[0][0]
-    assert expression in sql
+    scoped_queries = [query for query, params in connection.calls if params is not None]
+    overview_query = next(query for query in scoped_queries if "AS average_engagement" in query)
+    daily_query = next(query for query in scoped_queries if "AS publish_date" in query)
+    account_query = next(query for query in scoped_queries if "GROUP BY author_name, account_type, is_official" in query)
+    topic_query = next(query for query in scoped_queries if "AS topic" in query)
+    top_query = next(query for query in scoped_queries if "LEFT JOIN data_asset.competitor_work_insight" in query)
+    assert expression in overview_query
+    assert expression in daily_query
+    assert expression in account_query
+    assert expression in topic_query
+    assert expression in top_query
+    assert "LIMIT 3" in top_query
     assert all(
         params[:3] == ["比亚迪", datetime(2026, 7, 1), datetime(2026, 8, 1)]
         for _query, params in connection.calls

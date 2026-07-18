@@ -144,5 +144,17 @@ def test_list_competitor_works_without_filters_separates_join_and_order_by(monke
     payload = competitor_library.list_competitor_works(database_url="test-db")
 
     query = next(query for query, _params in connection.calls if "AS has_insight" in query)
-    assert "ON i.work_id = w.work_id ORDER BY" in query
+    assert "ON i.work_id = w.work_id ORDER BY" in " ".join(query.split())
     assert payload["rows"][0]["has_insight"] is True
+
+
+def test_list_competitor_works_with_filters_separates_where_and_order_by(monkeypatch) -> None:
+    connection = FakeInsightConnection()
+    monkeypatch.setattr(competitor_library.psycopg, "connect", lambda *_args, **_kwargs: connection)
+
+    competitor_library.list_competitor_works(brand_name="上汽大众", database_url="test-db")
+    competitor_library.list_competitor_works(q="途观", brand_name="上汽大众", database_url="test-db")
+
+    queries = [query for query, _params in connection.calls if "AS has_insight" in query]
+    assert "w.brand_name = %s ORDER BY" in queries[0]
+    assert "coalesce(w.topic_tags, '') ILIKE %s ESCAPE '\\')" in queries[1]

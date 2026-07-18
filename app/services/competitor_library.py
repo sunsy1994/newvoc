@@ -396,7 +396,7 @@ def list_competitor_works(
                 "length(trim(coalesce(i.insight_markdown, ''))) > 0 AS has_insight, i.updated_at AS insight_updated_at "
                 "FROM data_asset.competitor_work w "
                 "LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id "
-                f"{where_sql}"
+                f"{where_sql} "
                 "ORDER BY published_at DESC NULLS LAST, interaction_like_cnt DESC NULLS LAST LIMIT %s OFFSET %s",
                 [*params, limit, offset],
             )

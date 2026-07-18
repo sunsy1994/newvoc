@@ -1,13 +1,429 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 import app.agents.competitor_report.tools as competitor_tools
+import app.agents.competitor_report as competitor_report
+import app.agents.competitor_report.graph as competitor_graph
+import app.agents.competitor_report.prompts as competitor_prompts
+import app.agents.competitor_report.renderer as competitor_renderer
+import app.agents.competitor_report.storage as competitor_storage
 from app.agents.competitor_report.scope import resolve_competitor_report_scope
 from app.agents.competitor_report.tools import collect_competitor_report_dataset
+
+
+def test_competitor_report_public_runner_is_available() -> None:
+    assert callable(getattr(competitor_report, "run_competitor_report_agent", None))
+
+
+def test_competitor_report_fixed_renderer_files_are_project_local() -> None:
+    package_dir = Path(competitor_report.__file__).parent
+
+    assert (package_dir / "prompts.py").is_file()
+    assert (package_dir / "renderer.py").is_file()
+    assert (package_dir / "storage.py").is_file()
+    assert (package_dir / "templates" / "long_report.html").is_file()
+
+
+def _sample_report_dataset(work_count: int = 3) -> dict[str, Any]:
+    top_works = [
+        {
+            "work_id": "w-001",
+            "title": "新车发布<script>alert(1)</script>",
+            "author_name": "官方账号",
+            "account_type": "官方号",
+            "is_official": True,
+            "published_at": "2026-07-10T10:00:00",
+            "topic_tags": "新能源,发布会",
+            "video_url": "https://example.test/w-001?x=1&y=2",
+            "interaction_like_cnt": 30,
+            "comment_cnt": 10,
+            "favorite_cnt": 5,
+            "share_cnt": 5,
+            "total_engagement": 50,
+            "insight_markdown": "<b>来源解读</b>",
+        },
+        {
+            "work_id": "w-002",
+            "title": "车型亮点",
+            "author_name": "经销商A",
+            "account_type": "经销商",
+            "is_official": False,
+            "published_at": "2026-07-11T10:00:00",
+            "topic_tags": "车型",
+            "video_url": "https://example.test/w-002",
+            "interaction_like_cnt": 20,
+            "comment_cnt": 5,
+            "favorite_cnt": 2,
+            "share_cnt": 3,
+            "total_engagement": 30,
+            "insight_markdown": "",
+        },
+        {
+            "work_id": "w-003",
+            "title": "用户体验",
+            "author_name": "账号C",
+            "account_type": "媒体",
+            "is_official": False,
+            "published_at": "2026-07-12T10:00:00",
+            "topic_tags": "体验",
+            "video_url": "https://example.test/w-003",
+            "interaction_like_cnt": 10,
+            "comment_cnt": 5,
+            "favorite_cnt": 2,
+            "share_cnt": 3,
+            "total_engagement": 20,
+            "insight_markdown": "第三条解读",
+        },
+    ][:work_count]
+    return {
+        "brand_name": "比亚迪&汽车",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-18",
+        "overview": {
+            "work_count": work_count,
+            "account_count": 3,
+            "total_engagement": 100,
+            "average_engagement": 33.3,
+        },
+        "daily_trend": [{"publish_date": "2026-07-10", "work_count": 1, "total_engagement": 50}],
+        "account_contribution": [
+            {"author_name": "官方账号", "account_type": "官方号", "work_count": 1, "total_engagement": 50}
+        ],
+        "topic_distribution": [{"topic": "新能源", "work_count": 1, "total_engagement": 50}],
+        "top_works": top_works,
+        "data_notes": [],
+    }
+
+
+def _sample_llm_summary() -> dict[str, Any]:
+    return {
+        "executive_summary": [
+            "总互动量达到100，<em>官方内容</em>贡献突出。",
+            "w-001以50次互动排名第一。",
+            "统计范围内共覆盖3个账号。",
+        ],
+        "top_work_findings": [
+            {"work_id": "w-001", "why_it_matters": "互动量50，排名第一。"},
+        ],
+        "account_summary": "官方账号贡献50次互动。",
+        "rhythm_summary": "7月10日互动达到50。",
+        "dealer_summary": "经销商证据不足。",
+    }
+
+
+def test_competitor_prompt_has_grounded_json_contract_and_missing_data_guardrails() -> None:
+    prompt = competitor_prompts.render_competitor_summary_prompt(_sample_report_dataset())
+
+    for key in (
+        "executive_summary",
+        "top_work_findings",
+        "work_id",
+        "why_it_matters",
+        "account_summary",
+        "rhythm_summary",
+        "dealer_summary",
+    ):
+        assert f'"{key}"' in prompt
+    assert "不得编造" in prompt
+    for forbidden in ("作品描述", "情感", "评论", "回复"):
+        assert forbidden in prompt
+    assert "新车发布<script>alert(1)</script>" in prompt
+
+
+def test_fixed_html_renderer_contains_scope_overview_top3_and_escapes_dynamic_text() -> None:
+    html = competitor_renderer.render_competitor_report_html(_sample_report_dataset(), _sample_llm_summary())
+
+    assert "比亚迪&amp;汽车" in html
+    assert "2026-07-01" in html
+    assert "2026-07-18" in html
+    assert "报告概览" in html
+    assert "热门作品 Top3" in html
+    assert "w-001" in html
+    assert "w-002" in html
+    assert "w-003" in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;b&gt;来源解读&lt;/b&gt;" in html
+    assert "&lt;em&gt;官方内容&lt;/em&gt;" in html
+    assert "新车发布<script>" not in html
+    assert "<b>来源解读</b>" not in html
+    assert "<em>官方内容</em>" not in html
+    assert ">无<" in html
+    for internal_name in ("Skill", "Tool", "insight_markdown"):
+        assert internal_name not in html
+
+
+def test_competitor_graph_uses_exact_required_node_sequence() -> None:
+    graph = competitor_graph.build_competitor_report_graph().get_graph()
+
+    public_nodes = {name for name in graph.nodes if not name.startswith("__")}
+    assert public_nodes == {"resolve_scope", "collect_data", "summarize", "render_report", "save_report"}
+    assert {(edge.source, edge.target) for edge in graph.edges} == {
+        ("__start__", "resolve_scope"),
+        ("resolve_scope", "collect_data"),
+        ("collect_data", "summarize"),
+        ("summarize", "render_report"),
+        ("render_report", "save_report"),
+        ("save_report", "__end__"),
+    }
+
+
+def test_run_competitor_report_obtains_known_brands_before_scope_and_returns_fixed_asset(monkeypatch) -> None:
+    calls: list[Any] = []
+    dataset = _sample_report_dataset()
+    summary = _sample_llm_summary()
+
+    def fake_options() -> dict[str, list[str]]:
+        calls.append("options")
+        return {"brands": ["比亚迪", "极氪"], "account_types": []}
+
+    def fake_scope(message: str, *, known_brands: list[str]) -> dict[str, Any]:
+        calls.append(("scope", message, known_brands))
+        return {
+            "brand_name": "比亚迪&汽车",
+            "brand_defaulted": False,
+            "start_date": "2026-07-01",
+            "end_date": "2026-07-18",
+            "time_defaulted": False,
+        }
+
+    def fake_collect(brand_name: str, start_date: str, end_date: str) -> dict[str, Any]:
+        calls.append(("collect", brand_name, start_date, end_date))
+        return dataset
+
+    def fake_llm(prompt: str, **kwargs: Any) -> dict[str, Any]:
+        calls.append(("llm", prompt, kwargs))
+        return summary
+
+    def fake_save(asset: dict[str, Any]) -> dict[str, Any]:
+        calls.append(("save", asset))
+        return {**asset, "report_run_id": 42}
+
+    monkeypatch.setattr(competitor_graph, "get_competitor_options", fake_options)
+    monkeypatch.setattr(competitor_graph, "resolve_competitor_report_scope", fake_scope)
+    monkeypatch.setattr(competitor_graph, "collect_competitor_report_dataset", fake_collect)
+    monkeypatch.setattr(competitor_graph, "resolve_runtime_config", lambda *args: ("https://llm.test/v1", "key", "model", 30))
+    monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", fake_llm)
+    monkeypatch.setattr(competitor_graph, "save_competitor_report_agent_result", fake_save)
+
+    result = competitor_graph.run_competitor_report_agent("生成比亚迪最近两周竞品报告", history=[])
+
+    assert calls[0] == "options"
+    assert calls[1] == ("scope", "生成比亚迪最近两周竞品报告", ["比亚迪", "极氪"])
+    assert calls[2] == ("collect", "比亚迪&汽车", "2026-07-01", "2026-07-18")
+    assert calls[3][0] == "llm"
+    assert calls[4][0] == "save"
+    assert result["status"] == "generated"
+    assert result["report_type"] == "competitor"
+    assert result["brand_name"] == "比亚迪&汽车"
+    assert result["time_scope"] == {"start_date": "2026-07-01", "end_date": "2026-07-18"}
+    assert result["scope_notice"] == []
+    assert "比亚迪&汽车" in result["answer"]
+    assert "2026-07-01 至 2026-07-18" in result["answer"]
+    assert result["summary"] == summary
+    assert result["report_asset"]["report_run_id"] == 42
+    assert "热门作品 Top3" in result["report_asset"]["html"]
+    saved = calls[4][1]
+    assert saved["context"] == dataset
+    assert saved["rendered_prompt"] == calls[3][1]
+
+
+def test_run_competitor_report_answer_includes_default_scope_notices(monkeypatch) -> None:
+    monkeypatch.setattr(competitor_graph, "get_competitor_options", lambda: {"brands": ["上汽大众"]})
+    monkeypatch.setattr(
+        competitor_graph,
+        "resolve_competitor_report_scope",
+        lambda message, *, known_brands: {
+            "brand_name": "上汽大众",
+            "brand_defaulted": True,
+            "start_date": "2026-06-19",
+            "end_date": "2026-07-18",
+            "time_defaulted": True,
+        },
+    )
+    dataset = _sample_report_dataset(1)
+    dataset.update({"brand_name": "上汽大众", "start_date": "2026-06-19", "end_date": "2026-07-18"})
+    monkeypatch.setattr(competitor_graph, "collect_competitor_report_dataset", lambda *args: dataset)
+    monkeypatch.setattr(competitor_graph, "resolve_runtime_config", lambda *args: ("url", "key", "model", 30))
+    monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", lambda *args, **kwargs: _sample_llm_summary())
+    monkeypatch.setattr(competitor_graph, "save_competitor_report_agent_result", lambda asset: asset)
+
+    result = competitor_graph.run_competitor_report_agent("生成竞品动态报告")
+
+    assert result["scope_notice"] == ["未指定品牌，默认使用上汽大众。", "未指定时间，默认使用最近30天。"]
+    assert "上汽大众" in result["answer"]
+    assert "2026-06-19 至 2026-07-18" in result["answer"]
+    assert "未指定品牌，默认使用上汽大众" in result["answer"]
+    assert "未指定时间，默认使用最近30天" in result["answer"]
+
+
+def test_zero_competitor_works_raises_business_error_without_llm_or_asset(monkeypatch) -> None:
+    monkeypatch.setattr(competitor_graph, "get_competitor_options", lambda: {"brands": ["比亚迪"]})
+    monkeypatch.setattr(
+        competitor_graph,
+        "resolve_competitor_report_scope",
+        lambda message, *, known_brands: {
+            "brand_name": "比亚迪",
+            "brand_defaulted": False,
+            "start_date": "2026-07-01",
+            "end_date": "2026-07-18",
+            "time_defaulted": False,
+        },
+    )
+    dataset = _sample_report_dataset(0)
+    dataset["overview"]["work_count"] = 0
+    monkeypatch.setattr(competitor_graph, "collect_competitor_report_dataset", lambda *args: dataset)
+    monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", lambda *args, **kwargs: pytest.fail("LLM must not run"))
+    monkeypatch.setattr(competitor_graph, "save_competitor_report_agent_result", lambda asset: pytest.fail("asset must not save"))
+
+    with pytest.raises(ValueError, match="没有作品"):
+        competitor_graph.run_competitor_report_agent("生成比亚迪竞品动态报告")
+
+
+def test_llm_failure_does_not_save_completed_competitor_report(monkeypatch) -> None:
+    monkeypatch.setattr(competitor_graph, "get_competitor_options", lambda: {"brands": ["比亚迪"]})
+    monkeypatch.setattr(
+        competitor_graph,
+        "resolve_competitor_report_scope",
+        lambda message, *, known_brands: {
+            "brand_name": "比亚迪",
+            "brand_defaulted": False,
+            "start_date": "2026-07-01",
+            "end_date": "2026-07-18",
+            "time_defaulted": False,
+        },
+    )
+    monkeypatch.setattr(competitor_graph, "collect_competitor_report_dataset", lambda *args: _sample_report_dataset())
+    monkeypatch.setattr(competitor_graph, "resolve_runtime_config", lambda *args: ("url", "key", "model", 30))
+    monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("LLM down")))
+    monkeypatch.setattr(competitor_graph, "save_competitor_report_agent_result", lambda asset: pytest.fail("asset must not save"))
+
+    with pytest.raises(RuntimeError, match="LLM down"):
+        competitor_graph.run_competitor_report_agent("生成比亚迪竞品动态报告")
+
+
+@pytest.mark.parametrize(
+    "invalid_summary",
+    [
+        {},
+        {**_sample_llm_summary(), "executive_summary": ["结论不足三条"]},
+        {**_sample_llm_summary(), "top_work_findings": "w-001"},
+    ],
+)
+def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summary: dict[str, Any]) -> None:
+    monkeypatch.setattr(competitor_graph, "get_competitor_options", lambda: {"brands": ["比亚迪"]})
+    monkeypatch.setattr(
+        competitor_graph,
+        "resolve_competitor_report_scope",
+        lambda message, *, known_brands: {
+            "brand_name": "比亚迪",
+            "brand_defaulted": False,
+            "start_date": "2026-07-01",
+            "end_date": "2026-07-18",
+            "time_defaulted": False,
+        },
+    )
+    monkeypatch.setattr(competitor_graph, "collect_competitor_report_dataset", lambda *args: _sample_report_dataset())
+    monkeypatch.setattr(competitor_graph, "resolve_runtime_config", lambda *args: ("url", "key", "model", 30))
+    monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", lambda *args, **kwargs: invalid_summary)
+    monkeypatch.setattr(competitor_graph, "render_competitor_report_html", lambda *args: pytest.fail("invalid summary must not render"))
+    monkeypatch.setattr(competitor_graph, "save_competitor_report_agent_result", lambda asset: pytest.fail("invalid summary must not save"))
+
+    with pytest.raises(ValueError, match="JSON 契约"):
+        competitor_graph.run_competitor_report_agent("生成比亚迪竞品动态报告")
+
+
+class FakeStorageCursor:
+    def __init__(self, calls: list[tuple[str, Any]]) -> None:
+        self.calls = calls
+        self.row: dict[str, Any] | None = None
+
+    def __enter__(self) -> "FakeStorageCursor":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def execute(self, query: str, params: Any = None) -> None:
+        self.calls.append((query, params))
+        if params is not None:
+            self.row = {
+                "report_run_id": 7,
+                "brand_name": params[0],
+                "start_date": params[1],
+                "end_date": params[2],
+                "generated_at": params[3],
+                "prompt_version": params[4],
+                "html": params[5],
+                "summary_json": params[6].obj,
+                "context_json": params[7].obj,
+                "rendered_prompt": params[8],
+            }
+
+    def fetchone(self) -> dict[str, Any] | None:
+        return self.row
+
+
+class FakeStorageConnection:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, Any]] = []
+        self.committed = False
+
+    def __enter__(self) -> "FakeStorageConnection":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def cursor(self, **_kwargs: Any) -> FakeStorageCursor:
+        return FakeStorageCursor(self.calls)
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+def test_competitor_report_storage_saves_fixed_html_summary_context_and_prompt(monkeypatch) -> None:
+    connection = FakeStorageConnection()
+    monkeypatch.setattr(competitor_storage.psycopg, "connect", lambda *_args, **_kwargs: connection)
+    generated_at = datetime(2026, 7, 18, 12, 0, 0)
+    asset = {
+        "brand_name": "比亚迪",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-18",
+        "generated_at": generated_at,
+        "prompt_version": "competitor_report_agent_v1",
+        "html": "<html>报告</html>",
+        "summary": _sample_llm_summary(),
+        "context": _sample_report_dataset(),
+        "rendered_prompt": "prompt text",
+    }
+
+    saved = competitor_storage.save_competitor_report_agent_result(asset, database_url="fake-db")
+
+    assert connection.committed is True
+    assert "CREATE TABLE IF NOT EXISTS data_asset.competitor_report_agent_run" in connection.calls[0][0]
+    insert_query, params = connection.calls[1]
+    for column in (
+        "brand_name",
+        "start_date",
+        "end_date",
+        "generated_at",
+        "prompt_version",
+        "html",
+        "summary_json",
+        "context_json",
+        "rendered_prompt",
+    ):
+        assert column in insert_query
+    assert params[:6] == ("比亚迪", "2026-07-01", "2026-07-18", generated_at, "competitor_report_agent_v1", "<html>报告</html>")
+    assert saved["report_run_id"] == 7
+    assert saved["summary"] == asset["summary"]
+    assert saved["context"] == asset["context"]
+    assert saved["generated_at"] == "2026-07-18T12:00:00"
 
 
 def test_scope_defaults_brand_and_last_30_days() -> None:

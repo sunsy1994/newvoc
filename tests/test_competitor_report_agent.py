@@ -110,9 +110,9 @@ def _sample_llm_summary() -> dict[str, Any]:
         "top_work_findings": [
             {"work_id": "w-001", "why_it_matters": "互动量50，排名第一。"},
         ],
-        "account_summary": "官方账号贡献50次互动。",
+        "account_summary": "官方账号贡献50次互动，工具价值体现在内容效率。",
         "rhythm_summary": "7月10日互动达到50。",
-        "dealer_summary": "经销商证据不足。",
+        "dealer_summary": "经销商证据不足，详情见https://example.test/home/report。",
     }
 
 
@@ -156,6 +156,15 @@ def test_fixed_html_renderer_contains_scope_overview_top3_and_escapes_dynamic_te
     assert ">无<" in html
     for internal_name in ("Skill", "Tool", "insight_markdown"):
         assert internal_name not in html
+
+
+def test_internal_leak_guard_allows_business_tool_words_urls_and_token_substrings() -> None:
+    summary = _sample_llm_summary()
+    summary["executive_summary"][0] = "total_engagement_rate 是业务自定义标签，不是内部字段。"
+    summary["account_summary"] = "内容工具价值提升，账号贡献达到50次互动。"
+    summary["dealer_summary"] = "公开详情见https://example.test/home/report?source=tool。"
+
+    assert competitor_graph._validate_llm_summary(summary, _sample_report_dataset()) is summary
 
 
 def test_competitor_graph_uses_exact_required_node_sequence() -> None:
@@ -365,6 +374,32 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "rhythm_summary": r"外部路径 C:\Users\tester\.codex\skills\private\rules.txt"},
         {**_sample_llm_summary(), "dealer_summary": "调用 collect_competitor_report_dataset 获取数据。"},
         {**_sample_llm_summary(), "dealer_summary": "调用 resolve_runtime_config 获取配置。"},
+        {**_sample_llm_summary(), "account_summary": "total_engagement 等于100。"},
+        {**_sample_llm_summary(), "rhythm_summary": "ACCOUNT_COUNT 等于3。"},
+        {**_sample_llm_summary(), "dealer_summary": "brand_name 为比亚迪。"},
+        {
+            **_sample_llm_summary(),
+            "executive_summary": ["daily_trend 显示节奏集中。", "第二条结论。", "第三条结论。"],
+        },
+        {
+            **_sample_llm_summary(),
+            "top_work_findings": [{"work_id": "w-001", "why_it_matters": "account_contribution 显示贡献领先。"}],
+        },
+        {**_sample_llm_summary(), "account_summary": "topic_distribution 显示新能源靠前。"},
+        {**_sample_llm_summary(), "rhythm_summary": "top_works 在7月10日集中。"},
+        {**_sample_llm_summary(), "dealer_summary": "data_notes 没有补充。"},
+        {**_sample_llm_summary(), "account_summary": "llm_summary 已生成。"},
+        {**_sample_llm_summary(), "rhythm_summary": "summary_json 已保存。"},
+        {**_sample_llm_summary(), "dealer_summary": "report_asset 已完成。"},
+        {**_sample_llm_summary(), "account_summary": "event_id 为内部事件标识。"},
+        {**_sample_llm_summary(), "account_summary": "Tool: custom_report_tool"},
+        {**_sample_llm_summary(), "rhythm_summary": "tOoL = custom-report-tool"},
+        {**_sample_llm_summary(), "dealer_summary": r"报告位于 D:\reports\private\report.html"},
+        {**_sample_llm_summary(), "dealer_summary": "报告位于 C:/reports/private/report.html"},
+        {**_sample_llm_summary(), "account_summary": r"报告位于 \\report-server\private\report.html"},
+        {**_sample_llm_summary(), "account_summary": "报告位于 /Users/tester/private/report.html"},
+        {**_sample_llm_summary(), "rhythm_summary": "报告位于 /home/service/report.html"},
+        {**_sample_llm_summary(), "dealer_summary": "报告位于 /tmp/private/report.html"},
     ],
 )
 def test_schema_valid_internal_leak_from_prompt_injected_source_never_renders_or_saves(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -26,18 +27,59 @@ LLM_SUMMARY_KEYS = {
     "dealer_summary",
 }
 TOP_WORK_FINDING_KEYS = {"work_id", "why_it_matters"}
-INTERNAL_PROSE_MARKERS = (
-    "data_asset.",
+INTERNAL_SNAKE_CASE_TOKENS = (
     "competitor_work",
     "insight_markdown",
     "rendered_prompt",
-    "skill.md",
-    "app.agents",
-    "app\\agents",
-    "app/agents",
-    "tool name",
-    "tool_name",
-    "tool-name",
+    "total_engagement",
+    "average_engagement",
+    "work_count",
+    "account_count",
+    "brand_name",
+    "start_date",
+    "end_date",
+    "daily_trend",
+    "publish_date",
+    "account_contribution",
+    "author_name",
+    "account_type",
+    "is_official",
+    "topic_distribution",
+    "top_works",
+    "work_id",
+    "published_at",
+    "topic_tags",
+    "video_url",
+    "interaction_like_cnt",
+    "comment_cnt",
+    "favorite_cnt",
+    "share_cnt",
+    "data_notes",
+    "event_id",
+    "brand_defaulted",
+    "time_defaulted",
+    "scope_notice",
+    "llm_summary",
+    "report_html",
+    "report_asset",
+    "report_run_id",
+    "generated_at",
+    "prompt_version",
+    "summary_json",
+    "context_json",
+    "executive_summary",
+    "top_work_findings",
+    "why_it_matters",
+    "account_summary",
+    "rhythm_summary",
+    "dealer_summary",
+    "report_type",
+    "time_scope",
+    "database_url",
+    "base_url",
+    "api_key",
+    "timeout_seconds",
+    "known_brands",
     "get_competitor_options",
     "resolve_competitor_report_scope",
     "collect_competitor_report_dataset",
@@ -55,20 +97,36 @@ INTERNAL_PROSE_MARKERS = (
     "save_report_node",
     "build_competitor_report_graph",
     "run_competitor_report_agent",
-    "\\.codex\\",
-    "\\.agents\\",
-    "\\.claude\\",
-    "\\skills\\",
-    "/.codex/",
-    "/.agents/",
-    "/.claude/",
-    "/skills/",
+)
+INTERNAL_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?:"
+    + "|".join(re.escape(token) for token in INTERNAL_SNAKE_CASE_TOKENS)
+    + r")(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
+INTERNAL_LITERAL_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?:data_asset\.|skill\.md|app[./\\]agents|tool[\s_-]+name)(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
+TOOL_ASSIGNMENT_RE = re.compile(r"(?<![A-Za-z0-9_])tool\s*[:=]\s*\S+", re.IGNORECASE)
+WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Z]:[\\/]|\\\\[^\\/\s]+[\\/])", re.IGNORECASE)
+UNIX_ABSOLUTE_PATH_RE = re.compile(
+    r"(?<![:/A-Za-z0-9])/(?:users|home|tmp|var|etc|opt|root|workspace|mnt)(?:/|$)",
+    re.IGNORECASE,
 )
 
 
 def _reject_internal_prose(value: str) -> None:
-    folded = value.casefold()
-    if any(marker in folded for marker in INTERNAL_PROSE_MARKERS):
+    if any(
+        pattern.search(value)
+        for pattern in (
+            INTERNAL_TOKEN_RE,
+            INTERNAL_LITERAL_RE,
+            TOOL_ASSIGNMENT_RE,
+            WINDOWS_ABSOLUTE_PATH_RE,
+            UNIX_ABSOLUTE_PATH_RE,
+        )
+    ):
         raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：结论包含内部标识。")
 
 

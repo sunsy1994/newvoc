@@ -11,6 +11,7 @@ class FakeInsightCursor:
         self.store = store
         self.calls = calls
         self.row: dict[str, object] | None = None
+        self.rows: list[dict[str, object]] = []
 
     def __enter__(self) -> "FakeInsightCursor":
         return self
@@ -32,11 +33,18 @@ class FakeInsightCursor:
                 "updated_at": "2026-07-18T00:00:00",
             }
             self.row = self.store[work_id]
+        elif query.lstrip().startswith("SELECT count(*)"):
+            self.row = {"count": 1}
+        elif "AS has_insight" in query:
+            self.rows = [{"work_id": "work_001", "has_insight": True, "insight_updated_at": "2026-07-18T00:00:00"}]
         elif "LEFT JOIN data_asset.competitor_work_insight" in query:
             self.row = self.store.get(params[0])
 
     def fetchone(self) -> dict[str, object] | None:
         return self.row
+
+    def fetchall(self) -> list[dict[str, object]]:
+        return self.rows
 
 
 class FakeInsightConnection:
@@ -96,10 +104,11 @@ def test_competitor_work_insight_round_trip(monkeypatch) -> None:
     connection = FakeInsightConnection()
     monkeypatch.setattr(competitor_library.psycopg, "connect", lambda *_args, **_kwargs: connection)
 
-    saved = competitor_library.save_competitor_work_insight("work_001", "## 视频介绍\n外观展示", "tester", "test-db")
+    markdown = "  ```python\n  print('外观展示')\n  ```\n结尾保留  \n"
+    saved = competitor_library.save_competitor_work_insight("work_001", markdown, "tester", "test-db")
 
     assert saved["work_id"] == "work_001"
-    assert saved["insight_markdown"].startswith("## 视频介绍")
+    assert saved["insight_markdown"] == markdown
     assert competitor_library.get_competitor_work_insight("work_001", "test-db")["updated_by"] == "tester"
 
     cleared = competitor_library.save_competitor_work_insight("work_001", "   ", "tester", "test-db")
@@ -126,3 +135,14 @@ def test_competitor_work_columns_include_insight_status() -> None:
 
     assert "has_insight" in work_keys
     assert "insight_updated_at" in work_keys
+
+
+def test_list_competitor_works_without_filters_separates_join_and_order_by(monkeypatch) -> None:
+    connection = FakeInsightConnection()
+    monkeypatch.setattr(competitor_library.psycopg, "connect", lambda *_args, **_kwargs: connection)
+
+    payload = competitor_library.list_competitor_works(database_url="test-db")
+
+    query = next(query for query, _params in connection.calls if "AS has_insight" in query)
+    assert "ON i.work_id = w.work_id ORDER BY" in query
+    assert payload["rows"][0]["has_insight"] is True

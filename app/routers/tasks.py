@@ -723,7 +723,7 @@ def get_competitor_work_insight_api(work_id: str) -> dict:
 @router.put("/api/competitors/works/{work_id}/insight")
 def save_competitor_work_insight_api(work_id: str, payload: CompetitorWorkInsightSaveRequest) -> dict:
     try:
-        return save_competitor_work_insight(work_id, payload.insight_markdown.strip(), payload.updated_by)
+        return save_competitor_work_insight(work_id, payload.insight_markdown, payload.updated_by)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except psycopg.Error as exc:

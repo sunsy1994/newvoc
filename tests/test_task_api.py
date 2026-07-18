@@ -457,14 +457,15 @@ def test_competitor_work_insight_api_crud_and_missing_work(tmp_path: Path, monke
     assert client.get("/api/competitors/works/work_001/insight").json()["insight_markdown"] == ""
     assert client.get("/api/competitors/works/missing/insight").status_code == 404
 
+    markdown = "  解读内容  \n"
     put_response = client.put(
         "/api/competitors/works/work_001/insight",
-        json={"insight_markdown": "  解读内容  ", "updated_by": "tester"},
+        json={"insight_markdown": markdown, "updated_by": "tester"},
     )
     assert put_response.status_code == 200
-    assert put_response.json()["insight_markdown"] == "解读内容"
+    assert put_response.json()["insight_markdown"] == markdown
     assert put_response.json()["updated_by"] == "tester"
-    assert client.get("/api/competitors/works/work_001/insight").json()["insight_markdown"] == "解读内容"
+    assert client.get("/api/competitors/works/work_001/insight").json()["insight_markdown"] == markdown
 
     delete_response = client.delete("/api/competitors/works/work_001/insight")
     assert delete_response.status_code == 200

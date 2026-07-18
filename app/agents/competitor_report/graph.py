@@ -110,10 +110,19 @@ INTERNAL_LITERAL_RE = re.compile(
     re.IGNORECASE,
 )
 TOOL_ASSIGNMENT_RE = re.compile(r"(?<![A-Za-z0-9_])tool\s*[:=]\s*\S+", re.IGNORECASE)
-HTTP_URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+HTTP_URL_RE = re.compile(r"https?://[^\s<>\"'，。；：！？、（）【】()\[\]{}]+", re.IGNORECASE)
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Z]:[\\/]|\\\\[^\\/\s]+[\\/])", re.IGNORECASE)
-UNIX_ABSOLUTE_PATH_RE = re.compile(r"(?<!\S)/[A-Za-z0-9._~+-]+(?:/[^/\s]+)*")
-RELATIVE_SKILL_PATH_RE = re.compile(r"[\\/](?:\.(?:codex|agents|claude)|skills)[\\/]", re.IGNORECASE)
+UNIX_ABSOLUTE_PATH_RE = re.compile(
+    r"(?:"
+    r"(?:^|(?<=[：:=（(【\[]))/(?!/)[^/\s<>\"'，。；：！？、（）【】()\[\]{}]+"
+    r"|(?<=\s)/(?!/)[A-Za-z0-9._~+-]+"
+    r")"
+    r"(?:/[^/\s<>\"'，。；：！？、（）【】()\[\]{}]+)+"
+)
+RELATIVE_SKILL_PATH_RE = re.compile(
+    r"(?:^|[\\/])(?:\.(?:codex|agents|claude)|skills)[\\/]",
+    re.IGNORECASE,
+)
 
 
 def _reject_internal_prose(value: str) -> None:

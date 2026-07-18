@@ -167,7 +167,7 @@ def test_internal_leak_guard_allows_business_tool_words_urls_and_token_substring
     summary["dealer_summary"] = (
         "经销商证据不足，详情见https://example.test/#/reports/detail?next=/data/private/report。"
     )
-    summary["rhythm_summary"] = "发布/互动节奏稳定，产品 /功能对比属于普通业务表述。"
+    summary["rhythm_summary"] = "发布/互动节奏稳定，产品 /功能对比与车型/渠道分析属于普通业务表述。"
 
     assert competitor_graph._validate_llm_summary(summary, _sample_report_dataset()) is summary
 
@@ -410,6 +410,11 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "account_summary": "报告位于 /srv/app/config.yaml"},
         {**_sample_llm_summary(), "rhythm_summary": "工具位于 /usr/local/bin/tool"},
         {**_sample_llm_summary(), "dealer_summary": "报告位于 /data/private/report"},
+        {**_sample_llm_summary(), "account_summary": "详见https://example.test。报告位于：/srv/app/config.yaml"},
+        {**_sample_llm_summary(), "rhythm_summary": "路径：/srv/app/config.yaml"},
+        {**_sample_llm_summary(), "dealer_summary": "path=/usr/local/bin/tool"},
+        {**_sample_llm_summary(), "account_summary": "(/data/private/report)"},
+        {**_sample_llm_summary(), "rhythm_summary": "路径：/数据/私有/报告.yaml"},
         {**_sample_llm_summary(), "account_summary": "读取 repo/.codex/private/rules.txt"},
         {**_sample_llm_summary(), "rhythm_summary": "读取 repo/.agents/skills/private/rules.txt"},
         {**_sample_llm_summary(), "dealer_summary": "读取 repo/.claude/private/rules.txt"},
@@ -418,6 +423,10 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "dealer_summary": r"读取 repo\.agents\skills\private\rules.txt"},
         {**_sample_llm_summary(), "account_summary": r"读取 repo\.claude\private\rules.txt"},
         {**_sample_llm_summary(), "rhythm_summary": r"读取 repo\skills\private\rules.txt"},
+        {**_sample_llm_summary(), "account_summary": ".codex/private/rules.txt"},
+        {**_sample_llm_summary(), "rhythm_summary": r".agents\private\rules.txt"},
+        {**_sample_llm_summary(), "dealer_summary": ".claude/private/rules.txt"},
+        {**_sample_llm_summary(), "account_summary": r"skills\private\rules.txt"},
     ],
 )
 def test_schema_valid_internal_leak_from_prompt_injected_source_never_renders_or_saves(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import date, datetime, time
 
 from app.agents.qa.time_scope_resolver import SHANGHAI_TZ, resolve_time_scope
@@ -17,36 +18,39 @@ BRAND_AFTER_LABEL = re.compile(
     rf"品牌\s*(?:是|为|[:：])\s*(?P<brand>{BRAND_CHARS}{{2,20}}?)"
     rf"(?={TIME_BOUNDARY}|(?:的)?竞品(?:动态)?报告|[，,。；;：:\s]|$)"
 )
-BRAND_SUFFIX = re.compile(
-    rf"^(?P<brand>{BRAND_CHARS}{{2,20}})品牌"
-    rf"(?={TIME_BOUNDARY}|(?:的)?竞品(?:动态)?报告|[，,。；;：:\s]|$)"
-)
-BRAND_POSSESSIVE_REPORT = re.compile(
-    rf"^(?!(?:{TIME_BOUNDARY})的竞品)(?P<brand>{BRAND_CHARS}{{3,20}})的竞品(?:动态)?报告"
-)
-REPORT_REQUEST_OPENING = re.compile(r"^(?:[^，,。；;：:\s]{0,20}?一份|生成)")
 
 
-def _resolve_brand(message: str) -> tuple[str, bool]:
+def _resolve_brand(message: str, known_brands: Sequence[str] | None) -> tuple[str, bool]:
     labeled = BRAND_AFTER_LABEL.search(message)
     if labeled:
         return labeled.group("brand"), False
 
-    report_request = REPORT_REQUEST_OPENING.sub("", message, count=1).strip()
-    for pattern in (BRAND_SUFFIX, BRAND_POSSESSIVE_REPORT):
-        match = pattern.match(report_request)
-        if match:
-            return match.group("brand"), False
+    candidates = sorted(
+        {brand.strip() for brand in known_brands or () if brand.strip()},
+        key=lambda brand: (-len(brand), brand),
+    )
+    for brand in candidates:
+        if (
+            f"{brand}品牌" in message
+            or f"{brand}的竞品动态报告" in message
+            or f"{brand}的竞品报告" in message
+        ):
+            return brand, False
     return DEFAULT_BRAND, True
 
 
-def resolve_competitor_report_scope(message: str, today: date | None = None) -> dict[str, str | bool]:
+def resolve_competitor_report_scope(
+    message: str,
+    today: date | None = None,
+    *,
+    known_brands: Sequence[str] | None = None,
+) -> dict[str, str | bool]:
     anchor = today or datetime.now(SHANGHAI_TZ).date()
     if isinstance(anchor, datetime):
         anchor = anchor.date()
     asked_at = datetime.combine(anchor, time.min, tzinfo=SHANGHAI_TZ)
     time_scope = resolve_time_scope(message, asked_at=asked_at)
-    brand_name, brand_defaulted = _resolve_brand(message)
+    brand_name, brand_defaulted = _resolve_brand(message, known_brands)
     return {
         "brand_name": brand_name,
         "brand_defaulted": brand_defaulted,

@@ -18,9 +18,65 @@ from app.services.competitor_library import get_competitor_options
 from app.services.report_agent import resolve_runtime_config
 
 
+LLM_SUMMARY_KEYS = {
+    "executive_summary",
+    "top_work_findings",
+    "account_summary",
+    "rhythm_summary",
+    "dealer_summary",
+}
+TOP_WORK_FINDING_KEYS = {"work_id", "why_it_matters"}
+INTERNAL_PROSE_MARKERS = (
+    "data_asset.",
+    "competitor_work",
+    "insight_markdown",
+    "rendered_prompt",
+    "skill.md",
+    "app.agents",
+    "app\\agents",
+    "app/agents",
+    "tool name",
+    "tool_name",
+    "tool-name",
+    "get_competitor_options",
+    "resolve_competitor_report_scope",
+    "collect_competitor_report_dataset",
+    "resolve_runtime_config",
+    "call_openai_compatible_json",
+    "render_competitor_summary_prompt",
+    "render_competitor_report_html",
+    "save_competitor_report_agent_result",
+    "ensure_competitor_report_table",
+    "normalize_competitor_report_row",
+    "resolve_scope_node",
+    "collect_data_node",
+    "summarize_node",
+    "render_report_node",
+    "save_report_node",
+    "build_competitor_report_graph",
+    "run_competitor_report_agent",
+    "\\.codex\\",
+    "\\.agents\\",
+    "\\.claude\\",
+    "\\skills\\",
+    "/.codex/",
+    "/.agents/",
+    "/.claude/",
+    "/skills/",
+)
+
+
+def _reject_internal_prose(value: str) -> None:
+    folded = value.casefold()
+    if any(marker in folded for marker in INTERNAL_PROSE_MARKERS):
+        raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：结论包含内部标识。")
+
+
 def _validate_llm_summary(summary: Any, dataset: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(summary, dict):
         raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约。")
+    if set(summary) != LLM_SUMMARY_KEYS:
+        raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：顶层字段不匹配。")
     executive_summary = summary.get("executive_summary")
     if (
         not isinstance(executive_summary, list)
@@ -28,6 +84,8 @@ def _validate_llm_summary(summary: Any, dataset: dict[str, Any]) -> dict[str, An
         or any(not isinstance(item, str) or not item.strip() for item in executive_summary)
     ):
         raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：executive_summary 必须为3至5条非空结论。")
+    for item in executive_summary:
+        _reject_internal_prose(item)
     top_work_findings = summary.get("top_work_findings")
     if not isinstance(top_work_findings, list) or not top_work_findings:
         raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：top_work_findings 必须为非空数组。")
@@ -36,6 +94,8 @@ def _validate_llm_summary(summary: Any, dataset: dict[str, Any]) -> dict[str, An
     for finding in top_work_findings:
         if not isinstance(finding, dict):
             raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：热门作品结论格式错误。")
+        if set(finding) != TOP_WORK_FINDING_KEYS:
+            raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：热门作品结论字段不匹配。")
         work_id = finding.get("work_id")
         why_it_matters = finding.get("why_it_matters")
         if (
@@ -46,10 +106,12 @@ def _validate_llm_summary(summary: Any, dataset: dict[str, Any]) -> dict[str, An
             or not why_it_matters.strip()
         ):
             raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：热门作品结论必须引用输入作品 ID。")
+        _reject_internal_prose(why_it_matters)
         seen_work_ids.add(work_id)
     for key in ("account_summary", "rhythm_summary", "dealer_summary"):
         if not isinstance(summary.get(key), str) or not summary[key].strip():
             raise ValueError(f"LLM 返回结果不符合竞品报告 JSON 契约：{key} 必须为非空文本。")
+        _reject_internal_prose(summary[key])
     return summary
 
 

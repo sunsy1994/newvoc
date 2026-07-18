@@ -224,6 +224,19 @@ def test_competitor_pages_use_real_api_component_and_filters() -> None:
     assert "end_date" in competitor_component
 
 
+def test_competitor_work_insight_editor_is_limited_to_works_mode() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+
+    assert "/competitors/works/${workId}/insight" in component
+    assert "维护解读" in component
+    assert "已维护" in component
+    assert "未维护" in component
+    assert "<textarea" in component
+    assert "保存解读" in component
+    assert "清空解读" in component
+    assert 'config.mode === "works" ? (' in component
+
+
 def test_asset_pages_use_real_api_component_and_exports() -> None:
     root = Path("frontend")
     asset_component = (root / "src/components/assets/AssetLibraryPage.tsx").read_text(encoding="utf-8")

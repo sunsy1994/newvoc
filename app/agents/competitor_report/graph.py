@@ -110,8 +110,22 @@ INTERNAL_LITERAL_RE = re.compile(
     re.IGNORECASE,
 )
 TOOL_ASSIGNMENT_RE = re.compile(r"(?<![A-Za-z0-9_])tool\s*[:=]\s*\S+", re.IGNORECASE)
-HTTP_URL_RE = re.compile(r"https?://[^\s<>\"'，。；：！？、（）【】()\[\]{}]+", re.IGNORECASE)
+HTTP_URL_RE = re.compile(r"https?://[^\s<>\"'，。；：！？、（）【】\[\]{}]+", re.IGNORECASE)
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Z]:[\\/]|\\\\[^\\/\s]+[\\/])", re.IGNORECASE)
+SENSITIVE_UNIX_ROOTS = (
+    "etc",
+    "tmp",
+    "srv",
+    "usr",
+    "data",
+    "home",
+    "root",
+    "opt",
+    "var",
+    "mnt",
+    "Users",
+    "workspace",
+)
 UNIX_ABSOLUTE_PATH_RE = re.compile(
     r"(?:"
     r"(?:^|(?<=[：:=（(【\[]))/(?!/)[^/\s<>\"'，。；：！？、（）【】()\[\]{}]+"
@@ -119,8 +133,14 @@ UNIX_ABSOLUTE_PATH_RE = re.compile(
     r")"
     r"(?:/[^/\s<>\"'，。；：！？、（）【】()\[\]{}]+)+"
 )
+UNIX_SINGLE_SEGMENT_PATH_RE = re.compile(
+    r"(?:^|(?<=[\s：:=（(【\[]))/(?:"
+    + "|".join(re.escape(root) for root in SENSITIVE_UNIX_ROOTS)
+    + r")(?![A-Za-z0-9._~+\-/])",
+    re.IGNORECASE,
+)
 RELATIVE_SKILL_PATH_RE = re.compile(
-    r"(?:^|[\\/])(?:\.(?:codex|agents|claude)|skills)[\\/]",
+    r"(?:^|[\s\\/])(?:\.(?:codex|agents|claude)|skills)[\\/]",
     re.IGNORECASE,
 )
 
@@ -131,7 +151,12 @@ def _reject_internal_prose(value: str) -> None:
         any(pattern.search(value) for pattern in (INTERNAL_TOKEN_RE, DATA_ASSET_RE, INTERNAL_LITERAL_RE, TOOL_ASSIGNMENT_RE))
         or any(
             pattern.search(path_scan_value)
-            for pattern in (WINDOWS_ABSOLUTE_PATH_RE, UNIX_ABSOLUTE_PATH_RE, RELATIVE_SKILL_PATH_RE)
+            for pattern in (
+                WINDOWS_ABSOLUTE_PATH_RE,
+                UNIX_ABSOLUTE_PATH_RE,
+                UNIX_SINGLE_SEGMENT_PATH_RE,
+                RELATIVE_SKILL_PATH_RE,
+            )
         )
     ):
         raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：结论包含内部标识。")

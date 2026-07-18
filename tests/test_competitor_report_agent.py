@@ -161,6 +161,9 @@ def test_fixed_html_renderer_contains_scope_overview_top3_and_escapes_dynamic_te
 def test_internal_leak_guard_allows_business_tool_words_urls_and_token_substrings() -> None:
     summary = _sample_llm_summary()
     summary["executive_summary"][0] = "total_engagement_rate 是业务自定义标签，不是内部字段。"
+    summary["executive_summary"][1] = (
+        "公开案例见https://example.test/report?next=(/srv/app/config.yaml)#detail。"
+    )
     summary["account_summary"] = (
         "内容工具价值提升，公开详情见https://example.test/report?next=/home/report&source=tool#summary。"
     )
@@ -415,6 +418,9 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "dealer_summary": "path=/usr/local/bin/tool"},
         {**_sample_llm_summary(), "account_summary": "(/data/private/report)"},
         {**_sample_llm_summary(), "rhythm_summary": "路径：/数据/私有/报告.yaml"},
+        {**_sample_llm_summary(), "account_summary": "系统配置位于 /etc"},
+        {**_sample_llm_summary(), "rhythm_summary": "临时目录为 /tmp"},
+        {**_sample_llm_summary(), "dealer_summary": "服务目录为 /srv"},
         {**_sample_llm_summary(), "account_summary": "读取 repo/.codex/private/rules.txt"},
         {**_sample_llm_summary(), "rhythm_summary": "读取 repo/.agents/skills/private/rules.txt"},
         {**_sample_llm_summary(), "dealer_summary": "读取 repo/.claude/private/rules.txt"},
@@ -427,6 +433,9 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "rhythm_summary": r".agents\private\rules.txt"},
         {**_sample_llm_summary(), "dealer_summary": ".claude/private/rules.txt"},
         {**_sample_llm_summary(), "account_summary": r"skills\private\rules.txt"},
+        {**_sample_llm_summary(), "account_summary": "请查看 .codex/private/rules.txt"},
+        {**_sample_llm_summary(), "rhythm_summary": r"读取 .agents\private\rules.txt"},
+        {**_sample_llm_summary(), "dealer_summary": "配置在 skills/private/rules.txt"},
     ],
 )
 def test_schema_valid_internal_leak_from_prompt_injected_source_never_renders_or_saves(

@@ -60,7 +60,7 @@ def test_scope_resolves_recent_two_weeks_with_default_brand() -> None:
 
 
 def test_scope_defaults_only_time_when_brand_is_specified() -> None:
-    scope = resolve_competitor_report_scope("生成一份比亚迪竞品动态报告", today=date(2026, 7, 18))
+    scope = resolve_competitor_report_scope("生成一份品牌为比亚迪的竞品动态报告", today=date(2026, 7, 18))
 
     assert scope["brand_name"] == "比亚迪"
     assert scope["brand_defaulted"] is False
@@ -88,6 +88,9 @@ def test_scope_defaults_brand_for_plain_report_requests() -> None:
         "帮我做一份竞品动态报告",
         "请输出一份竞品动态报告",
         "生成一份专业的竞品动态报告",
+        "生成一份完整竞品动态报告",
+        "帮我写一份竞品动态报告",
+        "请撰写一份竞品动态报告",
     ):
         scope = resolve_competitor_report_scope(message, today=date(2026, 7, 18))
 
@@ -114,9 +117,18 @@ def test_scope_stops_labeled_brand_before_report_suffix() -> None:
     assert scope["brand_defaulted"] is False
 
 
-def test_scope_resolves_unlabeled_brand_before_report() -> None:
-    assert resolve_competitor_report_scope("极氪竞品动态报告", today=date(2026, 7, 18))["brand_name"] == "极氪"
-    assert resolve_competitor_report_scope("我想看一份问界竞品动态报告", today=date(2026, 7, 18))["brand_name"] == "问界"
+def test_scope_resolves_possessive_brand_before_report() -> None:
+    scope = resolve_competitor_report_scope("生成一份比亚迪的竞品动态报告", today=date(2026, 7, 18))
+
+    assert scope["brand_name"] == "比亚迪"
+    assert scope["brand_defaulted"] is False
+
+
+def test_scope_defaults_ambiguous_bare_brand_report() -> None:
+    scope = resolve_competitor_report_scope("极氪竞品动态报告", today=date(2026, 7, 18))
+
+    assert scope["brand_name"] == "上汽大众"
+    assert scope["brand_defaulted"] is True
 
 
 class FakeReportCursor:

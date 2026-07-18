@@ -432,6 +432,49 @@ def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monke
     assert captured["end_date"] == "2026-05-31"
 
 
+def test_competitor_work_insight_api_crud_and_missing_work(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    saved: dict[str, object] = {}
+
+    def fake_get(work_id: str) -> dict[str, object]:
+        if work_id == "missing":
+            raise ValueError("Competitor work not found")
+        return saved.get(work_id, {"work_id": work_id, "insight_markdown": "", "updated_by": None})  # type: ignore[return-value]
+
+    def fake_save(work_id: str, insight_markdown: str, updated_by: str | None = None) -> dict[str, object]:
+        if work_id == "missing":
+            raise ValueError("Competitor work not found")
+        saved[work_id] = {
+            "work_id": work_id,
+            "insight_markdown": insight_markdown,
+            "updated_by": updated_by,
+        }
+        return saved[work_id]  # type: ignore[return-value]
+
+    monkeypatch.setattr("app.routers.tasks.get_competitor_work_insight", fake_get)
+    monkeypatch.setattr("app.routers.tasks.save_competitor_work_insight", fake_save)
+
+    assert client.get("/api/competitors/works/work_001/insight").json()["insight_markdown"] == ""
+    assert client.get("/api/competitors/works/missing/insight").status_code == 404
+
+    put_response = client.put(
+        "/api/competitors/works/work_001/insight",
+        json={"insight_markdown": "  解读内容  ", "updated_by": "tester"},
+    )
+    assert put_response.status_code == 200
+    assert put_response.json()["insight_markdown"] == "解读内容"
+    assert put_response.json()["updated_by"] == "tester"
+    assert client.get("/api/competitors/works/work_001/insight").json()["insight_markdown"] == "解读内容"
+
+    delete_response = client.delete("/api/competitors/works/work_001/insight")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["insight_markdown"] == ""
+    assert client.put(
+        "/api/competitors/works/missing/insight",
+        json={"insight_markdown": "内容"},
+    ).status_code == 404
+
+
 def test_asset_export_returns_excel_file(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
 

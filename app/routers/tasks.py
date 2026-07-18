@@ -31,9 +31,11 @@ from app.agents.core import AgentCapability, AgentCapabilityUnavailableError, di
 from app.services.agent_error_log import AgentErrorLog
 from app.services.asset_library import list_assets
 from app.services.competitor_library import (
+    get_competitor_work_insight,
     get_competitor_options,
     list_competitor_accounts,
     list_competitor_works,
+    save_competitor_work_insight,
 )
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
@@ -117,6 +119,11 @@ class ScriptSaveRequest(BaseModel):
 
 class ScriptTestRunRequest(BaseModel):
     batch_id: str
+
+
+class CompetitorWorkInsightSaveRequest(BaseModel):
+    insight_markdown: str = ""
+    updated_by: str | None = None
 
 
 class CommentUserAiProfileRunRequest(BaseModel):
@@ -699,6 +706,36 @@ def get_competitor_works(
             limit=limit,
             offset=offset,
         )
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/competitors/works/{work_id}/insight")
+def get_competitor_work_insight_api(work_id: str) -> dict:
+    try:
+        return get_competitor_work_insight(work_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.put("/api/competitors/works/{work_id}/insight")
+def save_competitor_work_insight_api(work_id: str, payload: CompetitorWorkInsightSaveRequest) -> dict:
+    try:
+        return save_competitor_work_insight(work_id, payload.insight_markdown.strip(), payload.updated_by)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.delete("/api/competitors/works/{work_id}/insight")
+def clear_competitor_work_insight_api(work_id: str) -> dict:
+    try:
+        return save_competitor_work_insight(work_id, "")
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 

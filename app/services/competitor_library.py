@@ -46,7 +46,19 @@ WORK_COLUMNS = [
     {"key": "topic_tags", "label": "话题标签"},
     {"key": "first_seen_at", "label": "首次发现时间"},
     {"key": "last_seen_at", "label": "最近更新时间"},
+    {"key": "has_insight", "label": "是否有作品解读"},
+    {"key": "insight_updated_at", "label": "作品解读更新时间"},
 ]
+
+COMPETITOR_WORK_INSIGHT_TABLE_SQL = """
+CREATE SCHEMA IF NOT EXISTS data_asset;
+CREATE TABLE IF NOT EXISTS data_asset.competitor_work_insight (
+    work_id TEXT PRIMARY KEY REFERENCES data_asset.competitor_work(work_id),
+    insight_markdown TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by TEXT
+);
+"""
 
 ACCOUNT_COLUMN_MAP = {
     "账号名称": "account_name",
@@ -274,6 +286,56 @@ def build_work_filters(
     return (" WHERE " + " AND ".join(clauses), params) if clauses else ("", params)
 
 
+def ensure_competitor_work_insight_table(database_url: str = DATABASE_URL) -> None:
+    with psycopg.connect(database_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(COMPETITOR_WORK_INSIGHT_TABLE_SQL)
+        conn.commit()
+
+
+def get_competitor_work_insight(work_id: str, database_url: str = DATABASE_URL) -> dict[str, Any]:
+    ensure_competitor_work_insight_table(database_url)
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT w.work_id, coalesce(i.insight_markdown, '') AS insight_markdown, i.updated_at, i.updated_by "
+                "FROM data_asset.competitor_work w "
+                "LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id "
+                "WHERE w.work_id = %s",
+                (work_id,),
+            )
+            row = cur.fetchone()
+    if row is None:
+        raise ValueError("Competitor work not found")
+    return normalize_row(dict(row))
+
+
+def save_competitor_work_insight(
+    work_id: str,
+    insight_markdown: str,
+    updated_by: str | None = None,
+    database_url: str = DATABASE_URL,
+) -> dict[str, Any]:
+    ensure_competitor_work_insight_table(database_url)
+    content = insight_markdown.strip()
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT work_id FROM data_asset.competitor_work WHERE work_id = %s", (work_id,))
+            if cur.fetchone() is None:
+                raise ValueError("Competitor work not found")
+            cur.execute(
+                "INSERT INTO data_asset.competitor_work_insight (work_id, insight_markdown, updated_by) "
+                "VALUES (%s, %s, %s) "
+                "ON CONFLICT (work_id) DO UPDATE SET insight_markdown = EXCLUDED.insight_markdown, "
+                "updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP "
+                "RETURNING work_id, insight_markdown, updated_at, updated_by",
+                (work_id, content, updated_by),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return normalize_row(dict(row))
+
+
 def list_competitor_accounts(
     q: str | None = None,
     limit: int = 50,
@@ -321,6 +383,7 @@ def list_competitor_works(
 ) -> dict[str, Any]:
     limit = max(1, min(limit, max_limit))
     offset = max(0, offset)
+    ensure_competitor_work_insight_table(database_url)
     where_sql, params = build_work_filters(q, brand_name, account_name, account_type, start_date, end_date)
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
@@ -329,8 +392,11 @@ def list_competitor_works(
             cur.execute(
                 "SELECT work_id, title, author_name, brand_name, account_type, is_official, home_like_cnt, "
                 "interaction_like_cnt, comment_cnt, favorite_cnt, share_cnt, published_at, is_pinned, video_url, "
-                "cover_url, topic_tags, first_seen_at, last_seen_at "
-                f"FROM data_asset.competitor_work w{where_sql} "
+                "cover_url, topic_tags, first_seen_at, last_seen_at, "
+                "length(trim(coalesce(i.insight_markdown, ''))) > 0 AS has_insight, i.updated_at AS insight_updated_at "
+                "FROM data_asset.competitor_work w "
+                "LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id"
+                f"{where_sql} "
                 "ORDER BY published_at DESC NULLS LAST, interaction_like_cnt DESC NULLS LAST LIMIT %s OFFSET %s",
                 [*params, limit, offset],
             )

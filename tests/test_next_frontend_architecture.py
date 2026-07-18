@@ -234,7 +234,18 @@ def test_competitor_work_insight_editor_is_limited_to_works_mode() -> None:
     assert "<textarea" in component
     assert "保存解读" in component
     assert "清空解读" in component
-    assert 'config.mode === "works" ? (' in component
+    action_start = component.index("onClick={() => openInsight(row)}")
+    action_guard_start = component.rfind('{config.mode === "works" ? (', 0, action_start)
+    action_guard_end = component.index(") : null}", action_start)
+    assert action_guard_start != -1
+    assert action_start < action_guard_end
+    assert '{config.mode === "works" && selectedWork ? (' in component
+    assert 'role="dialog"' in component
+    assert 'aria-label="作品解读 Markdown"' in component
+    assert 'role="alert"' in component
+    assert "onKeyDown={trapInsightFocus}" in component
+    assert "insightTextareaRef.current?.focus()" in component
+    assert "insightTriggerRefs.current[workId]?.focus()" in component
 
 
 def test_asset_pages_use_real_api_component_and_exports() -> None:

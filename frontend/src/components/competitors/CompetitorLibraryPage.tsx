@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { BarChart3, CalendarDays, Download, RefreshCw, Search, TableProperties } from "lucide-react";
 
 import { DataPagination } from "@/components/shared/DataPagination";
@@ -69,6 +70,8 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
   const [isInsightLoading, setIsInsightLoading] = useState(false);
   const [isInsightSaving, setIsInsightSaving] = useState(false);
   const [insightError, setInsightError] = useState("");
+  const insightTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const insightTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const total = payload?.total ?? 0;
   const rows = payload?.rows ?? [];
@@ -127,6 +130,10 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
   useEffect(() => {
     loadRows();
   }, [loadRows]);
+
+  useEffect(() => {
+    if (selectedWork) insightTextareaRef.current?.focus();
+  }, [selectedWork]);
 
   function submitFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -190,6 +197,28 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
       setInsightError(clear ? "解读清空失败，请稍后重试。" : "解读保存失败，请稍后重试。");
     } finally {
       setIsInsightSaving(false);
+    }
+  }
+
+  function closeInsight() {
+    const workId = String(selectedWork?.work_id ?? "");
+    setSelectedWork(null);
+    window.setTimeout(() => insightTriggerRefs.current[workId]?.focus(), 0);
+  }
+
+  function trapInsightFocus(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled)"));
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   }
 
@@ -367,6 +396,9 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
                       <td className="whitespace-nowrap px-4 py-3 text-xs">
                         <button
                           type="button"
+                          ref={(button) => {
+                            insightTriggerRefs.current[String(row.work_id ?? "")] = button;
+                          }}
                           onClick={() => openInsight(row)}
                           className="rounded-md border border-[#dfe5ee] bg-white px-2.5 py-1.5 font-medium text-[#485160] hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-icon-fill)]"
                         >
@@ -398,7 +430,13 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
 
       {config.mode === "works" && selectedWork ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#151720]/30 p-4">
-          <section className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(21,23,32,0.22)]" role="dialog" aria-modal="true" aria-label="维护作品解读">
+          <section
+            className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(21,23,32,0.22)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="维护作品解读"
+            onKeyDown={trapInsightFocus}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-medium text-[#8b92a1]">竞品作品库</p>
@@ -406,7 +444,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedWork(null)}
+                onClick={closeInsight}
                 className="rounded-lg border border-[#e8ecf3] px-3 py-1.5 text-sm text-[#596070]"
               >
                 关闭
@@ -419,13 +457,16 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
               <div><dt className="text-xs text-[#8b92a1]">发布时间</dt><dd className="mt-1 text-[#151720]">{formatCellValue(selectedWork.published_at)}</dd></div>
             </dl>
             <textarea
+              ref={insightTextareaRef}
+              aria-label="作品解读 Markdown"
               value={insightMarkdown}
               onChange={(event) => setInsightMarkdown(event.target.value)}
-              disabled={isInsightLoading || isInsightSaving}
+              readOnly={isInsightLoading}
+              disabled={isInsightSaving}
               placeholder={isInsightLoading ? "正在加载解读..." : "填写作品解读（Markdown）"}
               className="mt-4 h-64 w-full resize-y rounded-xl border border-[#dfe5ee] p-3 font-mono text-sm leading-6 text-[#151720] outline-none focus:border-[var(--sys-icon-fill)]"
             />
-            {insightError ? <p className="mt-2 text-sm text-[#c65c5c]">{insightError}</p> : null}
+            {insightError ? <p role="alert" className="mt-2 text-sm text-[#c65c5c]">{insightError}</p> : null}
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"

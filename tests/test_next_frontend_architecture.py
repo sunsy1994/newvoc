@@ -32,9 +32,9 @@ def test_next_frontend_uses_app_router_src_tailwind_and_typed_navigation() -> No
 
     assert "usePathname" in primary_nav
     assert "usePathname" in secondary_nav
-    assert "grid-cols-[136px_1fr]" in sidebar
-    assert "bg-[#5347CE] text-white" in nav_item
-    assert "bg-white text-[#151720]" in nav_item
+    assert "grid-cols-[124px_1fr]" in sidebar
+    assert "bg-[var(--sys-icon-fill)] text-white" in nav_item
+    assert "bg-[var(--sys-card)] text-[var(--sys-ink)]" in nav_item
 
 
 def test_frontend_navigation_components_are_small_and_data_driven() -> None:
@@ -111,6 +111,7 @@ def test_next_frontend_proxies_backend_api_and_has_pages_for_navigation_links() 
 
 def test_system_management_pages_use_real_api_components() -> None:
     root = Path("frontend")
+    globals_css = (root / "src/app/globals.css").read_text(encoding="utf-8")
     navigation = (root / "src/config/navigation.ts").read_text(encoding="utf-8")
     parameter_page = (root / "src/app/system/parameters/page.tsx").read_text(encoding="utf-8")
     prompt_page = (root / "src/app/system/prompts/page.tsx").read_text(encoding="utf-8")
@@ -143,6 +144,17 @@ def test_system_management_pages_use_real_api_components() -> None:
     assert "is_system" in lineage_component
     assert "createNode" in lineage_component
     assert "新增人工节点" in lineage_component
+    assert "data-lineage-overlay" in lineage_component
+    assert "data-lineage-modal-surface" in lineage_component
+    assert "data-lineage-drawer-surface" in lineage_component
+    assert ".data-lineage-overlay" in globals_css
+    assert "background-color: var(--sys-input-bg)" in globals_css
+    assert "DataPagination" in lineage_component
+    assert "visibleNodes" in lineage_component
+    assert "DataPagination" in emoji_component
+    assert "visibleEmojis" in emoji_component
+    assert "DataPagination" in error_component
+    assert "visibleRecords" in error_component
     assert 'mode="parameters"' in parameter_page
     assert 'mode="prompts"' in prompt_page
     assert "/system/ai-config" in component
@@ -729,33 +741,33 @@ def test_sales_dashboard_first_story_card_is_wired() -> None:
     assert "data-voc-theme" in theme_frame
     assert "奶茶" in theme_frame
     assert "经典" in theme_frame
-    assert 'label: "经典", swatch: "#5347CE"' in theme_frame
+    assert 'label: "经典", swatch: "#5B63B7"' in theme_frame
     assert "ChevronDown" in theme_frame
     assert "themeOptions.map" in theme_frame
     assert "页面主题" not in theme_frame
     assert 'useState<DashboardTheme>("soft")' in theme_frame
-    assert "--soft-page: #F6F7F9" in globals_css
+    assert "--soft-page: #FFFFFF" in globals_css
     assert "--soft-header: #F8F5F1" in globals_css
-    assert "--soft-card: #FFFFFF" in globals_css
-    assert "--soft-primary: #2D2B31" in globals_css
-    assert "--soft-primary-hover: #1F1E22" in globals_css
-    assert "--soft-selected-border: #D98252" in globals_css
-    assert "--soft-selected-bg: #FFF5EE" in globals_css
-    assert "--soft-selected-text: #3A302B" in globals_css
-    assert "--soft-hover-bg: #F8F3ED" in globals_css
-    assert "--soft-icon: #4B4850" in globals_css
-    assert "--soft-muted: #8D8992" in globals_css
-    assert "--sales-sankey-root: #87B96B" in globals_css
-    assert "--sales-sankey-sales: #F2A56B" in globals_css
-    assert "--sales-sankey-strong: #E57C45" in globals_css
-    assert "--sales-sankey-neutral: #C8CAD2" in globals_css
-    assert "--sales-chip-strong-text: #8E4525" in globals_css
-    assert "--sales-chip-mid-text: #9C5B2B" in globals_css
-    assert "--sales-chip-weak-text: #8A6A4D" in globals_css
-    assert "--profile-unprofiled: #D8DAE2" in globals_css
-    assert "--profile-completed: #87B96B" in globals_css
-    assert "--profile-missing-bg: #F1EFEC" in globals_css
-    assert "--profile-missing-text: #77727B" in globals_css
+    assert "--soft-card: #FBFAF8" in globals_css
+    assert "--soft-primary: #5D9691" in globals_css
+    assert "--soft-primary-hover: #4B7F7A" in globals_css
+    assert "--soft-selected-border: #5D9691" in globals_css
+    assert "--soft-selected-bg: #EAF3F1" in globals_css
+    assert "--soft-selected-text: #3F736F" in globals_css
+    assert "--soft-hover-bg: #F5F6F6" in globals_css
+    assert "--soft-icon: #5D9691" in globals_css
+    assert "--soft-muted: #92979F" in globals_css
+    assert "--sales-sankey-root: #5D9B96" in globals_css
+    assert "--sales-sankey-sales: #B56F46" in globals_css
+    assert "--sales-sankey-strong: #C15F5F" in globals_css
+    assert "--sales-sankey-neutral: #D9DDE2" in globals_css
+    assert "--sales-chip-strong-text: #A24646" in globals_css
+    assert "--sales-chip-mid-text: #8D5635" in globals_css
+    assert "--sales-chip-weak-text: #566F83" in globals_css
+    assert "--profile-unprofiled: #D9DDE2" in globals_css
+    assert "--profile-completed: #438A68" in globals_css
+    assert "--profile-missing-bg: #F5F6F6" in globals_css
+    assert "--profile-missing-text: #92979F" in globals_css
     assert '[data-voc-theme="nexus"]' in globals_css
     assert "--classic-primary: var(--nexus-primary)" in globals_css
     assert "--classic-accent: var(--nexus-teal)" in globals_css
@@ -835,7 +847,7 @@ def test_sales_dashboard_first_story_card_is_wired() -> None:
     assert "grid-cols-4" not in card
     assert "h-[58px]" in card
     assert "segment.users.slice(0, 5)" in card
-    assert "xl:grid-cols-[2fr_1fr]" in card
+    assert "2xl:grid-cols-[minmax(0,1fr)_360px]" in card
     assert "items-stretch" in card
     assert "SalesLeadSankey" in card
     assert "h-full" in card
@@ -850,7 +862,7 @@ def test_sales_dashboard_first_story_card_is_wired() -> None:
     assert "user.representative_comment}</p>" in card
     assert "comment_author_name.slice" not in card
     assert "UserRound" in card
-    assert "bg-[#eef1f6]" in card
+    assert "bg-[var(--theme-soft-panel)]" in card
     assert "画像占比条形" in card
     assert "画像占比堆叠条" in card
     assert "flexGrow" in card
@@ -868,7 +880,7 @@ def test_sales_dashboard_first_story_card_is_wired() -> None:
     assert "return user.mid_high_purchase_signal_count > 0 ? \"中/强购买信号\"" not in card
     assert "intent_distribution" in types
     assert "典型高意向评论" not in card
-    assert "MessageSquareText" not in card
+    assert "MessageSquareText" in card
     assert "comment_label_json.purchase_signal" in card
     assert "用户意图分布" not in card
     assert "购买信号分布" not in card
@@ -893,9 +905,9 @@ def test_event_department_dashboards_share_theme_frame_and_header_alignment() ->
     assert "VOC Event Intelligence" in header
     assert "VOC Product Intelligence" in header
     assert "VOC Sales Intelligence" in header
-    assert "className=\"voc-dashboard-header flex flex-wrap items-start justify-between gap-4\"" in header
-    assert "className=\"voc-dashboard-controls flex max-w-full flex-col items-end gap-2\"" in header
-    assert "className=\"voc-dashboard-filter-form flex flex-wrap items-center justify-end gap-2\"" in header
+    assert "voc-dashboard-header rounded-[20px]" in header
+    assert "voc-dashboard-controls flex w-full flex-col items-stretch gap-2" in header
+    assert "voc-dashboard-filter-form flex w-full flex-wrap items-center gap-2" in header
     assert "ThemeSelect" in header
     assert "border-[var(--theme-border)]" in header
     assert "bg-[var(--theme-primary)]" in header
@@ -906,7 +918,7 @@ def test_event_department_dashboards_share_theme_frame_and_header_alignment() ->
         assert "VocDashboardHeader" in page
         assert "<VocDashboardThemeFrame>" in page
         assert "<VocDashboardHeader" in page
-        assert "className=\"space-y-5\"" in page
+        assert "className=\"mx-auto max-w-[1560px] space-y-5\"" in page
         assert "<header className=\"flex flex-wrap items-start justify-between gap-4\">" not in page
         assert "ThemeSelect" not in page
 
@@ -925,8 +937,9 @@ def test_market_and_product_charts_use_dashboard_theme_tokens() -> None:
 
     combined = "\n".join(path.read_text(encoding="utf-8") for path in themed_chart_components)
     assert "var(--voc-chart-1)" in combined
-    assert "var(--voc-chart-2)" in combined
     assert "var(--voc-chart-3)" in combined
+    assert "var(--voc-chart-5)" in combined
+    assert "var(--voc-chart-6)" in combined
     assert "var(--theme-primary)" in combined
     assert "var(--theme-selected-bg)" in combined
     assert "var(--theme-chip)" in combined

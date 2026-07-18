@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Save, SmilePlus } from "lucide-react";
 
 import { apiBaseUrl } from "@/config/navigation";
+import { DataPagination } from "@/components/shared/DataPagination";
 import type { EmojiListPayload, EmojiMapping } from "@/types/system";
 
 type LoadState = "idle" | "loading" | "error";
@@ -38,6 +39,8 @@ export function EmojiDictionaryPage() {
   const [emojis, setEmojis] = useState<EmojiMapping[]>([]);
   const [draft, setDraft] = useState<EmojiMapping>(defaultDraft);
   const [query, setQuery] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
 
   const filteredEmojis = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -46,6 +49,7 @@ export function EmojiDictionaryPage() {
       return [item.emoji_code, item.display_name, item.emoji_value].some((value) => String(value ?? "").toLowerCase().includes(keyword));
     });
   }, [emojis, query]);
+  const visibleEmojis = useMemo(() => filteredEmojis.slice(offset, offset + pageSize), [filteredEmojis, offset, pageSize]);
 
   const loadEmojis = useCallback(async () => {
     setLoadState("loading");
@@ -64,6 +68,15 @@ export function EmojiDictionaryPage() {
   useEffect(() => {
     loadEmojis();
   }, [loadEmojis]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (offset < filteredEmojis.length || offset === 0) return;
+    setOffset(Math.max(0, (Math.ceil(filteredEmojis.length / pageSize) - 1) * pageSize));
+  }, [filteredEmojis.length, offset, pageSize]);
 
   async function saveEmoji(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -210,7 +223,7 @@ export function EmojiDictionaryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--sys-input-border)]">
-                {filteredEmojis.map((item) => (
+                {visibleEmojis.map((item) => (
                   <tr key={item.emoji_code} className="cursor-pointer bg-[var(--sys-card)] transition-colors duration-150 hover:bg-[var(--sys-panel-bg)]" onClick={() => setDraft(item)}>
                     <td className="px-4 py-3 font-mono text-[var(--sys-ink)]">{item.emoji_code}</td>
                     <td className="px-4 py-3">
@@ -235,6 +248,7 @@ export function EmojiDictionaryPage() {
               </tbody>
             </table>
           </div>
+          <DataPagination total={filteredEmojis.length} offset={offset} pageSize={pageSize} onOffsetChange={setOffset} onPageSizeChange={setPageSize} />
         </section>
       </div>
     </div>

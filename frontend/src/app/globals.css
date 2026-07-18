@@ -552,6 +552,27 @@ body {
   box-shadow: 0 4px 12px rgba(93, 150, 145, 0.18);
 }
 
+.data-lineage-overlay {
+  background-color: rgba(28, 36, 34, 0.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.data-lineage-modal-surface,
+.data-lineage-drawer-surface {
+  isolation: isolate;
+  background-color: var(--sys-card);
+  opacity: 1;
+}
+
+.data-lineage-overlay input,
+.data-lineage-overlay select,
+.data-lineage-overlay textarea {
+  background-color: var(--sys-input-bg);
+  color: var(--sys-title);
+  opacity: 1;
+}
+
 [data-voc-theme="soft"] .text-\[\#151720\] {
   color: var(--theme-ink);
 }

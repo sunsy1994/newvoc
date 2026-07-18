@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { apiBaseUrl } from "@/config/navigation";
+import { DataPagination } from "@/components/shared/DataPagination";
 import type { LineageDetailPayload, LineageListPayload, LineageNode, LineageSummary } from "@/types/system";
 
 const emptySummary: LineageSummary = {
@@ -107,6 +108,8 @@ export function DataLineagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(blankNodeForm);
   const [form, setForm] = useState({ ...blankNodeForm, status: "active" });
@@ -135,6 +138,15 @@ export function DataLineagePage() {
     const timer = window.setTimeout(loadNodes, 220);
     return () => window.clearTimeout(timer);
   }, [loadNodes]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [domain, generation, kind, query]);
+
+  useEffect(() => {
+    if (offset < payload.nodes.length || offset === 0) return;
+    setOffset(Math.max(0, (Math.ceil(payload.nodes.length / pageSize) - 1) * pageSize));
+  }, [offset, pageSize, payload.nodes.length]);
 
   const openDetail = useCallback(async (lineageCode: string) => {
     setError("");
@@ -247,6 +259,7 @@ export function DataLineagePage() {
     ],
     [payload.summary],
   );
+  const visibleNodes = useMemo(() => payload.nodes.slice(offset, offset + pageSize), [offset, pageSize, payload.nodes]);
 
   return (
     <div className="space-y-5">
@@ -292,7 +305,7 @@ export function DataLineagePage() {
               <tr><th className="px-4 py-3">业务输出</th><th className="px-4 py-3">节点类型</th><th className="px-4 py-3">生成方式</th><th className="px-4 py-3">业务域</th><th className="px-4 py-3">上下游</th><th className="px-4 py-3">负责人</th><th className="px-4 py-3">状态</th><th className="w-12" /></tr>
             </thead>
             <tbody className="divide-y divide-[var(--sys-input-border)]">
-              {payload.nodes.map((node) => (
+              {visibleNodes.map((node) => (
                 <tr key={node.lineage_code} onClick={() => openDetail(node.lineage_code)} className="cursor-pointer bg-[var(--sys-card)] transition-colors hover:bg-[var(--sys-panel-bg)]">
                   <td className="px-4 py-3"><p className="font-semibold text-[var(--sys-title)]">{node.lineage_name}</p><p className="mt-1 font-mono text-[10px] text-[var(--sys-muted)]">{node.lineage_code}</p></td>
                   <td className="px-4 py-3"><LineageBadge value={node.node_kind} labels={kindLabels} /></td>
@@ -308,11 +321,14 @@ export function DataLineagePage() {
             </tbody>
           </table>
         </div>
+        <div className="px-4 pb-4">
+          <DataPagination total={payload.nodes.length} offset={offset} pageSize={pageSize} onOffsetChange={setOffset} onPageSizeChange={setPageSize} />
+        </div>
       </section>
 
       {createOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/25 p-4 backdrop-blur-[2px]" onMouseDown={(event) => event.target === event.currentTarget && setCreateOpen(false)}>
-          <section className="w-full max-w-2xl rounded-[20px] border border-[var(--sys-input-border)] bg-[var(--sys-card)] p-5 shadow-[0_24px_80px_rgba(50,46,95,0.2)]">
+        <div className="data-lineage-overlay fixed inset-0 z-50 grid place-items-center p-4" onMouseDown={(event) => event.target === event.currentTarget && setCreateOpen(false)}>
+          <section className="data-lineage-modal-surface w-full max-w-2xl rounded-[20px] border border-[var(--sys-input-border)] p-5 shadow-[0_24px_80px_rgba(28,36,34,0.24)]">
             <div className="flex items-start justify-between"><div><h2 className="text-lg font-semibold text-[var(--sys-title)]">新增人工节点</h2><p className="mt-1 text-xs text-[var(--sys-muted)]">用于登记尚未代码绑定、但需要进入治理范围的业务口径。</p></div><button type="button" aria-label="关闭" onClick={() => setCreateOpen(false)} className="p-2 text-[var(--sys-muted)]"><X className="h-5 w-5" /></button></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <label className="text-xs text-[var(--sys-muted)]">血缘编码<input value={createForm.lineage_code} onChange={(event) => setCreateForm({ ...createForm, lineage_code: event.target.value })} placeholder="metric.custom_name" className="mt-1.5 h-10 w-full rounded-xl border border-[var(--sys-input-border)] px-3 font-mono text-sm outline-none" /></label>
@@ -330,8 +346,8 @@ export function DataLineagePage() {
       ) : null}
 
       {detail ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/20 backdrop-blur-[2px]" onMouseDown={(event) => event.target === event.currentTarget && setDetail(null)}>
-          <aside className="h-full w-full max-w-[760px] overflow-y-auto border-l border-[var(--sys-input-border)] bg-[var(--sys-bg)] p-5 shadow-[-24px_0_60px_rgba(50,46,95,0.14)]">
+        <div className="data-lineage-overlay fixed inset-0 z-50 flex justify-end" onMouseDown={(event) => event.target === event.currentTarget && setDetail(null)}>
+          <aside className="data-lineage-drawer-surface h-full w-full max-w-[760px] overflow-y-auto border-l border-[var(--sys-input-border)] p-5 shadow-[-24px_0_60px_rgba(28,36,34,0.2)]">
             <div className="flex items-start justify-between gap-4">
               <div><div className="flex items-center gap-2"><LineageBadge value={detail.node.generation_type} labels={generationLabels} />{detail.node.is_system ? <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700"><ShieldCheck className="h-3.5 w-3.5" />代码绑定</span> : null}</div><h2 className="mt-3 text-xl font-semibold text-[var(--sys-title)]">{detail.node.lineage_name}</h2><p className="mt-1 font-mono text-xs text-[var(--sys-muted)]">{detail.node.lineage_code}</p></div>
               <button type="button" aria-label="关闭" onClick={() => setDetail(null)} className="rounded-lg p-2 text-[var(--sys-muted)] hover:bg-[var(--sys-panel-bg)]"><X className="h-5 w-5" /></button>

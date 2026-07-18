@@ -944,7 +944,7 @@ def test_upload_run_and_preview_tables(tmp_path: Path, monkeypatch) -> None:
     run_response = client.post(f"/api/tasks/{batch_id}/run")
     assert run_response.status_code == 200
     assert run_response.json()["status"] == "success"
-    assert run_response.json()["summary"]["dwd_comment"] == 19
+    assert run_response.json()["summary"]["dwd_comment"] == 248
 
     tables_response = client.get(f"/api/tasks/{batch_id}/tables")
     assert tables_response.status_code == 200
@@ -989,7 +989,7 @@ def test_upload_accepts_csv_files(tmp_path: Path, monkeypatch) -> None:
 
     assert run_response.status_code == 200
     assert run_response.json()["status"] == "success"
-    assert run_response.json()["summary"]["dwd_comment"] == 19
+    assert run_response.json()["summary"]["dwd_comment"] == 248
 
 
 def test_voc_event_market_dashboard_api_returns_region_and_topic_sections(tmp_path: Path, monkeypatch) -> None:

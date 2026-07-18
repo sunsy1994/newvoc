@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 
 import { apiBaseUrl } from "@/config/navigation";
+import { DataPagination } from "@/components/shared/DataPagination";
 import type { AgentErrorQuestionListPayload, AgentErrorQuestionRecord } from "@/types/system";
 
 type LoadState = "idle" | "loading" | "error";
@@ -16,6 +17,9 @@ function formatDateTime(value: string) {
 export function AgentErrorQuestionPage() {
   const [records, setRecords] = useState<AgentErrorQuestionRecord[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
+  const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const visibleRecords = useMemo(() => records.slice(offset, offset + pageSize), [offset, pageSize, records]);
 
   const loadRecords = useCallback(async () => {
     setLoadState("loading");
@@ -33,6 +37,11 @@ export function AgentErrorQuestionPage() {
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
+
+  useEffect(() => {
+    if (offset < records.length || offset === 0) return;
+    setOffset(Math.max(0, (Math.ceil(records.length / pageSize) - 1) * pageSize));
+  }, [offset, pageSize, records.length]);
 
   return (
     <div className="space-y-5">
@@ -74,7 +83,7 @@ export function AgentErrorQuestionPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--sys-input-border)]">
-              {records.map((record) => (
+              {visibleRecords.map((record) => (
                 <tr key={record.record_id} className="bg-[var(--sys-card)] align-top">
                   <td className="px-4 py-3 text-xs text-[var(--sys-muted)]">{formatDateTime(record.created_at)}</td>
                   <td className="px-4 py-3 text-[var(--sys-body)]">{record.capability}</td>
@@ -92,6 +101,7 @@ export function AgentErrorQuestionPage() {
             </tbody>
           </table>
         </div>
+        <DataPagination total={records.length} offset={offset} pageSize={pageSize} onOffsetChange={setOffset} onPageSizeChange={setPageSize} />
       </section>
     </div>
   );

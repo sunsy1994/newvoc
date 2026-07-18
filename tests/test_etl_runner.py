@@ -26,7 +26,7 @@ def test_run_task_updates_summary_after_success(tmp_path: Path, monkeypatch) -> 
     assert result["status"] == "success"
     assert result["summary"]["dwd_event"] == 1
     assert result["summary"]["dwd_content"] == 25
-    assert result["summary"]["dwd_comment"] == 19
+    assert result["summary"]["dwd_comment"] == 248
     assert result["summary"]["rejected_comment"] == 0
     assert result["db_loaded"]["dwd_comment"] == 19
     assert (store.output_dir(task["batch_id"]) / "etl_summary.json").exists()

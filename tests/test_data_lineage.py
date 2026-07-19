@@ -78,6 +78,7 @@ def test_competitor_report_lineage_traces_deterministic_and_llm_stages() -> None
         ("source.competitor.work_facts", "metric.competitor.total_engagement", "calculates_to"),
         ("source.competitor.work_facts", "rule.competitor.top3", "rules_to"),
         ("metric.competitor.total_engagement", "rule.competitor.top3", "rules_to"),
+        ("source.competitor.work_facts", "summary.competitor.report_prose", "summarized_by"),
         ("rule.competitor.top3", "summary.competitor.report_prose", "summarized_by"),
         ("source.competitor.insight_markdown", "summary.competitor.report_prose", "summarized_by"),
         ("summary.competitor.report_prose", "agent.competitor_report.output", "consumed_by"),

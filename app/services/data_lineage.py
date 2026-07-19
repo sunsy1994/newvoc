@@ -165,6 +165,7 @@ LINEAGE_EDGE_SEEDS = [
     _edge("source.competitor.work_facts", "metric.competitor.total_engagement", "calculates_to", "四项互动事实用于计算作品总互动量。"),
     _edge("source.competitor.work_facts", "rule.competitor.top3", "rules_to", "品牌、时间和稳定排序字段参与Top3筛选。"),
     _edge("metric.competitor.total_engagement", "rule.competitor.top3", "rules_to", "总互动量作为Top3主排序依据。"),
+    _edge("source.competitor.work_facts", "summary.competitor.report_prose", "summarized_by", "LLM消费overview、daily、account、topic和Top3原始字段生成结论。"),
     _edge("metric.competitor.total_engagement", "summary.competitor.report_prose", "summarized_by", "确定性互动指标进入AI结论。"),
     _edge("rule.competitor.top3", "summary.competitor.report_prose", "summarized_by", "确定性Top3事实进入AI结论。"),
     _edge("source.competitor.insight_markdown", "summary.competitor.report_prose", "summarized_by", "人工维护解读为AI结论提供证据。"),

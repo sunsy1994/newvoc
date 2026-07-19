@@ -55,7 +55,7 @@ type DataQuestionResult = {
   rendered_prompt?: string | null;
   event_id?: string;
   insight_result?: InsightResult;
-  report_asset?: CompetitorReportAsset;
+  report_asset?: { report_run_id?: string | number | null };
 };
 
 const formatNumber = (value?: number | null) => Number(value ?? 0).toLocaleString("zh-CN");
@@ -70,6 +70,11 @@ function createChatMessage(role: ChatMessage["role"], content: string, options?:
     content,
     ...options,
   };
+}
+
+function toCompetitorReportAsset(asset: { report_run_id?: unknown } | null | undefined): CompetitorReportAsset | undefined {
+  if (asset?.report_run_id == null) return undefined;
+  return { report_run_id: String(asset.report_run_id) };
 }
 
 function toDateKey(value?: string | null) {
@@ -952,14 +957,20 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
       if (stored) {
         const parsed = JSON.parse(stored) as unknown;
         if (Array.isArray(parsed)) {
-          const restored = parsed.filter(
-            (item): item is ChatMessage =>
-              Boolean(item) &&
-              typeof item === "object" &&
-              typeof (item as ChatMessage).id === "string" &&
-              ((item as ChatMessage).role === "user" || (item as ChatMessage).role === "assistant") &&
-              typeof (item as ChatMessage).content === "string",
-          );
+          const restored = parsed
+            .filter(
+              (item): item is ChatMessage =>
+                Boolean(item) &&
+                typeof item === "object" &&
+                typeof (item as ChatMessage).id === "string" &&
+                ((item as ChatMessage).role === "user" || (item as ChatMessage).role === "assistant") &&
+                typeof (item as ChatMessage).content === "string",
+            )
+            .map((item) => {
+              const { reportAsset: storedReportAsset, ...storedMessage } = item;
+              const reportAsset = toCompetitorReportAsset(storedReportAsset);
+              return reportAsset ? { ...storedMessage, reportAsset } : storedMessage;
+            });
           setMessages(restored.slice(-50));
         }
       }
@@ -1001,7 +1012,9 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
             ? {
                 capability: activeSkillId === "report" ? reportCapability : activeSkillId,
                 message: trimmedQuestion,
-                event_id: activeSkillId === "report" && reportCapability === "report" ? events[0]?.event_id ?? null : null,
+                ...(activeSkillId === "report" && reportCapability === "report"
+                  ? { event_id: events[0]?.event_id ?? null }
+                  : {}),
                 history: messages.slice(-10).map(({ role, content }) => ({ role, content })),
               }
             : {
@@ -1016,6 +1029,10 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
         throw new Error(detail?.detail ?? `AI ${selectedSkill.title}失败：${response.status}`);
       }
       const result = (await response.json()) as DataQuestionResult;
+      const reportAsset: CompetitorReportAsset | undefined =
+        activeSkillId === "report" && reportCapability === "competitor_report" && result.report_asset?.report_run_id != null
+          ? toCompetitorReportAsset(result.report_asset)
+          : undefined;
       const reportPayload: ReportAgentPayload | undefined =
         activeSkillId === "report" && result.summary?.structured_report
           ? {
@@ -1032,7 +1049,7 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
         createChatMessage("assistant", result.answer, {
           suggestions: activeSkillId === "report" ? undefined : result.suggested_questions,
           reportPayload,
-          reportAsset: activeSkillId === "report" && reportCapability === "competitor_report" ? result.report_asset : undefined,
+          reportAsset,
           insightPayload: activeSkillId === "insight" ? result.insight_result : undefined,
         }),
       ]);

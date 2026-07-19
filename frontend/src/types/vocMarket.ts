@@ -390,7 +390,7 @@ export type ReportAgentPayload = {
 };
 
 export type CompetitorReportAsset = {
-  report_run_id: number;
+  report_run_id: string;
 };
 
 export type InsightStatus = "completed" | "partial" | "insufficient_data" | "needs_clarification";

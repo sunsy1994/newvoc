@@ -1383,7 +1383,9 @@ def test_auto_voc_home_routes_qa_report_and_insight_to_unified_agent() -> None:
     assert 'activeSkillId === "qa"' in component
     assert 'activeSkillId === "report"' in component
     assert 'activeSkillId === "insight"' in component
-    assert 'activeSkillId === "report" && reportCapability === "report" ? events[0]?.event_id ?? null : null' in component
+    assert '...(activeSkillId === "report" && reportCapability === "report"' in component
+    assert '? { event_id: events[0]?.event_id ?? null }' in component
+    assert 'event_id: activeSkillId === "report"' not in component
     assert "问答事件" not in component
     assert "selectedEventId" not in component
     assert "event_id: null" in component
@@ -1414,11 +1416,23 @@ def test_auto_voc_competitor_report_request_and_asset_action_contract() -> None:
     types = Path("frontend/src/types/vocMarket.ts").read_text(encoding="utf-8")
 
     assert 'capability: activeSkillId === "report" ? reportCapability : activeSkillId' in home
-    assert 'reportCapability === "report" ? events[0]?.event_id ?? null : null' in home
+    assert '...(activeSkillId === "report" && reportCapability === "report"' in home
+    assert '? { event_id: events[0]?.event_id ?? null }' in home
+    assert 'event_id: activeSkillId === "report"' not in home
     assert 'suggestions: activeSkillId === "report" ? undefined : result.suggested_questions' in home
-    assert "result.report_asset" in home
+    assert 'report_asset?: { report_run_id?: string | number | null }' in home
+    assert 'function toCompetitorReportAsset' in home
+    assert 'return { report_run_id: String(asset.report_run_id) }' in home
+    assert 'const { reportAsset: storedReportAsset, ...storedMessage }' in home
+    assert 'toCompetitorReportAsset(storedReportAsset)' in home
+    assert 'toCompetitorReportAsset(result.report_asset)' in home
+    assert 'reportAsset: activeSkillId === "report"' not in home
+    assert "reportAsset," in home
     assert "export type CompetitorReportAsset" in types
-    assert "report_run_id" in types
+    assert "report_run_id: string" in types
+    assert "html" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
+    assert "context" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
+    assert "rendered_prompt" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
     assert "reportAsset.report_run_id" in messages
     assert "report_type=competitor_report" in messages
     assert "查看竞品报告" in messages

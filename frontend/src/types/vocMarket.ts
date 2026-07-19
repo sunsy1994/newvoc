@@ -389,6 +389,10 @@ export type ReportAgentPayload = {
   rendered_prompt?: string | null;
 };
 
+export type CompetitorReportAsset = {
+  report_run_id: number;
+};
+
 export type InsightStatus = "completed" | "partial" | "insufficient_data" | "needs_clarification";
 
 export type InsightScenario = {

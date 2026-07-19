@@ -3,17 +3,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal
 
+from app.agents.competitor_report import run_competitor_report_agent
 from app.agents.data_question import run_data_question_agent
 from app.agents.insight import run_insight_agent
 from app.agents.qa import run_qa_agent
 from app.agents.report import run_event_report_agent
 
 
-AgentCapability = Literal["data_question", "qa", "report", "insight"]
+AgentCapability = Literal["data_question", "qa", "report", "competitor_report", "insight"]
 AgentRunner = Callable[..., dict[str, Any]]
 
 AGENT_RUNNERS: dict[str, AgentRunner] = {
     "data_question": run_data_question_agent,
+    "competitor_report": run_competitor_report_agent,
     "insight": run_insight_agent,
     "qa": run_qa_agent,
     "report": run_event_report_agent,
@@ -34,4 +36,6 @@ def dispatch_agent(
     runner = AGENT_RUNNERS.get(capability)
     if runner is None:
         raise AgentCapabilityUnavailableError(f"Agent 能力 {capability} 尚未接入。")
+    if capability == "competitor_report":
+        return runner(message, history=history)
     return runner(message, event_id=event_id, history=history)

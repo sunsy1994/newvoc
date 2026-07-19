@@ -33,7 +33,7 @@ import type {
 } from "@/types/autoVocHome";
 import { apiBaseUrl } from "@/config/navigation";
 import { ChatMessageList, type ChatMessage } from "@/components/home/ChatMessageList";
-import type { InsightResult, ReportAgentPayload } from "@/types/vocMarket";
+import type { CompetitorReportAsset, InsightResult, ReportAgentPayload } from "@/types/vocMarket";
 
 type AutoVocHomePageProps = {
   payload: AutoVocHomePayload | null;
@@ -55,6 +55,7 @@ type DataQuestionResult = {
   rendered_prompt?: string | null;
   event_id?: string;
   insight_result?: InsightResult;
+  report_asset?: CompetitorReportAsset;
 };
 
 const formatNumber = (value?: number | null) => Number(value ?? 0).toLocaleString("zh-CN");
@@ -62,7 +63,7 @@ const formatDate = (value?: string | null) => (value ? value.slice(0, 10) : "未
 const ALL_BRANDS = "全部品牌";
 const CHAT_STORAGE_KEY = "auto-voc-chat-history-v1";
 
-function createChatMessage(role: ChatMessage["role"], content: string, options?: Pick<ChatMessage, "suggestions" | "isError" | "reportPayload" | "insightPayload">): ChatMessage {
+function createChatMessage(role: ChatMessage["role"], content: string, options?: Pick<ChatMessage, "suggestions" | "isError" | "reportPayload" | "reportAsset" | "insightPayload">): ChatMessage {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     role,
@@ -556,12 +557,7 @@ const promptGroups = {
     "用户对这次事件最常见的疑问是什么？",
     "这个事件是否带来了真实购买信号？",
   ],
-  report: [
-    "生成一份市场部事件总结",
-    "生成销售部线索质量摘要",
-    "生成产品部PKO对比摘要",
-    "把本周重点VOC整理成领导简报",
-  ],
+  report: [],
   insight: [
     "发现最近值得关注的异常事件",
     "找出高意向用户最集中的渠道",
@@ -571,6 +567,12 @@ const promptGroups = {
 } as const;
 
 type AiSkillId = keyof typeof promptGroups;
+type ReportCapability = "report" | "competitor_report";
+
+const reportTypes: Array<{ id: ReportCapability; title: string; description: string }> = [
+  { id: "report", title: "事件报告", description: "基于当前事件上下文生成报告" },
+  { id: "competitor_report", title: "竞品动态报告", description: "按品牌和时间范围生成竞品报告" },
+];
 
 const aiCapabilities: Array<{
   id: AiSkillId;
@@ -671,9 +673,33 @@ function CompactSkillSwitcher({ activeSkillId, onSkillChange }: { activeSkillId:
   );
 }
 
+function ReportTypeSelector({ value, onChange }: { value: ReportCapability; onChange: (value: ReportCapability) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--sys-border)] bg-white/75 p-1.5" aria-label="报告类型">
+      {reportTypes.map((reportType) => (
+        <button
+          key={reportType.id}
+          type="button"
+          onClick={() => onChange(reportType.id)}
+          className={`rounded-xl px-3 py-2.5 text-left transition ${
+            reportType.id === value
+              ? "bg-[var(--theme-primary-soft)] text-[var(--sys-icon-fill)] shadow-[0_6px_16px_rgba(20,24,38,0.06)]"
+              : "text-[var(--sys-muted)] hover:bg-[var(--theme-soft-panel)] hover:text-[var(--sys-ink)]"
+          }`}
+        >
+          <span className="block text-xs font-semibold">{reportType.title}</span>
+          <span className="mt-1 block text-[10px] leading-4">{reportType.description}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ExpandedAiWorkspace({
   activeSkillId,
   onSkillChange,
+  reportCapability,
+  onReportCapabilityChange,
   onClose,
   question,
   onQuestionChange,
@@ -684,6 +710,8 @@ function ExpandedAiWorkspace({
 }: {
   activeSkillId: AiSkillId;
   onSkillChange: (skillId: AiSkillId) => void;
+  reportCapability: ReportCapability;
+  onReportCapabilityChange: (value: ReportCapability) => void;
   onClose: () => void;
   question: string;
   onQuestionChange: (question: string) => void;
@@ -762,6 +790,11 @@ function ExpandedAiWorkspace({
           {hasConversation ? (
             <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
               <CompactSkillSwitcher activeSkillId={activeSkillId} onSkillChange={onSkillChange} />
+              {activeSkillId === "report" ? (
+                <div className="mt-3">
+                  <ReportTypeSelector value={reportCapability} onChange={onReportCapabilityChange} />
+                </div>
+              ) : null}
               <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={onQuestionChange} className="mt-4 min-h-0 flex-1 pb-5" />
             </div>
           ) : (
@@ -785,21 +818,27 @@ function ExpandedAiWorkspace({
                   </div>
                   <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--sys-ink)] sm:text-3xl">今天想从 VOC 中了解什么？</h2>
                   <p className="mt-2 text-sm text-[var(--sys-muted)]">选择一种分析能力，或直接描述你想解决的业务问题。</p>
-                  <div className="mt-6 text-left">
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--sys-muted)]">推荐问题</p>
-                    <div className="grid gap-2.5 md:grid-cols-3">
-                      {selectedSkill.prompts.slice(0, 3).map((prompt, index) => (
-                        <button
-                          key={prompt}
-                          type="button"
-                          onClick={() => onQuestionChange(prompt)}
-                          className={`min-h-[74px] rounded-2xl border border-white/80 bg-white/82 px-4 py-3 text-left text-xs font-medium leading-5 text-[var(--sys-body)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-ink)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)] ${promptToneClasses[index]}`}
-                        >
-                          {prompt}
-                        </button>
-                      ))}
+                  {activeSkillId === "report" ? (
+                    <div className="mx-auto mt-6 max-w-xl text-left">
+                      <ReportTypeSelector value={reportCapability} onChange={onReportCapabilityChange} />
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mt-6 text-left">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--sys-muted)]">推荐问题</p>
+                      <div className="grid gap-2.5 md:grid-cols-3">
+                        {selectedSkill.prompts.slice(0, 3).map((prompt, index) => (
+                          <button
+                            key={prompt}
+                            type="button"
+                            onClick={() => onQuestionChange(prompt)}
+                            className={`min-h-[74px] rounded-2xl border border-white/80 bg-white/82 px-4 py-3 text-left text-xs font-medium leading-5 text-[var(--sys-body)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-ink)] focus-visible:outline-none focus-visible:shadow-[var(--sys-focus-ring)] ${promptToneClasses[index]}`}
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -898,12 +937,13 @@ function ExpandedAiWorkspace({
 function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVocKeyEvent[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeSkillId, setActiveSkillId] = useState<AiSkillId>("data");
+  const [reportCapability, setReportCapability] = useState<ReportCapability>("report");
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [historyReady, setHistoryReady] = useState(false);
   const [isAskingDataQuestion, setIsAskingDataQuestion] = useState(false);
   const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
-  const selectedPrompts = selectedSkill.prompts.length ? selectedSkill.prompts : prompts;
+  const selectedPrompts = activeSkillId === "report" ? [] : selectedSkill.prompts.length ? selectedSkill.prompts : prompts;
   const isActiveSkillAvailable = activeSkillId === "data" || activeSkillId === "qa" || activeSkillId === "report" || activeSkillId === "insight";
 
   useEffect(() => {
@@ -959,9 +999,9 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
         body: JSON.stringify(
           isUnifiedAgentRequest
             ? {
-                capability: activeSkillId,
+                capability: activeSkillId === "report" ? reportCapability : activeSkillId,
                 message: trimmedQuestion,
-                event_id: activeSkillId === "report" ? events[0]?.event_id ?? null : null,
+                event_id: activeSkillId === "report" && reportCapability === "report" ? events[0]?.event_id ?? null : null,
                 history: messages.slice(-10).map(({ role, content }) => ({ role, content })),
               }
             : {
@@ -990,8 +1030,9 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
       setMessages((current) => [
         ...current,
         createChatMessage("assistant", result.answer, {
-          suggestions: result.suggested_questions,
+          suggestions: activeSkillId === "report" ? undefined : result.suggested_questions,
           reportPayload,
+          reportAsset: activeSkillId === "report" && reportCapability === "competitor_report" ? result.report_asset : undefined,
           insightPayload: activeSkillId === "insight" ? result.insight_result : undefined,
         }),
       ]);
@@ -1011,6 +1052,8 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
         <ExpandedAiWorkspace
           activeSkillId={activeSkillId}
           onSkillChange={setActiveSkillId}
+          reportCapability={reportCapability}
+          onReportCapabilityChange={setReportCapability}
           onClose={() => setIsExpanded(false)}
           question={question}
           onQuestionChange={setQuestion}
@@ -1041,6 +1084,11 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
       {messages.length || isAskingDataQuestion ? (
         <div className="mt-5 flex min-h-0 flex-1 flex-col">
           <CompactSkillSwitcher activeSkillId={activeSkillId} onSkillChange={setActiveSkillId} />
+          {activeSkillId === "report" ? (
+            <div className="mt-3">
+              <ReportTypeSelector value={reportCapability} onChange={setReportCapability} />
+            </div>
+          ) : null}
           <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={setQuestion} className="mt-5 min-h-0 flex-1" />
         </div>
       ) : (
@@ -1057,25 +1105,31 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
             </div>
           </div>
 
-          <div className="mt-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Prompts</p>
-              <span className="text-[11px] font-medium text-[var(--sys-muted)]">{selectedSkill.title}问题</span>
+          {activeSkillId === "report" ? (
+            <div className="mt-5">
+              <ReportTypeSelector value={reportCapability} onChange={setReportCapability} />
             </div>
-            <div className="mt-3 space-y-2">
-              {selectedPrompts.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => setQuestion(prompt)}
-                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[var(--sys-border)] bg-white px-3.5 py-3 text-left text-sm font-medium text-[var(--sys-ink)] transition hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-hover-bg)]"
-                >
-                  <span>{prompt}</span>
-                  <Sparkles className="h-4 w-4 shrink-0 text-[var(--sys-icon-fill)]" />
-                </button>
-              ))}
+          ) : (
+            <div className="mt-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sys-muted)]">Prompts</p>
+                <span className="text-[11px] font-medium text-[var(--sys-muted)]">{selectedSkill.title}问题</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {selectedPrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setQuestion(prompt)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[var(--sys-border)] bg-white px-3.5 py-3 text-left text-sm font-medium text-[var(--sys-ink)] transition hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-hover-bg)]"
+                  >
+                    <span>{prompt}</span>
+                    <Sparkles className="h-4 w-4 shrink-0 text-[var(--sys-icon-fill)]" />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 

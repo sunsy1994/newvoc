@@ -1067,3 +1067,38 @@ def test_voc_event_market_dashboard_api_returns_region_and_topic_sections(tmp_pa
     payload = response.json()
     assert payload["regional_response_story"]["summary"]["data_scope"] == "comment_location_only"
     assert payload["topic_spread_story"]["summary"]["top_topic"] == "SmartCabin"
+
+
+def test_unified_agent_api_accepts_competitor_report_without_event_id(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_dispatch(capability: str, message: str, **kwargs) -> dict:
+        captured.update(capability=capability, message=message, **kwargs)
+        return {
+            "status": "generated",
+            "answer": "已生成比亚迪竞品动态报告，统计范围为2026-07-01 至 2026-07-18。",
+            "brand_name": "比亚迪",
+            "time_scope": {"start_date": "2026-07-01", "end_date": "2026-07-18"},
+            "report_asset": {"report_run_id": 42},
+        }
+
+    monkeypatch.setattr("app.routers.tasks.dispatch_agent", fake_dispatch)
+
+    response = client.post(
+        "/api/agents/run",
+        json={
+            "capability": "competitor_report",
+            "message": "生成比亚迪最近两周竞品动态报告",
+            "history": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["report_asset"]["report_run_id"] == 42
+    assert captured == {
+        "capability": "competitor_report",
+        "message": "生成比亚迪最近两周竞品动态报告",
+        "event_id": None,
+        "history": [],
+    }

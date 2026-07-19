@@ -34,6 +34,39 @@ def test_dispatcher_registers_report_agent() -> None:
     assert dispatcher.AGENT_RUNNERS["report"] is run_event_report_agent
 
 
+def test_dispatcher_registers_explicit_competitor_report_agent() -> None:
+    from app.agents.competitor_report import run_competitor_report_agent
+    from app.agents.core import dispatcher
+
+    assert dispatcher.AGENT_RUNNERS["competitor_report"] is run_competitor_report_agent
+
+
+def test_dispatcher_does_not_forward_event_id_to_competitor_report(monkeypatch) -> None:
+    from app.agents.core import dispatcher
+
+    captured = {}
+
+    def fake_run(message: str, history: list[dict] | None = None) -> dict:
+        captured.update(message=message, history=history)
+        return {"status": "generated", "answer": "已生成竞品动态报告。"}
+
+    monkeypatch.setitem(dispatcher.AGENT_RUNNERS, "competitor_report", fake_run)
+    history = [{"role": "user", "content": "查看竞品动态"}]
+
+    result = dispatcher.dispatch_agent(
+        "competitor_report",
+        "生成比亚迪最近两周竞品动态报告",
+        event_id="event_must_not_leak",
+        history=history,
+    )
+
+    assert result["status"] == "generated"
+    assert captured == {
+        "message": "生成比亚迪最近两周竞品动态报告",
+        "history": history,
+    }
+
+
 def test_dispatcher_registers_qa_agent() -> None:
     from app.agents.core import dispatcher
     from app.agents.qa import run_qa_agent

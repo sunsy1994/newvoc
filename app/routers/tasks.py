@@ -494,7 +494,7 @@ def run_agent_api(payload: AgentRunRequest, request: Request) -> dict:
     return execute_agent_request(
         payload.capability,
         payload.message,
-        payload.event_id,
+        None if payload.capability == "competitor_report" else payload.event_id,
         payload.history,
         get_agent_error_log(request),
     )

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { StructuredReportView } from "@/components/voc/ReportAiSummaryCard";
 import { InsightResultCard } from "@/components/home/InsightResultCard";
-import type { InsightResult, ReportAgentPayload } from "@/types/vocMarket";
+import type { CompetitorReportAsset, InsightResult, ReportAgentPayload } from "@/types/vocMarket";
 
 export type ChatMessage = {
   id: string;
@@ -14,6 +14,7 @@ export type ChatMessage = {
   suggestions?: string[];
   isError?: boolean;
   reportPayload?: ReportAgentPayload;
+  reportAsset?: CompetitorReportAsset;
   insightPayload?: InsightResult;
 };
 
@@ -94,6 +95,15 @@ export function ChatMessageList({ messages, isLoading, onSuggestionClick, classN
                 <FileSearch className="h-4 w-4" />
                 查看报告
               </button>
+            ) : null}
+            {message.role === "assistant" && message.reportAsset?.report_run_id != null ? (
+              <a
+                href={`/assets/reports?report_type=competitor_report&report_run_id=${encodeURIComponent(String(message.reportAsset.report_run_id))}`}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[var(--sys-border)] bg-[var(--theme-soft-panel)] px-3 py-2 text-xs font-semibold text-[var(--sys-icon-fill)] transition hover:border-[var(--sys-icon-fill)] hover:bg-white"
+              >
+                <FileSearch className="h-4 w-4" />
+                查看竞品报告
+              </a>
             ) : null}
           </div>
         </div>

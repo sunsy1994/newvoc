@@ -1379,11 +1379,11 @@ def test_auto_voc_home_routes_qa_report_and_insight_to_unified_agent() -> None:
     data_question_route = Path("frontend/src/app/api/agents/data-question/run/route.ts").read_text(encoding="utf-8")
 
     assert "/agents/run" in component
-    assert 'capability: activeSkillId' in component
+    assert 'capability: activeSkillId === "report" ? reportCapability : activeSkillId' in component
     assert 'activeSkillId === "qa"' in component
     assert 'activeSkillId === "report"' in component
     assert 'activeSkillId === "insight"' in component
-    assert "activeSkillId === \"report\" ? events[0]?.event_id ?? null : null" in component
+    assert 'activeSkillId === "report" && reportCapability === "report" ? events[0]?.event_id ?? null : null' in component
     assert "问答事件" not in component
     assert "selectedEventId" not in component
     assert "event_id: null" in component
@@ -1393,6 +1393,35 @@ def test_auto_voc_home_routes_qa_report_and_insight_to_unified_agent() -> None:
     assert "maxDuration = 120" in qa_route
     assert "proxyAutovocPost" in data_question_route
     assert "maxDuration = 120" in data_question_route
+
+
+def test_auto_voc_report_workspace_has_two_explicit_report_types() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    top_level_capabilities = component.split("const aiCapabilities", 1)[1].split("const aiSkillToneClasses", 1)[0]
+
+    assert 'type ReportCapability = "report" | "competitor_report"' in component
+    assert 'title: "事件报告"' in component
+    assert 'title: "竞品动态报告"' in component
+    assert 'useState<ReportCapability>("report")' in component
+    assert 'id: "competitor_report"' not in top_level_capabilities
+    assert 'report: []' in component
+    assert 'activeSkillId === "report" ? []' in component
+
+
+def test_auto_voc_competitor_report_request_and_asset_action_contract() -> None:
+    home = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    messages = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
+    types = Path("frontend/src/types/vocMarket.ts").read_text(encoding="utf-8")
+
+    assert 'capability: activeSkillId === "report" ? reportCapability : activeSkillId' in home
+    assert 'reportCapability === "report" ? events[0]?.event_id ?? null : null' in home
+    assert 'suggestions: activeSkillId === "report" ? undefined : result.suggested_questions' in home
+    assert "result.report_asset" in home
+    assert "export type CompetitorReportAsset" in types
+    assert "report_run_id" in types
+    assert "reportAsset.report_run_id" in messages
+    assert "report_type=competitor_report" in messages
+    assert "查看竞品报告" in messages
 
 
 def test_auto_voc_insight_result_renders_only_inside_conversation_cards() -> None:

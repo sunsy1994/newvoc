@@ -99,6 +99,12 @@ LINEAGE_NODE_SEEDS = [
     _node("agent.qa.output", "问答回答", "agent_output", "llm_summary", "shared", "基于事件工具证据生成的聚焦回答。", "最多三轮受限ReAct。", "app.agents.qa.graph", "qa_agent"),
     _node("agent.report.output", "事件综合报告", "agent_output", "llm_summary", "shared", "消费三部门看板上下文生成的固定模板报告。", "LLM短结论加系统模板和证据。", "app.agents.report.graph", "event_report_agent_v1"),
     _node("agent.insight.output", "用户反应推演", "agent_output", "llm_summary", "shared", "基于相似事件和真实评论证据生成的用户反应推演。", "证据门槛通过后推演并复核。", "app.agents.insight.graph", "insight_agent"),
+    _node("source.competitor.work_facts", "竞品作品事实", "source_field", "raw_fact", "market", "竞品作品的品牌、作者、发布时间、主题和互动分项等原始事实。", "竞品库导入并按作品原样保存。", "data_asset.competitor_work"),
+    _node("source.competitor.insight_markdown", "竞品作品人工解读", "source_field", "raw_fact", "market", "用户按作品维护的视频与评论 Markdown 解读。", "按 work_id 人工维护；未维护时为空。", "data_asset.competitor_work_insight.insight_markdown"),
+    _node("metric.competitor.total_engagement", "竞品作品总互动量", "metric", "derived_metric", "market", "单条竞品作品的点赞、评论、收藏和分享之和。", "interaction_like_cnt + comment_cnt + favorite_cnt + share_cnt", "app.agents.competitor_report.tools.TOTAL_ENGAGEMENT_SQL"),
+    _node("rule.competitor.top3", "竞品热门作品Top3", "rule", "rule_judgement", "market", "指定品牌和时间范围内按统一互动口径选出的前三条作品。", "先按品牌和时间过滤，再按总互动量降序、发布时间降序、work_id 升序取前三。", "app.agents.competitor_report.tools.collect_competitor_report_dataset"),
+    _node("summary.competitor.report_prose", "竞品报告AI结论", "ai_summary", "llm_summary", "market", "基于确定性指标、Top3 事实和人工解读生成的报告结论文案。", "LLM只组织结构化数据与人工维护资料，不计算指标或选择Top3。", "app.agents.competitor_report.graph", "competitor_report_agent_v1"),
+    _node("agent.competitor_report.output", "竞品动态报告", "agent_output", "consumer_only", "market", "固定模板渲染的竞品动态 HTML 报告。", "系统模板组合范围、指标、Top3、人工解读和AI结论。", "app.agents.competitor_report.renderer"),
 ]
 
 
@@ -156,6 +162,17 @@ LINEAGE_EDGE_SEEDS = [
     _edge("source.comment.comment_text", "tool.insight.evidence", "consumed_by", "洞察工具检索真实评论。"),
     _edge("label.product_aspect", "tool.insight.evidence", "consumed_by", "关注点限制洞察证据范围。"),
     _edge("tool.insight.evidence", "agent.insight.output", "summarized_by", "相似事件证据进入用户反应推演。"),
+    _edge("source.competitor.work_facts", "metric.competitor.total_engagement", "calculates_to", "四项互动事实用于计算作品总互动量。"),
+    _edge("source.competitor.work_facts", "rule.competitor.top3", "rules_to", "品牌、时间和稳定排序字段参与Top3筛选。"),
+    _edge("metric.competitor.total_engagement", "rule.competitor.top3", "rules_to", "总互动量作为Top3主排序依据。"),
+    _edge("metric.competitor.total_engagement", "summary.competitor.report_prose", "summarized_by", "确定性互动指标进入AI结论。"),
+    _edge("rule.competitor.top3", "summary.competitor.report_prose", "summarized_by", "确定性Top3事实进入AI结论。"),
+    _edge("source.competitor.insight_markdown", "summary.competitor.report_prose", "summarized_by", "人工维护解读为AI结论提供证据。"),
+    _edge("source.competitor.work_facts", "agent.competitor_report.output", "consumed_by", "报告固定区块展示作品与范围事实。"),
+    _edge("metric.competitor.total_engagement", "agent.competitor_report.output", "consumed_by", "报告固定区块展示互动指标。"),
+    _edge("rule.competitor.top3", "agent.competitor_report.output", "consumed_by", "报告固定区块展示热门作品Top3。"),
+    _edge("source.competitor.insight_markdown", "agent.competitor_report.output", "consumed_by", "报告Top3区块展示人工维护解读。"),
+    _edge("summary.competitor.report_prose", "agent.competitor_report.output", "consumed_by", "固定模板组合AI结论形成最终报告。"),
 ]
 
 

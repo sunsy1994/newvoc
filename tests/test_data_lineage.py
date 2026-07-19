@@ -43,6 +43,47 @@ def test_lineage_seed_edges_only_reference_existing_nodes_and_are_unique() -> No
     assert all(upstream != downstream for upstream, downstream, _ in keys)
 
 
+def test_competitor_report_lineage_traces_deterministic_and_llm_stages() -> None:
+    from app.services.data_lineage import LINEAGE_EDGE_SEEDS, LINEAGE_NODE_SEEDS
+
+    nodes = {item["lineage_code"]: item for item in LINEAGE_NODE_SEEDS}
+
+    assert {
+        code: (nodes[code]["node_kind"], nodes[code]["generation_type"])
+        for code in (
+            "source.competitor.work_facts",
+            "source.competitor.insight_markdown",
+            "metric.competitor.total_engagement",
+            "rule.competitor.top3",
+            "summary.competitor.report_prose",
+            "agent.competitor_report.output",
+        )
+    } == {
+        "source.competitor.work_facts": ("source_field", "raw_fact"),
+        "source.competitor.insight_markdown": ("source_field", "raw_fact"),
+        "metric.competitor.total_engagement": ("metric", "derived_metric"),
+        "rule.competitor.top3": ("rule", "rule_judgement"),
+        "summary.competitor.report_prose": ("ai_summary", "llm_summary"),
+        "agent.competitor_report.output": ("agent_output", "consumer_only"),
+    }
+    assert nodes["source.competitor.insight_markdown"]["implementation_ref"] == (
+        "data_asset.competitor_work_insight.insight_markdown"
+    )
+
+    edges = {
+        (item["upstream_code"], item["downstream_code"], item["relation_type"])
+        for item in LINEAGE_EDGE_SEEDS
+    }
+    assert {
+        ("source.competitor.work_facts", "metric.competitor.total_engagement", "calculates_to"),
+        ("source.competitor.work_facts", "rule.competitor.top3", "rules_to"),
+        ("metric.competitor.total_engagement", "rule.competitor.top3", "rules_to"),
+        ("rule.competitor.top3", "summary.competitor.report_prose", "summarized_by"),
+        ("source.competitor.insight_markdown", "summary.competitor.report_prose", "summarized_by"),
+        ("summary.competitor.report_prose", "agent.competitor_report.output", "consumed_by"),
+    }.issubset(edges)
+
+
 def test_build_lineage_summary_counts_business_types_and_missing_definitions() -> None:
     from app.services.data_lineage import build_lineage_summary
 

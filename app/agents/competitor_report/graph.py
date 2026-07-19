@@ -114,6 +114,15 @@ HTTP_URL_RE = re.compile(r"https?://[^\s<>\"'，。；：！？、（）【】\[
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Z]:[\\/]|\\\\[^\\/\s]+[\\/])", re.IGNORECASE)
 SENSITIVE_UNIX_ROOTS = (
     "etc",
+    "bin",
+    "boot",
+    "dev",
+    "lib",
+    "lib64",
+    "proc",
+    "run",
+    "sbin",
+    "sys",
     "tmp",
     "srv",
     "usr",
@@ -140,7 +149,7 @@ UNIX_SINGLE_SEGMENT_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 RELATIVE_SKILL_PATH_RE = re.compile(
-    r"(?:^|[\s\\/])(?:\.(?:codex|agents|claude)|skills)[\\/]",
+    r"(?<![A-Za-z0-9_.-])(?:\.(?:codex|agents|claude)|skills)[\\/]",
     re.IGNORECASE,
 )
 

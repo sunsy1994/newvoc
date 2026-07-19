@@ -170,7 +170,9 @@ def test_internal_leak_guard_allows_business_tool_words_urls_and_token_substring
     summary["dealer_summary"] = (
         "经销商证据不足，详情见https://example.test/#/reports/detail?next=/data/private/report。"
     )
-    summary["rhythm_summary"] = "发布/互动节奏稳定，产品 /功能对比与车型/渠道分析属于普通业务表述。"
+    summary["rhythm_summary"] = (
+        "发布/互动节奏稳定，产品 /功能对比、车型/渠道分析与skills提升属于普通业务表述。"
+    )
 
     assert competitor_graph._validate_llm_summary(summary, _sample_report_dataset()) is summary
 
@@ -421,6 +423,15 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "account_summary": "系统配置位于 /etc"},
         {**_sample_llm_summary(), "rhythm_summary": "临时目录为 /tmp"},
         {**_sample_llm_summary(), "dealer_summary": "服务目录为 /srv"},
+        {**_sample_llm_summary(), "account_summary": "命令目录为 /bin"},
+        {**_sample_llm_summary(), "rhythm_summary": "启动目录为 /boot"},
+        {**_sample_llm_summary(), "dealer_summary": "设备目录为 /dev"},
+        {**_sample_llm_summary(), "account_summary": "库目录为 /lib"},
+        {**_sample_llm_summary(), "rhythm_summary": "64位库目录为 /lib64"},
+        {**_sample_llm_summary(), "dealer_summary": "进程目录为 /proc"},
+        {**_sample_llm_summary(), "account_summary": "运行目录为 /run"},
+        {**_sample_llm_summary(), "rhythm_summary": "系统命令目录为 /sbin"},
+        {**_sample_llm_summary(), "dealer_summary": "内核目录为 /sys"},
         {**_sample_llm_summary(), "account_summary": "读取 repo/.codex/private/rules.txt"},
         {**_sample_llm_summary(), "rhythm_summary": "读取 repo/.agents/skills/private/rules.txt"},
         {**_sample_llm_summary(), "dealer_summary": "读取 repo/.claude/private/rules.txt"},
@@ -436,6 +447,9 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
         {**_sample_llm_summary(), "account_summary": "请查看 .codex/private/rules.txt"},
         {**_sample_llm_summary(), "rhythm_summary": r"读取 .agents\private\rules.txt"},
         {**_sample_llm_summary(), "dealer_summary": "配置在 skills/private/rules.txt"},
+        {**_sample_llm_summary(), "account_summary": "配置：.codex/private/rules.txt"},
+        {**_sample_llm_summary(), "rhythm_summary": r"path=.agents\private\rules.txt"},
+        {**_sample_llm_summary(), "dealer_summary": "参见（skills/private/rules.txt"},
     ],
 )
 def test_schema_valid_internal_leak_from_prompt_injected_source_never_renders_or_saves(

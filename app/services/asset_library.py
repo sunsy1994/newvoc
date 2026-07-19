@@ -11,6 +11,26 @@ from app.config import DATABASE_URL
 from app.agents.report.storage import EVENT_REPORT_CACHE_TABLE_SQL
 
 
+COMPETITOR_REPORT_TABLE_SQL = """
+CREATE SCHEMA IF NOT EXISTS data_asset;
+CREATE TABLE IF NOT EXISTS data_asset.competitor_report_agent_run (
+    report_run_id BIGSERIAL PRIMARY KEY,
+    brand_name TEXT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    prompt_version TEXT NOT NULL,
+    html TEXT NOT NULL,
+    summary_json JSONB NOT NULL,
+    context_json JSONB NOT NULL,
+    rendered_prompt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_competitor_report_agent_run_scope_time
+    ON data_asset.competitor_report_agent_run
+    (brand_name, start_date, end_date, generated_at DESC, report_run_id DESC);
+"""
+
+
 @dataclass(frozen=True)
 class AssetDefinition:
     key: str
@@ -184,17 +204,37 @@ ASSET_DEFINITIONS: dict[str, AssetDefinition] = {
         key="reports",
         label="报告资产",
         columns=[
+            {"key": "report_type", "label": "报告类型"},
+            {"key": "subject_name", "label": "报告对象"},
             {"key": "generated_at", "label": "生成时间"},
-            {"key": "event_name", "label": "事件名称"},
+            {"key": "report_run_id", "label": "报告编号"},
+            {"key": "view_kind", "label": "查看方式"},
         ],
-        from_sql=(
-            "FROM data_asset.event_report_agent_run r "
-            "LEFT JOIN data_asset.dwd_event e ON r.event_id = e.event_id"
-        ),
-        search_columns=["e.event_name", "r.event_id", "r.prompt_version"],
-        order_sql="r.generated_at DESC NULLS LAST, r.report_run_id DESC",
+        from_sql="",
+        search_columns=["subject_name"],
+        order_sql="generated_at DESC NULLS LAST, report_type, report_run_id DESC",
     ),
 }
+
+
+REPORT_ASSET_UNION_SQL = """
+SELECT
+    'event_report'::text AS report_type,
+    coalesce(e.event_name, r.event_id) AS subject_name,
+    r.generated_at,
+    r.report_run_id,
+    'structured'::text AS view_kind
+FROM data_asset.event_report_agent_run r
+LEFT JOIN data_asset.dwd_event e ON r.event_id = e.event_id
+UNION ALL
+SELECT
+    'competitor_report'::text AS report_type,
+    r.brand_name AS subject_name,
+    r.generated_at,
+    r.report_run_id,
+    'html'::text AS view_kind
+FROM data_asset.competitor_report_agent_run r
+"""
 
 
 SELECT_SQL = {
@@ -204,7 +244,7 @@ SELECT_SQL = {
     "authors": "SELECT a.platform, a.author_name, a.author_type, a.fans_cnt, a.author_home_url, a.author_desc, coalesce(s.content_cnt, 0) AS content_cnt, coalesce(r.received_comment_cnt, 0) AS received_comment_cnt, coalesce(s.total_engagement, 0) AS total_engagement",
     "kols": "SELECT a.platform, a.author_name, a.author_type, a.fans_cnt, a.author_home_url, a.author_desc, coalesce(s.content_cnt, 0) AS content_cnt, coalesce(r.received_comment_cnt, 0) AS received_comment_cnt, coalesce(s.total_engagement, 0) AS total_engagement",
     "comment_users": "SELECT cm.platform, cm.comment_author_name, coalesce(nullif(cm.location, ''), '') AS location, count(DISTINCT cm.comment_id) AS comment_cnt, count(DISTINCT cm.content_id) AS participated_content_cnt, count(DISTINCT c.event_id) AS participated_event_cnt, coalesce(sum(cm.like_cnt), 0) AS like_cnt, coalesce(sum(cm.reply_cnt), 0) AS reply_cnt, max(cm.published_at) AS latest_comment_at",
-    "reports": "SELECT r.report_run_id, r.event_id, coalesce(e.event_name, r.event_id) AS event_name, r.generated_at, r.prompt_version, r.summary_json, r.context_json, r.rendered_prompt",
+    "reports": "SELECT report_type, subject_name, generated_at, report_run_id, view_kind",
 }
 
 GROUP_SQL = {
@@ -227,6 +267,8 @@ def list_assets(
 ) -> dict[str, Any]:
     if asset_key not in ASSET_DEFINITIONS:
         raise KeyError(asset_key)
+    if asset_key == "reports":
+        return list_report_assets(q=q, limit=limit, offset=offset, database_url=database_url, max_limit=max_limit)
     definition = ASSET_DEFINITIONS[asset_key]
     limit = max(1, min(limit, max_limit))
     offset = max(0, offset)
@@ -247,9 +289,6 @@ def list_assets(
         f"ORDER BY {definition.order_sql} LIMIT %s OFFSET %s"
     )
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
-        if asset_key == "reports":
-            with conn.cursor() as cur:
-                cur.execute(EVENT_REPORT_CACHE_TABLE_SQL)
         with conn.cursor() as cur:
             cur.execute(count_sql, params)
             total = cur.fetchone()["count"]
@@ -262,6 +301,88 @@ def list_assets(
         "columns": definition.columns,
         "rows": rows,
     }
+
+
+def list_report_assets(
+    q: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    database_url: str = DATABASE_URL,
+    max_limit: int = 200,
+) -> dict[str, Any]:
+    definition = ASSET_DEFINITIONS["reports"]
+    limit = max(1, min(limit, max_limit))
+    offset = max(0, offset)
+    search_sql = ""
+    params: list[Any] = []
+    if q and q.strip():
+        search_sql = " WHERE coalesce(subject_name, '') ILIKE %s ESCAPE '\\'"
+        params.append(build_like_pattern(q))
+    count_sql = f"WITH report_assets AS ({REPORT_ASSET_UNION_SQL}) SELECT count(*) FROM report_assets{search_sql}"
+    data_sql = (
+        f"WITH report_assets AS ({REPORT_ASSET_UNION_SQL}) "
+        f"SELECT report_type, subject_name, generated_at, report_run_id, view_kind FROM report_assets{search_sql} "
+        "ORDER BY generated_at DESC NULLS LAST, report_type, report_run_id DESC LIMIT %s OFFSET %s"
+    )
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(EVENT_REPORT_CACHE_TABLE_SQL)
+            cur.execute(COMPETITOR_REPORT_TABLE_SQL)
+            cur.execute(count_sql, params)
+            total = cur.fetchone()["count"]
+            cur.execute(data_sql, [*params, limit, offset])
+            rows = [normalize_row(dict(row)) for row in cur.fetchall()]
+    return {
+        "asset": "reports",
+        "label": definition.label,
+        "total": int(total),
+        "columns": definition.columns,
+        "rows": rows,
+    }
+
+
+def get_report_asset(
+    report_type: str,
+    report_run_id: int,
+    database_url: str = DATABASE_URL,
+) -> dict[str, Any] | None:
+    if report_type not in {"event_report", "competitor_report"}:
+        raise KeyError(report_type)
+    if report_run_id <= 0:
+        raise ValueError("report_run_id must be positive")
+
+    if report_type == "event_report":
+        query = """
+            SELECT 'event_report'::text AS report_type, r.report_run_id,
+                   coalesce(e.event_name, r.event_id) AS subject_name, r.generated_at,
+                   'structured'::text AS view_kind, r.summary_json
+            FROM data_asset.event_report_agent_run r
+            LEFT JOIN data_asset.dwd_event e ON r.event_id = e.event_id
+            WHERE r.report_run_id = %s
+        """
+    else:
+        query = """
+            SELECT 'competitor_report'::text AS report_type, r.report_run_id,
+                   r.brand_name AS subject_name, r.generated_at,
+                   'html'::text AS view_kind, r.html
+            FROM data_asset.competitor_report_agent_run r
+            WHERE r.report_run_id = %s
+        """
+
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(EVENT_REPORT_CACHE_TABLE_SQL)
+            cur.execute(COMPETITOR_REPORT_TABLE_SQL)
+            cur.execute(query, [report_run_id])
+            row = cur.fetchone()
+    if row is None:
+        return None
+
+    normalized = normalize_row(dict(row))
+    if report_type == "event_report":
+        summary = normalized.pop("summary_json", {})
+        normalized["structured_report"] = summary.get("structured_report", {}) if isinstance(summary, dict) else {}
+    return normalized
 
 
 def normalize_row(row: dict[str, Any]) -> dict[str, Any]:

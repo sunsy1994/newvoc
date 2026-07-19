@@ -274,6 +274,26 @@ def test_asset_pages_use_real_api_component_and_exports() -> None:
     assert "StructuredReportView" in asset_component
 
 
+def test_report_assets_fetch_typed_detail_and_render_html_in_a_scriptless_iframe() -> None:
+    component = Path("frontend/src/components/assets/AssetLibraryPage.tsx").read_text(encoding="utf-8")
+    types = Path("frontend/src/types/assets.ts").read_text(encoding="utf-8")
+
+    assert "ReportAssetDetail" in types
+    assert 'view_kind: "structured"' in types
+    assert 'view_kind: "html"' in types
+    assert "structured_report: StructuredReport" in types
+    assert "html: string" in types
+    assert "`/assets/reports/${reportType}/${reportRunId}`" in component
+    assert "window.location.search" in component
+    assert 'searchParams.get("report_type")' in component
+    assert 'searchParams.get("report_run_id")' in component
+    assert "StructuredReportView" in component
+    assert "srcDoc={openReport.html}" in component
+    assert 'sandbox=""' in component
+    assert "allow-scripts" not in component
+    assert "dangerouslySetInnerHTML" not in component
+
+
 def test_frontend_lists_use_shared_pagination_component() -> None:
     root = Path("frontend")
     pagination = (root / "src/components/shared/DataPagination.tsx").read_text(encoding="utf-8")

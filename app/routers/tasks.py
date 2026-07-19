@@ -29,7 +29,7 @@ from app.services.data_lineage import (
 )
 from app.agents.core import AgentCapability, AgentCapabilityUnavailableError, dispatch_agent
 from app.services.agent_error_log import AgentErrorLog
-from app.services.asset_library import list_assets
+from app.services.asset_library import get_report_asset, list_assets
 from app.services.competitor_library import (
     get_competitor_work_insight,
     get_competitor_options,
@@ -708,6 +708,19 @@ def get_competitor_works(
         )
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/assets/reports/{report_type}/{report_run_id}")
+def get_report_asset_api(report_type: str, report_run_id: int) -> dict:
+    if report_type not in {"event_report", "competitor_report"} or report_run_id <= 0:
+        raise HTTPException(status_code=404, detail="Report not found")
+    try:
+        report = get_report_asset(report_type, report_run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
 
 
 @router.get("/api/competitors/works/{work_id}/insight")

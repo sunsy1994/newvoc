@@ -165,6 +165,51 @@ def test_asset_api_returns_business_assets(tmp_path: Path, monkeypatch) -> None:
     assert response.json()["rows"][0]["event_name"] == "上市事件"
 
 
+def test_report_asset_detail_api_returns_event_and_competitor_views(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_get_report_asset(report_type: str, report_run_id: int):
+        if report_type == "event_report":
+            return {
+                "report_type": report_type,
+                "report_run_id": report_run_id,
+                "subject_name": "IDT6 上市事件",
+                "generated_at": "2026-07-18T10:00:00",
+                "view_kind": "structured",
+                "structured_report": {"title": "事件报告", "charts": []},
+            }
+        if report_run_id == 8:
+            return {
+                "report_type": report_type,
+                "report_run_id": report_run_id,
+                "subject_name": "比亚迪",
+                "generated_at": "2026-07-18T11:00:00",
+                "view_kind": "html",
+                "html": "<!doctype html><html><body>竞品报告</body></html>",
+            }
+        return None
+
+    monkeypatch.setattr("app.routers.tasks.get_report_asset", fake_get_report_asset)
+
+    event_response = client.get("/api/assets/reports/event_report/7")
+    competitor_response = client.get("/api/assets/reports/competitor_report/8")
+
+    assert event_response.status_code == 200
+    assert event_response.json()["structured_report"]["title"] == "事件报告"
+    assert competitor_response.status_code == 200
+    assert competitor_response.json()["html"].startswith("<!doctype html>")
+    assert "rendered_prompt" not in competitor_response.json()
+    assert client.get("/api/assets/reports/competitor_report/99").status_code == 404
+
+
+def test_report_asset_detail_api_validates_type_and_integer_id(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+
+    assert client.get("/api/assets/reports/unknown/1").status_code == 404
+    assert client.get("/api/assets/reports/event_report/not-an-integer").status_code == 422
+    assert client.get("/api/assets/reports/event_report/0").status_code == 404
+
+
 def test_voc_event_api_returns_event_market_overview(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
 

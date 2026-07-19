@@ -456,6 +456,17 @@ def execute_agent_request(
                 error_reason=error_reason,
                 history=history,
             )
+        if capability == "competitor_report":
+            return {
+                "status": "failed",
+                "retryable": True,
+                "answer": "竞品动态报告生成失败，请重试。",
+                "report_type": "competitor_report",
+                "brand_name": "",
+                "time_scope": {},
+                "scope_notice": [],
+                "report_asset": None,
+            }
         return {
             "status": "answered",
             "answer": "当前没有数据支撑，暂时无法反馈当前问题。这个问题已记录到系统管理的异常问题记录中，后续可用于补充数据或能力。",

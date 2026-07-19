@@ -72,6 +72,8 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
   const [insightError, setInsightError] = useState("");
   const insightTextareaRef = useRef<HTMLTextAreaElement>(null);
   const insightTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const insightRequestSequenceRef = useRef(0);
+  const selectedInsightWorkIdRef = useRef("");
 
   const total = payload?.total ?? 0;
   const rows = payload?.rows ?? [];
@@ -159,50 +161,67 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
   async function openInsight(row: Record<string, unknown>) {
     const workId = String(row.work_id ?? "");
     if (!workId) return;
+    const requestSequence = ++insightRequestSequenceRef.current;
+    selectedInsightWorkIdRef.current = workId;
+    const isCurrentRequest = () =>
+      requestSequence === insightRequestSequenceRef.current && selectedInsightWorkIdRef.current === workId;
 
     setSelectedWork(row);
     setInsightMarkdown("");
     setInsightError("");
     setIsInsightLoading(true);
+    setIsInsightSaving(false);
     try {
-      const response = await fetch(buildApiUrl(`/competitors/works/${workId}/insight`), { cache: "no-store" });
+      const response = await fetch(buildApiUrl(`/competitors/works/${encodeURIComponent(workId)}/insight`), { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const insight = (await response.json()) as CompetitorWorkInsight;
+      if (!isCurrentRequest()) return;
       setInsightMarkdown(insight.insight_markdown ?? "");
     } catch {
+      if (!isCurrentRequest()) return;
       setInsightError("解读加载失败，请稍后重试。");
     } finally {
-      setIsInsightLoading(false);
+      if (isCurrentRequest()) setIsInsightLoading(false);
     }
   }
 
   async function saveInsight(clear = false) {
     const workId = String(selectedWork?.work_id ?? "");
     if (!workId) return;
+    const requestSequence = ++insightRequestSequenceRef.current;
+    selectedInsightWorkIdRef.current = workId;
+    const isCurrentRequest = () =>
+      requestSequence === insightRequestSequenceRef.current && selectedInsightWorkIdRef.current === workId;
 
     setInsightError("");
     setIsInsightSaving(true);
     try {
       const response = clear
-        ? await fetch(buildApiUrl(`/competitors/works/${workId}/insight`), { method: "DELETE" })
-        : await fetch(buildApiUrl(`/competitors/works/${workId}/insight`), {
+        ? await fetch(buildApiUrl(`/competitors/works/${encodeURIComponent(workId)}/insight`), { method: "DELETE" })
+        : await fetch(buildApiUrl(`/competitors/works/${encodeURIComponent(workId)}/insight`), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ insight_markdown: insightMarkdown }),
           });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!isCurrentRequest()) return;
       if (clear) setInsightMarkdown("");
       await loadRows();
     } catch {
+      if (!isCurrentRequest()) return;
       setInsightError(clear ? "解读清空失败，请稍后重试。" : "解读保存失败，请稍后重试。");
     } finally {
-      setIsInsightSaving(false);
+      if (isCurrentRequest()) setIsInsightSaving(false);
     }
   }
 
   function closeInsight() {
     const workId = String(selectedWork?.work_id ?? "");
+    insightRequestSequenceRef.current += 1;
+    selectedInsightWorkIdRef.current = "";
     setSelectedWork(null);
+    setIsInsightLoading(false);
+    setIsInsightSaving(false);
     window.setTimeout(() => insightTriggerRefs.current[workId]?.focus(), 0);
   }
 

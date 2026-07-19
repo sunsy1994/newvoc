@@ -227,7 +227,7 @@ def test_competitor_pages_use_real_api_component_and_filters() -> None:
 def test_competitor_work_insight_editor_is_limited_to_works_mode() -> None:
     component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
 
-    assert "/competitors/works/${workId}/insight" in component
+    assert "/competitors/works/${encodeURIComponent(workId)}/insight" in component
     assert "维护解读" in component
     assert "已维护" in component
     assert "未维护" in component
@@ -246,6 +246,70 @@ def test_competitor_work_insight_editor_is_limited_to_works_mode() -> None:
     assert "onKeyDown={trapInsightFocus}" in component
     assert "insightTextareaRef.current?.focus()" in component
     assert "insightTriggerRefs.current[workId]?.focus()" in component
+
+
+def test_competitor_work_insight_get_ignores_stale_responses_after_switch_or_close() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+    open_start = component.index("async function openInsight")
+    open_end = component.index("async function saveInsight", open_start)
+    open_insight = component[open_start:open_end]
+    close_start = component.index("function closeInsight")
+    close_end = component.index("function trapInsightFocus", close_start)
+    close_insight = component[close_start:close_end]
+
+    assert "const insightRequestSequenceRef = useRef(0)" in component
+    assert 'const selectedInsightWorkIdRef = useRef("")' in component
+    assert "const requestSequence = ++insightRequestSequenceRef.current" in open_insight
+    assert "selectedInsightWorkIdRef.current = workId" in open_insight
+    assert "requestSequence === insightRequestSequenceRef.current" in open_insight
+    assert "selectedInsightWorkIdRef.current === workId" in open_insight
+    assert open_insight.count("isCurrentRequest()") >= 3
+    assert "insightRequestSequenceRef.current += 1" in close_insight
+    assert 'selectedInsightWorkIdRef.current = ""' in close_insight
+
+
+def test_competitor_work_insight_save_ignores_completion_after_switch_or_close() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+    save_start = component.index("async function saveInsight")
+    save_end = component.index("function closeInsight", save_start)
+    save_insight = component[save_start:save_end]
+
+    assert "const requestSequence = ++insightRequestSequenceRef.current" in save_insight
+    assert "selectedInsightWorkIdRef.current === workId" in save_insight
+    assert save_insight.count("isCurrentRequest()") >= 3
+
+
+def test_competitor_work_insight_close_and_reopen_reset_saving_state_safely() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+    open_start = component.index("async function openInsight")
+    open_end = component.index("async function saveInsight", open_start)
+    open_insight = component[open_start:open_end]
+    close_start = component.index("function closeInsight")
+    close_end = component.index("function trapInsightFocus", close_start)
+    close_insight = component[close_start:close_end]
+
+    assert "setIsInsightSaving(false)" in open_insight
+    assert "setIsInsightSaving(false)" in close_insight
+    assert close_insight.index("insightRequestSequenceRef.current += 1") < close_insight.index("setIsInsightSaving(false)")
+
+
+def test_retryable_agent_failure_has_explicit_retry_action_without_readding_user_message() -> None:
+    home = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    messages = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
+
+    assert "retryQuestion" in home
+    assert "retryCapability" in home
+    assert "appendUserMessage: false" in home
+    assert "onRetry" in messages
+    assert "重试生成" in messages
+
+
+def test_competitor_work_insight_urls_encode_work_id_path_segments() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+
+    encoded_path = "/competitors/works/${encodeURIComponent(workId)}/insight"
+    assert component.count(encoded_path) == 3
+    assert "/competitors/works/${workId}/insight" not in component
 
 
 def test_asset_pages_use_real_api_component_and_exports() -> None:
@@ -1399,11 +1463,12 @@ def test_auto_voc_home_routes_qa_report_and_insight_to_unified_agent() -> None:
     data_question_route = Path("frontend/src/app/api/agents/data-question/run/route.ts").read_text(encoding="utf-8")
 
     assert "/agents/run" in component
-    assert 'capability: activeSkillId === "report" ? reportCapability : activeSkillId' in component
+    assert 'const capability: RetryCapability = activeSkillId === "report" ? reportCapability : activeSkillId' in component
+    assert "capability," in component
     assert 'activeSkillId === "qa"' in component
     assert 'activeSkillId === "report"' in component
     assert 'activeSkillId === "insight"' in component
-    assert '...(activeSkillId === "report" && reportCapability === "report"' in component
+    assert '...(capability === "report"' in component
     assert '? { event_id: events[0]?.event_id ?? null }' in component
     assert 'event_id: activeSkillId === "report"' not in component
     assert "问答事件" not in component
@@ -1435,11 +1500,12 @@ def test_auto_voc_competitor_report_request_and_asset_action_contract() -> None:
     messages = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
     types = Path("frontend/src/types/vocMarket.ts").read_text(encoding="utf-8")
 
-    assert 'capability: activeSkillId === "report" ? reportCapability : activeSkillId' in home
-    assert '...(activeSkillId === "report" && reportCapability === "report"' in home
+    assert 'const capability: RetryCapability = activeSkillId === "report" ? reportCapability : activeSkillId' in home
+    assert "capability," in home
+    assert '...(capability === "report"' in home
     assert '? { event_id: events[0]?.event_id ?? null }' in home
     assert 'event_id: activeSkillId === "report"' not in home
-    assert 'suggestions: activeSkillId === "report" ? undefined : result.suggested_questions' in home
+    assert 'suggestions: capability === "report" || capability === "competitor_report" ? undefined : result.suggested_questions' in home
     assert 'report_asset?: { report_run_id?: string | number | null }' in home
     assert 'function toCompetitorReportAsset' in home
     assert 'return { report_run_id: String(asset.report_run_id) }' in home

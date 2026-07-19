@@ -12,7 +12,9 @@ class CompetitorReportState(TypedDict, total=False):
     start_date: str
     end_date: str
     time_defaulted: bool
+    scope_source: str
     scope_notice: list[str]
+    ai_runtime: dict[str, Any]
     dataset: dict[str, Any]
     rendered_prompt: str
     llm_summary: dict[str, Any]

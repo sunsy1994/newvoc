@@ -8,27 +8,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from app.config import DATABASE_URL
-from app.agents.report.storage import EVENT_REPORT_CACHE_TABLE_SQL
-
-
-COMPETITOR_REPORT_TABLE_SQL = """
-CREATE SCHEMA IF NOT EXISTS data_asset;
-CREATE TABLE IF NOT EXISTS data_asset.competitor_report_agent_run (
-    report_run_id BIGSERIAL PRIMARY KEY,
-    brand_name TEXT NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    prompt_version TEXT NOT NULL,
-    html TEXT NOT NULL,
-    summary_json JSONB NOT NULL,
-    context_json JSONB NOT NULL,
-    rendered_prompt TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_competitor_report_agent_run_scope_time
-    ON data_asset.competitor_report_agent_run
-    (brand_name, start_date, end_date, generated_at DESC, report_run_id DESC);
-"""
+from app.services.report_time import format_shanghai_datetime
 
 
 @dataclass(frozen=True)
@@ -234,6 +214,7 @@ SELECT
     r.report_run_id,
     'html'::text AS view_kind
 FROM data_asset.competitor_report_agent_run r
+WHERE r.status = 'completed'
 """
 
 
@@ -326,12 +307,10 @@ def list_report_assets(
     )
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
-            cur.execute(EVENT_REPORT_CACHE_TABLE_SQL)
-            cur.execute(COMPETITOR_REPORT_TABLE_SQL)
             cur.execute(count_sql, params)
             total = cur.fetchone()["count"]
             cur.execute(data_sql, [*params, limit, offset])
-            rows = [normalize_row(dict(row)) for row in cur.fetchall()]
+            rows = [_normalize_report_row(dict(row)) for row in cur.fetchall()]
     return {
         "asset": "reports",
         "label": definition.label,
@@ -366,22 +345,27 @@ def get_report_asset(
                    r.brand_name AS subject_name, r.generated_at,
                    'html'::text AS view_kind, r.html
             FROM data_asset.competitor_report_agent_run r
-            WHERE r.report_run_id = %s
+            WHERE r.report_run_id = %s AND r.status = 'completed'
         """
 
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
-            cur.execute(EVENT_REPORT_CACHE_TABLE_SQL)
-            cur.execute(COMPETITOR_REPORT_TABLE_SQL)
             cur.execute(query, [report_run_id])
             row = cur.fetchone()
     if row is None:
         return None
 
-    normalized = normalize_row(dict(row))
+    normalized = _normalize_report_row(dict(row))
     if report_type == "event_report":
         summary = normalized.pop("summary_json", {})
         normalized["structured_report"] = summary.get("structured_report", {}) if isinstance(summary, dict) else {}
+    return normalized
+
+
+def _normalize_report_row(row: dict[str, Any]) -> dict[str, Any]:
+    normalized = normalize_row(row)
+    if "generated_at" in row:
+        normalized["generated_at"] = format_shanghai_datetime(row["generated_at"])
     return normalized
 
 

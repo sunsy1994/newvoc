@@ -50,16 +50,6 @@ WORK_COLUMNS = [
     {"key": "insight_updated_at", "label": "作品解读更新时间"},
 ]
 
-COMPETITOR_WORK_INSIGHT_TABLE_SQL = """
-CREATE SCHEMA IF NOT EXISTS data_asset;
-CREATE TABLE IF NOT EXISTS data_asset.competitor_work_insight (
-    work_id TEXT PRIMARY KEY REFERENCES data_asset.competitor_work(work_id),
-    insight_markdown TEXT NOT NULL DEFAULT '',
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by TEXT
-);
-"""
-
 ACCOUNT_COLUMN_MAP = {
     "账号名称": "account_name",
     "账号主页URL": "account_home_url",
@@ -286,15 +276,7 @@ def build_work_filters(
     return (" WHERE " + " AND ".join(clauses), params) if clauses else ("", params)
 
 
-def ensure_competitor_work_insight_table(database_url: str = DATABASE_URL) -> None:
-    with psycopg.connect(database_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(COMPETITOR_WORK_INSIGHT_TABLE_SQL)
-        conn.commit()
-
-
 def get_competitor_work_insight(work_id: str, database_url: str = DATABASE_URL) -> dict[str, Any]:
-    ensure_competitor_work_insight_table(database_url)
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -316,7 +298,6 @@ def save_competitor_work_insight(
     updated_by: str | None = None,
     database_url: str = DATABASE_URL,
 ) -> dict[str, Any]:
-    ensure_competitor_work_insight_table(database_url)
     content = "" if not insight_markdown.strip() else insight_markdown
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
@@ -383,7 +364,6 @@ def list_competitor_works(
 ) -> dict[str, Any]:
     limit = max(1, min(limit, max_limit))
     offset = max(0, offset)
-    ensure_competitor_work_insight_table(database_url)
     where_sql, params = build_work_filters(q, brand_name, account_name, account_type, start_date, end_date)
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:

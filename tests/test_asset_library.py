@@ -161,8 +161,8 @@ def test_report_assets_union_search_count_and_paginate_without_internal_fields(m
     payload = list_assets("reports", q="  比亚迪  ", limit=1, offset=1, database_url="fake-db")
 
     assert payload["rows"] == [
-        {**rows[0], "generated_at": "2026-07-18T11:00:00"},
-        {**rows[1], "generated_at": "2026-07-18T10:00:00"},
+        {**rows[0], "generated_at": "2026-07-18T11:00:00+08:00"},
+        {**rows[1], "generated_at": "2026-07-18T10:00:00+08:00"},
     ]
     assert all(set(row) == {"report_type", "subject_name", "generated_at", "report_run_id", "view_kind"} for row in payload["rows"])
     count_query, count_params = next(call for call in connection.calls if "count(*)" in call[0])
@@ -200,7 +200,7 @@ def test_report_asset_detail_returns_only_the_required_event_or_html_view(monkey
         "report_type": "event_report",
         "report_run_id": 7,
         "subject_name": "IDT6 上市事件",
-        "generated_at": "2026-07-18T10:00:00",
+        "generated_at": "2026-07-18T10:00:00+08:00",
         "view_kind": "structured",
         "structured_report": {"title": "事件报告", "charts": []},
     }
@@ -208,7 +208,7 @@ def test_report_asset_detail_returns_only_the_required_event_or_html_view(monkey
         "report_type": "competitor_report",
         "report_run_id": 8,
         "subject_name": "比亚迪",
-        "generated_at": "2026-07-18T11:00:00",
+        "generated_at": "2026-07-18T11:00:00+08:00",
         "view_kind": "html",
         "html": "<!doctype html><html><body>竞品报告</body></html>",
     }

@@ -41,6 +41,7 @@ type AutoVocHomePageProps = {
 
 type DataQuestionResult = {
   status: string;
+  retryable?: boolean;
   answer: string;
   suggested_questions: string[];
   requires_clarification: boolean;
@@ -63,7 +64,7 @@ const formatDate = (value?: string | null) => (value ? value.slice(0, 10) : "未
 const ALL_BRANDS = "全部品牌";
 const CHAT_STORAGE_KEY = "auto-voc-chat-history-v1";
 
-function createChatMessage(role: ChatMessage["role"], content: string, options?: Pick<ChatMessage, "suggestions" | "isError" | "reportPayload" | "reportAsset" | "insightPayload">): ChatMessage {
+function createChatMessage(role: ChatMessage["role"], content: string, options?: Pick<ChatMessage, "suggestions" | "isError" | "reportPayload" | "reportAsset" | "insightPayload" | "retryQuestion" | "retryCapability">): ChatMessage {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     role,
@@ -573,6 +574,7 @@ const promptGroups = {
 
 type AiSkillId = keyof typeof promptGroups;
 type ReportCapability = "report" | "competitor_report";
+type RetryCapability = "data" | "qa" | "report" | "competitor_report" | "insight";
 
 const reportTypes: Array<{ id: ReportCapability; title: string; description: string }> = [
   { id: "report", title: "事件报告", description: "基于当前事件上下文生成报告" },
@@ -712,6 +714,7 @@ function ExpandedAiWorkspace({
   messages,
   isAskingDataQuestion,
   onClearHistory,
+  onRetry,
 }: {
   activeSkillId: AiSkillId;
   onSkillChange: (skillId: AiSkillId) => void;
@@ -724,6 +727,7 @@ function ExpandedAiWorkspace({
   messages: ChatMessage[];
   isAskingDataQuestion: boolean;
   onClearHistory: () => void;
+  onRetry: (question: string, capability: string) => void;
 }) {
   const selectedSkill = aiCapabilities.find((item) => item.id === activeSkillId) ?? aiCapabilities[0];
   const initialMessageCountRef = useRef(messages.length);
@@ -800,7 +804,7 @@ function ExpandedAiWorkspace({
                   <ReportTypeSelector value={reportCapability} onChange={onReportCapabilityChange} />
                 </div>
               ) : null}
-              <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={onQuestionChange} className="mt-4 min-h-0 flex-1 pb-5" />
+              <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={onQuestionChange} onRetry={onRetry} className="mt-4 min-h-0 flex-1 pb-5" />
             </div>
           ) : (
             <div className="h-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
@@ -990,10 +994,22 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
   async function submitDataQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedQuestion = question.trim();
+    if (!trimmedQuestion) return;
+    const capability: RetryCapability = activeSkillId === "report" ? reportCapability : activeSkillId;
+    await runAgentQuestion(trimmedQuestion, capability, { appendUserMessage: true });
+  }
+
+  async function runAgentQuestion(
+    trimmedQuestion: string,
+    capability: RetryCapability,
+    { appendUserMessage }: { appendUserMessage: boolean },
+  ) {
     if (!trimmedQuestion || isAskingDataQuestion) return;
 
-    setMessages((current) => [...current, createChatMessage("user", trimmedQuestion)]);
-    setQuestion("");
+    if (appendUserMessage) {
+      setMessages((current) => [...current, createChatMessage("user", trimmedQuestion)]);
+      setQuestion("");
+    }
     if (!isActiveSkillAvailable) {
       setMessages((current) => [
         ...current,
@@ -1003,16 +1019,16 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
     }
     setIsAskingDataQuestion(true);
     try {
-      const isUnifiedAgentRequest = activeSkillId === "qa" || activeSkillId === "report" || activeSkillId === "insight";
+      const isUnifiedAgentRequest = capability !== "data";
       const response = await fetch(`${apiBaseUrl}${isUnifiedAgentRequest ? "/agents/run" : "/agents/data-question/run"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           isUnifiedAgentRequest
             ? {
-                capability: activeSkillId === "report" ? reportCapability : activeSkillId,
+                capability,
                 message: trimmedQuestion,
-                ...(activeSkillId === "report" && reportCapability === "report"
+                ...(capability === "report"
                   ? { event_id: events[0]?.event_id ?? null }
                   : {}),
                 history: messages.slice(-10).map(({ role, content }) => ({ role, content })),
@@ -1030,11 +1046,11 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
       }
       const result = (await response.json()) as DataQuestionResult;
       const reportAsset: CompetitorReportAsset | undefined =
-        activeSkillId === "report" && reportCapability === "competitor_report" && result.report_asset?.report_run_id != null
+        capability === "competitor_report" && result.report_asset?.report_run_id != null
           ? toCompetitorReportAsset(result.report_asset)
           : undefined;
       const reportPayload: ReportAgentPayload | undefined =
-        activeSkillId === "report" && result.summary?.structured_report
+        capability === "report" && result.summary?.structured_report
           ? {
               event_id: result.event_id ?? "",
               prompt_version: result.prompt_version ?? "",
@@ -1047,10 +1063,13 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
       setMessages((current) => [
         ...current,
         createChatMessage("assistant", result.answer, {
-          suggestions: activeSkillId === "report" ? undefined : result.suggested_questions,
+          suggestions: capability === "report" || capability === "competitor_report" ? undefined : result.suggested_questions,
+          isError: result.status === "failed",
           reportPayload,
           reportAsset,
-          insightPayload: activeSkillId === "insight" ? result.insight_result : undefined,
+          insightPayload: capability === "insight" ? result.insight_result : undefined,
+          retryQuestion: result.status === "failed" && result.retryable ? trimmedQuestion : undefined,
+          retryCapability: result.status === "failed" && result.retryable ? capability : undefined,
         }),
       ]);
     } catch (error) {
@@ -1078,6 +1097,9 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
           messages={messages}
           isAskingDataQuestion={isAskingDataQuestion}
           onClearHistory={() => setMessages([])}
+          onRetry={(retryQuestion, retryCapability) =>
+            runAgentQuestion(retryQuestion, retryCapability as RetryCapability, { appendUserMessage: false })
+          }
         />
       ) : null}
 
@@ -1106,7 +1128,15 @@ function AiCopilotPanel({ prompts, events }: { prompts: string[]; events: AutoVo
               <ReportTypeSelector value={reportCapability} onChange={setReportCapability} />
             </div>
           ) : null}
-          <ChatMessageList messages={messages} isLoading={isAskingDataQuestion} onSuggestionClick={setQuestion} className="mt-5 min-h-0 flex-1" />
+          <ChatMessageList
+            messages={messages}
+            isLoading={isAskingDataQuestion}
+            onSuggestionClick={setQuestion}
+            onRetry={(retryQuestion, retryCapability) =>
+              runAgentQuestion(retryQuestion, retryCapability as RetryCapability, { appendUserMessage: false })
+            }
+            className="mt-5 min-h-0 flex-1"
+          />
         </div>
       ) : (
         <>

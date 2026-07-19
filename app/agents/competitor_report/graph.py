@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from langgraph.graph import END, StateGraph
 
 from app.agents.competitor_report.prompts import PROMPT_VERSION, render_competitor_summary_prompt
 from app.agents.competitor_report.renderer import render_competitor_report_html
-from app.agents.competitor_report.scope import resolve_competitor_report_scope
+from app.agents.competitor_report.scope import DEFAULT_BRAND, extract_competitor_report_scope, resolve_competitor_report_scope
 from app.agents.competitor_report.state import CompetitorReportState
 from app.agents.competitor_report.storage import save_competitor_report_agent_result
 from app.agents.competitor_report.tools import collect_competitor_report_dataset
@@ -154,6 +154,32 @@ RELATIVE_SKILL_PATH_RE = re.compile(
 )
 
 
+class CompetitorReportExecutionError(RuntimeError):
+    def __init__(
+        self,
+        stage: str,
+        state: CompetitorReportState,
+        cause: Exception,
+        *,
+        retryable: bool = True,
+    ) -> None:
+        super().__init__(str(cause))
+        self.stage = stage
+        self.brand_name = str(state.get("brand_name") or "")
+        self.start_date = str(state.get("start_date") or "")
+        self.end_date = str(state.get("end_date") or "")
+        self.retryable = retryable
+        self.cause = cause
+
+
+class CompetitorReportNoDataError(CompetitorReportExecutionError):
+    def __init__(self, state: CompetitorReportState) -> None:
+        message = (
+            f"{state['brand_name']}在{state['start_date']}至{state['end_date']}范围内暂无竞品数据。"
+        )
+        super().__init__("no_data", state, ValueError(message), retryable=False)
+
+
 def _reject_internal_prose(value: str) -> None:
     path_scan_value = HTTP_URL_RE.sub("", value)
     if (
@@ -207,6 +233,10 @@ def _validate_llm_summary(summary: Any, dataset: dict[str, Any]) -> dict[str, An
             raise ValueError("LLM 返回结果不符合竞品报告 JSON 契约：热门作品结论必须引用输入作品 ID。")
         _reject_internal_prose(why_it_matters)
         seen_work_ids.add(work_id)
+    if seen_work_ids != known_work_ids or len(top_work_findings) != len(known_work_ids):
+        raise ValueError(
+            "LLM 返回结果不符合竞品报告 JSON 契约：top_work_findings 必须精确覆盖全部热门作品。"
+        )
     for key in ("account_summary", "rhythm_summary", "dealer_summary"):
         if not isinstance(summary.get(key), str) or not summary[key].strip():
             raise ValueError(f"LLM 返回结果不符合竞品报告 JSON 契约：{key} 必须为非空文本。")
@@ -215,90 +245,121 @@ def _validate_llm_summary(summary: Any, dataset: dict[str, Any]) -> dict[str, An
 
 
 def resolve_scope_node(state: CompetitorReportState) -> CompetitorReportState:
-    options = get_competitor_options()
-    scope = resolve_competitor_report_scope(
-        state.get("message") or "",
-        known_brands=options.get("brands") or [],
-    )
+    try:
+        options = get_competitor_options()
+        state.update(
+            resolve_competitor_report_scope(
+                state.get("message") or "",
+                known_brands=options.get("brands") or [],
+            )
+        )
+        base_url, api_key, model, timeout_seconds = resolve_runtime_config(
+            DATABASE_URL,
+            None,
+            None,
+            None,
+            None,
+        )
+        runtime = {
+            "base_url": base_url,
+            "api_key": api_key,
+            "model": model,
+            "timeout_seconds": timeout_seconds,
+        }
+        scope = extract_competitor_report_scope(
+            state.get("message") or "",
+            history=state.get("history") or [],
+            known_brands=options.get("brands") or [],
+            llm_json=lambda prompt: call_openai_compatible_json(prompt, **runtime),
+        )
+        state["ai_runtime"] = runtime
+    except Exception as exc:
+        raise CompetitorReportExecutionError("scope", state, exc) from exc
     state.update(scope)  # type: ignore[arg-type]
     notices: list[str] = []
     if scope["brand_defaulted"]:
         notices.append(f"未指定品牌，默认使用{scope['brand_name']}。")
     if scope["time_defaulted"]:
         notices.append("未指定时间，默认使用最近30天。")
+    if scope.get("scope_source") == "deterministic_fallback":
+        notices.append("智能范围解析暂不可用，已按明确表达确定范围。")
     state["scope_notice"] = notices
     return state
 
 
 def collect_data_node(state: CompetitorReportState) -> CompetitorReportState:
-    dataset = collect_competitor_report_dataset(
-        state["brand_name"],
-        state["start_date"],
-        state["end_date"],
-    )
-    if int((dataset.get("overview") or {}).get("work_count") or 0) == 0:
-        raise ValueError(
-            f"{state['brand_name']}在{state['start_date']}至{state['end_date']}范围内没有作品，无法生成竞品报告。"
+    try:
+        dataset = collect_competitor_report_dataset(
+            state["brand_name"],
+            state["start_date"],
+            state["end_date"],
         )
+    except Exception as exc:
+        raise CompetitorReportExecutionError("database", state, exc) from exc
+    if int((dataset.get("overview") or {}).get("work_count") or 0) == 0:
+        raise CompetitorReportNoDataError(state)
     state["dataset"] = dataset
     return state
 
 
 def summarize_node(state: CompetitorReportState) -> CompetitorReportState:
     prompt = render_competitor_summary_prompt(state["dataset"])
-    base_url, api_key, model, timeout_seconds = resolve_runtime_config(
-        DATABASE_URL,
-        None,
-        None,
-        None,
-        None,
-    )
     state["rendered_prompt"] = prompt
-    raw_summary = call_openai_compatible_json(
-        prompt,
-        base_url=base_url,
-        api_key=api_key,
-        model=model,
-        timeout_seconds=timeout_seconds,
-    )
-    state["llm_summary"] = _validate_llm_summary(raw_summary, state["dataset"])
+    try:
+        runtime = state["ai_runtime"]
+        raw_summary = call_openai_compatible_json(prompt, **runtime)
+        state["llm_summary"] = _validate_llm_summary(raw_summary, state["dataset"])
+    except Exception as exc:
+        raise CompetitorReportExecutionError("llm", state, exc) from exc
     return state
 
 
 def render_report_node(state: CompetitorReportState) -> CompetitorReportState:
-    state["report_html"] = render_competitor_report_html(state["dataset"], state["llm_summary"])
+    try:
+        state["report_html"] = render_competitor_report_html(state["dataset"], state["llm_summary"])
+    except Exception as exc:
+        raise CompetitorReportExecutionError("render", state, exc) from exc
     return state
 
 
 def save_report_node(state: CompetitorReportState) -> CompetitorReportState:
-    asset = save_competitor_report_agent_result(
-        {
-            "brand_name": state["brand_name"],
-            "start_date": state["start_date"],
-            "end_date": state["end_date"],
-            "generated_at": datetime.now(SHANGHAI_TZ),
-            "prompt_version": PROMPT_VERSION,
-            "html": state["report_html"],
-            "summary": state["llm_summary"],
-            "context": state["dataset"],
-            "rendered_prompt": state["rendered_prompt"],
-        }
-    )
+    try:
+        asset = save_competitor_report_agent_result(
+            {
+                "brand_name": state["brand_name"],
+                "start_date": state["start_date"],
+                "end_date": state["end_date"],
+                "generated_at": datetime.now(SHANGHAI_TZ),
+                "status": "completed",
+                "error_message": None,
+                "prompt_version": PROMPT_VERSION,
+                "html": state["report_html"],
+                "summary": state["llm_summary"],
+                "context": state["dataset"],
+                "rendered_prompt": state["rendered_prompt"],
+            }
+        )
+    except Exception as exc:
+        raise CompetitorReportExecutionError("storage", state, exc) from exc
     notices = state.get("scope_notice") or []
     notice_text = f"（{'；'.join(item.rstrip('。') for item in notices)}）" if notices else ""
-    state["report_asset"] = asset
+    public_asset = {
+        "report_run_id": asset["report_run_id"],
+        "report_type": "competitor_report",
+    }
+    state["report_asset"] = public_asset
     state["result"] = {
         "status": "generated",
         "answer": (
             f"已生成{state['brand_name']}竞品动态报告，统计范围为"
             f"{state['start_date']} 至 {state['end_date']}。{notice_text}"
         ),
-        "report_type": "competitor",
+        "report_type": "competitor_report",
         "brand_name": state["brand_name"],
         "time_scope": {"start_date": state["start_date"], "end_date": state["end_date"]},
         "scope_notice": notices,
         "summary": state["llm_summary"],
-        "report_asset": asset,
+        "report_asset": public_asset,
     }
     return state
 
@@ -324,7 +385,102 @@ def run_competitor_report_agent(
     event_id: str | None = None,
     history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    state = build_competitor_report_graph().invoke(
-        {"message": message, "event_id": event_id, "history": history or []}
-    )
-    return state["result"]
+    anchor = datetime.now(SHANGHAI_TZ).date()
+    initial_scope: dict[str, Any] = {
+        "brand_name": DEFAULT_BRAND,
+        "brand_defaulted": True,
+        "start_date": (anchor - timedelta(days=29)).isoformat(),
+        "end_date": anchor.isoformat(),
+        "time_defaulted": True,
+    }
+    try:
+        initial_scope = resolve_competitor_report_scope(message)
+        state = build_competitor_report_graph().invoke(
+            {
+                "message": message,
+                "event_id": event_id,
+                "history": history or [],
+                **initial_scope,
+            }
+        )
+        return state["result"]
+    except CompetitorReportExecutionError as exc:
+        status = "no_data" if isinstance(exc, CompetitorReportNoDataError) else "failed"
+        if exc.brand_name and exc.start_date and exc.end_date:
+            try:
+                save_competitor_report_agent_result(
+                    {
+                        "brand_name": exc.brand_name,
+                        "start_date": exc.start_date,
+                        "end_date": exc.end_date,
+                        "generated_at": datetime.now(SHANGHAI_TZ),
+                        "status": status,
+                        "error_message": str(exc.cause),
+                        "prompt_version": PROMPT_VERSION,
+                        "html": "",
+                        "summary": {},
+                        "context": {},
+                        "rendered_prompt": "",
+                    }
+                )
+            except Exception:
+                pass
+        time_scope = (
+            {"start_date": exc.start_date, "end_date": exc.end_date}
+            if exc.start_date and exc.end_date
+            else {}
+        )
+        if status == "no_data":
+            answer = (
+                f"{exc.brand_name}在{exc.start_date} 至 {exc.end_date}范围内暂无竞品数据，"
+                "未生成报告资产。"
+            )
+        else:
+            scope_text = (
+                f"（{exc.brand_name}，{exc.start_date} 至 {exc.end_date}）"
+                if exc.brand_name and exc.start_date and exc.end_date
+                else ""
+            )
+            answer = f"竞品动态报告生成失败{scope_text}，请重试。"
+        return {
+            "status": status,
+            "retryable": exc.retryable,
+            "answer": answer,
+            "report_type": "competitor_report",
+            "brand_name": exc.brand_name,
+            "time_scope": time_scope,
+            "scope_notice": [],
+            "report_asset": None,
+        }
+    except Exception as exc:
+        try:
+            save_competitor_report_agent_result(
+                {
+                    "brand_name": initial_scope["brand_name"],
+                    "start_date": initial_scope["start_date"],
+                    "end_date": initial_scope["end_date"],
+                    "generated_at": datetime.now(SHANGHAI_TZ),
+                    "status": "failed",
+                    "error_message": str(exc),
+                    "prompt_version": PROMPT_VERSION,
+                    "html": "",
+                    "summary": {},
+                    "context": {},
+                    "rendered_prompt": "",
+                }
+            )
+        except Exception:
+            pass
+        return {
+            "status": "failed",
+            "retryable": True,
+            "answer": "竞品动态报告生成失败，请重试。",
+            "report_type": "competitor_report",
+            "brand_name": initial_scope["brand_name"],
+            "time_scope": {
+                "start_date": initial_scope["start_date"],
+                "end_date": initial_scope["end_date"],
+            },
+            "scope_notice": [],
+            "report_asset": None,
+        }

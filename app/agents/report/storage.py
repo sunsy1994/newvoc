@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 import psycopg
@@ -8,6 +7,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from app.config import DATABASE_URL
+from app.services.report_time import format_shanghai_datetime, to_shanghai_datetime
 
 
 EVENT_REPORT_CACHE_TABLE_SQL = """
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS data_asset.event_report_agent_run (
     report_run_id BIGSERIAL PRIMARY KEY,
     event_id TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
-    generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    generated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     summary_json JSONB NOT NULL,
     context_json JSONB NOT NULL,
     rendered_prompt TEXT NOT NULL
@@ -33,7 +33,7 @@ def ensure_event_report_table(conn: psycopg.Connection) -> None:
 
 def normalize_event_report_row(row: dict[str, Any]) -> dict[str, Any]:
     generated_at = row.get("generated_at")
-    generated_at_value = generated_at.isoformat(timespec="seconds") if isinstance(generated_at, datetime) else str(generated_at or "")
+    generated_at_value = format_shanghai_datetime(generated_at)
     return {
         "event_id": row.get("event_id"),
         "prompt_version": row.get("prompt_version") or "",
@@ -58,7 +58,7 @@ def save_event_report_agent_result(result: dict[str, Any], database_url: str = D
                 (
                     result["event_id"],
                     result.get("prompt_version") or "event_report_agent_v1",
-                    result.get("generated_at"),
+                    to_shanghai_datetime(result.get("generated_at")),
                     Jsonb(result.get("summary") or {}),
                     Jsonb(result.get("context") or {}),
                     result.get("rendered_prompt") or "",

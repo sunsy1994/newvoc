@@ -8,7 +8,6 @@ from psycopg.rows import dict_row
 from app.agents.qa.time_slice import date_bounds
 from app.config import DATABASE_URL
 from app.services.asset_library import normalize_row
-from app.services.competitor_library import COMPETITOR_WORK_INSIGHT_TABLE_SQL
 
 
 TOTAL_ENGAGEMENT_SQL = "coalesce(interaction_like_cnt,0)+coalesce(comment_cnt,0)+coalesce(favorite_cnt,0)+coalesce(share_cnt,0)"
@@ -29,7 +28,6 @@ def collect_competitor_report_dataset(
     params = [brand_name, start, end]
     with psycopg.connect(database_url, row_factory=dict_row) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(COMPETITOR_WORK_INSIGHT_TABLE_SQL)
             cursor.execute(
                 f"""
                 SELECT count(*)::bigint AS work_count,

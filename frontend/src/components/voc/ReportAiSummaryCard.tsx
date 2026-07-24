@@ -4,8 +4,16 @@ import { Bot, Check, Clipboard, Loader2, Sparkles, X } from "lucide-react";
 import { Fragment, useState } from "react";
 
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
+import { ReportChartRegistry } from "@/components/voc/report-visuals/ReportChartRegistry";
 import { apiBaseUrl } from "@/config/navigation";
-import type { ReportAgentPayload, ReportChartSpec, StructuredReport, StructuredReportTemplateSection } from "@/types/vocMarket";
+import type {
+  DepartmentReportAgentPayload,
+  DepartmentStructuredReport,
+  ReportChartSpec,
+  ReportNarrative,
+  StructuredReport,
+  StructuredReportTemplateSection,
+} from "@/types/vocMarket";
 
 type ReportAiSummaryCardProps = {
   eventId: string;
@@ -18,7 +26,8 @@ type ReportAiSummaryCardProps = {
 };
 
 type LoadingMode = "latest" | "generate" | "";
-type ReportViewMode = "dashboard" | "report";
+type EventReportViewMode = "dashboard" | "report";
+type ReportViewMode = "summary" | "charts" | "evidence";
 
 function buildUrl(path: string, eventId: string) {
   return `${apiBaseUrl}${path.replace("{eventId}", encodeURIComponent(eventId))}`;
@@ -300,7 +309,7 @@ function renderTemplateSection(section: StructuredReportTemplateSection) {
 }
 
 export function StructuredReportView({ report }: { report: StructuredReport }) {
-  const [reportViewMode, setReportViewMode] = useState<ReportViewMode>("dashboard");
+  const [reportViewMode, setReportViewMode] = useState<EventReportViewMode>("dashboard");
   const templateSections = report.template_sections?.length
     ? report.template_sections
     : [
@@ -386,6 +395,127 @@ export function StructuredReportView({ report }: { report: StructuredReport }) {
   );
 }
 
+function DepartmentReportView({
+  reportNarrative,
+  structuredReport,
+}: {
+  reportNarrative: ReportNarrative;
+  structuredReport: DepartmentStructuredReport;
+}) {
+  const [reportViewMode, setReportViewMode] = useState<ReportViewMode>("summary");
+  const evidenceReferences = structuredReport.evidence_references ?? [];
+  const calculationNotes = structuredReport.calculation_notes ?? [];
+  const hasEvidence = reportNarrative.data_notes.length > 0 || evidenceReferences.length > 0 || calculationNotes.length > 0;
+  const modeClass = (mode: ReportViewMode) =>
+    `rounded-lg px-3 py-1.5 transition ${
+      reportViewMode === mode
+        ? "bg-[var(--theme-primary)] text-white"
+        : "text-[var(--theme-body)] hover:bg-[var(--theme-hover-bg)]"
+    }`;
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-white),var(--theme-selected-bg))] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--theme-primary)]">Department Report</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--theme-ink)]">
+              {reportNarrative.headline || "部门 VOC 报告"}
+            </h1>
+            {reportViewMode === "summary" ? (
+              <p className="mt-2 text-sm leading-6 text-[var(--theme-body)]">
+                {reportNarrative.executive_summary || "当前输入不足以生成执行摘要。"}
+              </p>
+            ) : null}
+            {reportViewMode === "charts" ? (
+              <p className="mt-2 text-sm text-[var(--theme-muted)]">图表类型、顺序与数值由系统固定，图上解读来自本次报告文案。</p>
+            ) : null}
+            {reportViewMode === "evidence" ? (
+              <p className="mt-2 text-sm text-[var(--theme-muted)]">集中查看数据说明，以及当前报告中实际提供的证据和计算口径。</p>
+            ) : null}
+          </div>
+          <div className="inline-flex rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-1 text-xs font-semibold shadow-[0_8px_18px_rgba(26,32,44,0.06)]">
+            <button type="button" onClick={() => setReportViewMode("summary")} className={modeClass("summary")} aria-pressed={reportViewMode === "summary"}>
+              摘要模式
+            </button>
+            <button type="button" onClick={() => setReportViewMode("charts")} className={modeClass("charts")} aria-pressed={reportViewMode === "charts"}>
+              图表模式
+            </button>
+            <button type="button" onClick={() => setReportViewMode("evidence")} className={modeClass("evidence")} aria-pressed={reportViewMode === "evidence"}>
+              数据依据
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {reportViewMode === "summary" ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          {structuredReport.charts.map((chart) => (
+            <section key={chart.chart_id} className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--theme-muted)]">{chart.template_id}</p>
+              <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">{chart.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--theme-body)]">
+                {chart.insight || "该章节暂无可用判断。"}
+              </p>
+            </section>
+          ))}
+        </div>
+      ) : null}
+
+      {reportViewMode === "charts" ? (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {structuredReport.charts.map((chart) => (
+            <ReportChartRegistry chart={chart} key={chart.chart_id} />
+          ))}
+        </div>
+      ) : null}
+
+      {reportViewMode === "evidence" ? (
+        hasEvidence ? (
+          <div className="space-y-4">
+            {reportNarrative.data_notes.length ? (
+              <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
+                <h2 className="text-sm font-semibold text-[var(--theme-ink)]">数据说明</h2>
+                <div className="mt-2 space-y-1">
+                  {reportNarrative.data_notes.map((note, index) => (
+                    <p key={`${index}-${note}`} className="text-xs leading-5 text-[var(--theme-body)]">- {note}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            {evidenceReferences.length ? (
+              <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
+                <h2 className="text-sm font-semibold text-[var(--theme-ink)]">证据引用</h2>
+                <div className="mt-2 space-y-2">
+                  {evidenceReferences.map((item, index) => (
+                    <p key={`${item.source_path}-${index}`} className="text-xs leading-5 text-[var(--theme-body)]">
+                      - {item.source}：{item.quote}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            {calculationNotes.length ? (
+              <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
+                <h2 className="text-sm font-semibold text-[var(--theme-ink)]">数据计算方式</h2>
+                <div className="mt-2 space-y-2">
+                  {calculationNotes.map((item) => (
+                    <p key={item.metric} className="text-xs leading-5 text-[var(--theme-body)]">- {item.metric}：{item.method}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[var(--theme-border)] bg-[var(--theme-white)] p-8 text-center text-sm text-[var(--theme-muted)]">
+            当前报告没有额外的数据说明、证据引用或计算备注。
+          </div>
+        )
+      ) : null}
+    </div>
+  );
+}
+
 function DetailsBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <details className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
@@ -397,6 +527,21 @@ function DetailsBlock({ title, children }: { title: string; children: React.Reac
   );
 }
 
+function buildDepartmentCopyText(reportNarrative: ReportNarrative, structuredReport: DepartmentStructuredReport) {
+  const sections = structuredReport.charts
+    .map((chart) => (chart.insight ? `${chart.title}\n${chart.insight}` : ""))
+    .filter(Boolean);
+  const notes = reportNarrative.data_notes.length
+    ? `数据说明\n${reportNarrative.data_notes.map((note) => `- ${note}`).join("\n")}`
+    : "";
+  return [
+    reportNarrative.headline,
+    reportNarrative.executive_summary,
+    ...sections,
+    notes,
+  ].filter(Boolean).join("\n\n");
+}
+
 export function ReportAiSummaryCard({
   eventId,
   departmentName,
@@ -406,15 +551,19 @@ export function ReportAiSummaryCard({
   latestPath,
   runPath,
 }: ReportAiSummaryCardProps) {
-  const [payload, setPayload] = useState<ReportAgentPayload | null>(null);
+  const [payload, setPayload] = useState<DepartmentReportAgentPayload | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [hasCheckedLatest, setHasCheckedLatest] = useState(false);
   const [loadingMode, setLoadingMode] = useState<LoadingMode>("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const reportMarkdown = payload?.summary.report_markdown ?? "";
-  const dataNotes = payload?.summary.data_notes ?? [];
+  const reportNarrative = payload?.summary.report_narrative;
   const structuredReport = payload?.summary.structured_report;
+  const dataNotes = reportNarrative?.data_notes ?? payload?.summary.data_notes ?? [];
+  const copyText = reportNarrative && structuredReport
+    ? buildDepartmentCopyText(reportNarrative, structuredReport)
+    : `${reportMarkdown}${dataNotes.length ? `\n\n数据说明：\n${dataNotes.map((note) => `- ${note}`).join("\n")}` : ""}`;
   const isLoading = Boolean(loadingMode);
 
   async function loadLatestSummary() {
@@ -431,7 +580,7 @@ export function ReportAiSummaryCard({
         const detail = (await response.json().catch(() => null)) as { detail?: string } | null;
         throw new Error(detail?.detail ?? `读取历史 AI 总结失败：${response.status}`);
       }
-      setPayload((await response.json()) as ReportAgentPayload);
+      setPayload((await response.json()) as DepartmentReportAgentPayload);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "读取历史 AI 总结失败，请稍后重试。");
     } finally {
@@ -459,7 +608,7 @@ export function ReportAiSummaryCard({
         const detail = (await response.json().catch(() => null)) as { detail?: string } | null;
         throw new Error(detail?.detail ?? `AI 总结生成失败：${response.status}`);
       }
-      setPayload((await response.json()) as ReportAgentPayload);
+      setPayload((await response.json()) as DepartmentReportAgentPayload);
       setHasCheckedLatest(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "AI 总结生成失败，请稍后重试。");
@@ -469,9 +618,8 @@ export function ReportAiSummaryCard({
   }
 
   async function copySummary() {
-    if (!reportMarkdown) return;
-    const notesText = dataNotes.length ? `\n\n数据说明：\n${dataNotes.map((note) => `- ${note}`).join("\n")}` : "";
-    await navigator.clipboard.writeText(`${reportMarkdown}${notesText}`);
+    if (!copyText) return;
+    await navigator.clipboard.writeText(copyText);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   }
@@ -534,7 +682,7 @@ export function ReportAiSummaryCard({
                   <button
                     type="button"
                     onClick={copySummary}
-                    disabled={!reportMarkdown}
+                    disabled={!copyText}
                     className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--theme-primary)] px-3 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {copied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
@@ -551,8 +699,8 @@ export function ReportAiSummaryCard({
                     <Loader2 className="h-4 w-4 animate-spin" />
                     正在读取最近一次 AI 总结...
                   </div>
-                ) : structuredReport ? (
-                  <StructuredReportView report={structuredReport} />
+                ) : reportNarrative && structuredReport ? (
+                  <DepartmentReportView reportNarrative={reportNarrative} structuredReport={structuredReport} />
                 ) : reportMarkdown ? (
                   <div className="space-y-1">{renderMarkdownReport(reportMarkdown)}</div>
                 ) : (
@@ -562,7 +710,7 @@ export function ReportAiSummaryCard({
                 )}
               </article>
 
-              {dataNotes.length ? (
+              {!(reportNarrative && structuredReport) && dataNotes.length ? (
                 <section className="mt-4 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
                   <p className="text-sm font-semibold text-[var(--theme-ink)]">数据说明</p>
                   <div className="mt-2 space-y-1">

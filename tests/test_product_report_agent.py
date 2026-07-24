@@ -81,12 +81,14 @@ def sample_product_dashboard() -> dict:
             ],
             "evidence_comments": [
                 {
+                    "comment_id": "pko_001",
                     "target": "ID.4",
                     "dimension": "价格",
                     "result": "本车劣势",
                     "reason": "同价位配置感知不足",
                     "comment_text": "和ID.4比，价格没优势。",
                     "interaction_cnt": 9,
+                    "published_at": "2026-05-20",
                 }
             ],
         },
@@ -118,7 +120,7 @@ def test_render_product_report_prompt_injects_json_context() -> None:
     assert "只使用给定信息" in prompt
 
 
-def test_run_product_report_agent_returns_markdown_and_context(monkeypatch) -> None:
+def test_run_product_report_agent_returns_fixed_narrative_and_builder_charts(monkeypatch) -> None:
     from app.services import report_agent
 
     captured = {}
@@ -137,16 +139,32 @@ def test_run_product_report_agent_returns_markdown_and_context(monkeypatch) -> N
         report_agent,
         "get_default_prompt_template",
         lambda scene, database_url=None: {
-            "prompt_version": "product_report_v1",
-            "prompt_content": "Product report\n{{product_context_json}}",
+            "prompt_version": "product_report_v2",
+            "prompt_content": (
+                '{"headline":"","executive_summary":"","section_insights":'
+                '{"product_focus":"","product_sentiment":"","product_opportunity":"",'
+                '"product_pko_relationships":"","product_pko_results":""},'
+                '"data_notes":[]}\n{{product_context_json}}'
+            ),
         },
     )
 
     def fake_call(prompt, *, base_url, api_key, model, timeout_seconds):
         captured.update({"prompt": prompt, "base_url": base_url, "model": model})
         return {
-            "report_markdown": "# Product Report\n\n## 用户关注点\n外观是主要关注点。",
-            "data_notes": ["Input is based on product dashboard data."],
+            "headline": "产品测试标题",
+            "executive_summary": "产品测试摘要",
+            "section_insights": {
+                "product_focus": "关注判断",
+                "product_sentiment": " ",
+                "product_opportunity": "机会判断",
+                "product_pko_relationships": "对比关系判断",
+                "product_pko_results": "对比结果判断",
+            },
+            "data_notes": ["产品数据说明"],
+            "structured_report": {
+                "charts": [{"chart_id": "llm-chart", "template_id": "F3", "data": [{"value": 999}]}],
+            },
         }
 
     monkeypatch.setattr(report_agent, "call_openai_compatible_json", fake_call)
@@ -155,8 +173,25 @@ def test_run_product_report_agent_returns_markdown_and_context(monkeypatch) -> N
     result = report_agent.run_product_report_agent("event_001")
 
     assert result["event_id"] == "event_001"
-    assert result["prompt_version"] == "product_report_v1"
-    assert result["summary"]["report_markdown"].startswith("# Product Report")
+    assert result["prompt_version"] == "product_report_v2"
+    assert result["summary"]["report_narrative"] == {
+        "headline": "产品测试标题",
+        "executive_summary": "产品测试摘要",
+            "section_insights": {
+                "product_focus": "关注判断",
+                "product_sentiment": "用户讨论集中在外观与价格。",
+            "product_opportunity": "机会判断",
+            "product_pko_relationships": "对比关系判断",
+            "product_pko_results": "对比结果判断",
+        },
+        "data_notes": ["产品数据说明"],
+    }
+    charts = result["summary"]["structured_report"]["charts"]
+    assert [chart["template_id"] for chart in charts] == ["F5", "F6", "F5", "L12", "F7"]
+    assert [chart["insight"] for chart in charts] == ["关注判断", "用户讨论集中在外观与价格。", "机会判断", "对比关系判断", "对比结果判断"]
+    assert charts[0]["data"] == result["context"]["product_focus"]["aspects"]
+    assert charts[3]["data"][0]["comment_id"] == "pko_001"
+    assert all(chart["chart_id"] != "llm-chart" for chart in charts)
     assert result["context"]["product_focus"]["summary"]["top_aspect"] == "外观"
     assert "ID.AURA T6 launch" in result["rendered_prompt"]
     assert captured["base_url"] == "https://llm.example/v1"

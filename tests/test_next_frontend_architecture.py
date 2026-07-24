@@ -1288,10 +1288,24 @@ def test_report_ai_summary_card_renders_structured_report_charts_evidence_and_ca
     assert "template_sections" in types
     assert "renderTemplateSection" in shared_card
     assert "reportViewMode" in shared_card
-    assert "看板模式" in shared_card
-    assert "报告模式" in shared_card
-    assert 'reportViewMode === "dashboard"' in shared_card
-    assert 'reportViewMode === "report"' in shared_card
+    assert 'type ReportViewMode = "summary" | "charts" | "evidence"' in shared_card
+    assert 'type EventReportViewMode = "dashboard" | "report"' in shared_card
+    assert "DepartmentReportView" in shared_card
+    assert "DepartmentReportAgentPayload" in shared_card
+    assert "摘要模式" in shared_card
+    assert "图表模式" in shared_card
+    assert "数据依据" in shared_card
+    assert 'reportViewMode === "summary"' in shared_card
+    assert 'reportViewMode === "charts"' in shared_card
+    assert 'reportViewMode === "evidence"' in shared_card
+    assert 'aria-pressed={reportViewMode === "summary"}' in shared_card
+    assert 'aria-pressed={reportViewMode === "charts"}' in shared_card
+    assert 'aria-pressed={reportViewMode === "evidence"}' in shared_card
+    assert "ReportChartRegistry" in shared_card
+    assert "<ReportChartRegistry chart={chart}" in shared_card
+    assert "report_narrative?: ReportNarrative" in types
+    assert "section_insights: Record<string, string>" in types
+    assert "reportNarrative && structuredReport" in shared_card
     assert "content_count" in shared_card
     assert "comment_count" in shared_card
     assert "内容" in shared_card
@@ -1304,6 +1318,7 @@ def test_report_ai_summary_card_renders_structured_report_charts_evidence_and_ca
     assert "calculation_notes" in shared_card
     assert "证据引用" in shared_card
     assert "数据计算方式" in shared_card
+    assert ") : reportMarkdown ? (" in shared_card
 
 
 def test_auto_voc_chat_message_can_open_generated_event_report() -> None:

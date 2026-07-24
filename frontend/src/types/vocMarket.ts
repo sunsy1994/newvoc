@@ -1,3 +1,5 @@
+import type { ReportVisualChart } from "@/components/voc/report-visuals/types";
+
 export type VocEvent = {
   event_id: string;
   event_name: string;
@@ -389,6 +391,30 @@ export type ReportAgentPayload = {
   rendered_prompt?: string | null;
 };
 
+export type ReportNarrative = {
+  headline: string;
+  executive_summary: string;
+  section_insights: Record<string, string>;
+  data_notes: string[];
+};
+
+export type DepartmentStructuredReport = {
+  charts: ReportVisualChart[];
+  evidence_references?: StructuredReportEvidence[];
+  calculation_notes?: StructuredReportCalculation[];
+};
+
+export type DepartmentReportSummary = {
+  report_narrative?: ReportNarrative;
+  structured_report?: DepartmentStructuredReport;
+  report_markdown?: string;
+  data_notes?: string[];
+};
+
+export type DepartmentReportAgentPayload = Omit<ReportAgentPayload, "summary"> & {
+  summary: DepartmentReportSummary;
+};
+
 export type InsightStatus = "completed" | "partial" | "insufficient_data" | "needs_clarification";
 
 export type InsightScenario = {
@@ -464,8 +490,8 @@ export type InsightResult = {
   limitations: string[];
 };
 
-export type MarketReportSummary = ReportAgentSummary;
-export type MarketReportAgentPayload = ReportAgentPayload;
+export type MarketReportSummary = DepartmentReportSummary;
+export type MarketReportAgentPayload = DepartmentReportAgentPayload;
 
 export type MarketDashboardPayload = {
   event: VocEvent;

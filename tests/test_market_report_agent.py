@@ -52,7 +52,7 @@ def sample_market_dashboard() -> dict:
                 "core_platform_purchase_signal_rate": 19.8,
                 "rule_based_conclusion": "Douyin contributed the main event volume.",
             },
-            "platform_efficiency": [{"platform": "Douyin", "total_volume": 220}],
+            "platform_efficiency": [{"platform": "Douyin", "total_volume": 220, "engagement_per_content": 1500.0}],
         },
         "comment_quality": {
             "summary": {
@@ -71,7 +71,12 @@ def sample_market_dashboard() -> dict:
         "user_profile_distribution": [{"main_label": "family travel", "user_cnt": 51}],
         "regional_response_story": {"summary": {"top_location": "Shanghai", "top_location_comment_rate": 31.2}},
         "topic_spread_story": {
-            "summary": {"top_topic": "#T6", "topic_count": 6, "top_topic_comment_count": 120},
+            "summary": {
+                "top_topic": "#T6",
+                "topic_count": 6,
+                "top_topic_comment_count": 120,
+                "rule_based_conclusion": "#T6 是讨论最集中的话题。",
+            },
             "topics": [{"topic": "#T6", "content_count": 6, "comment_count": 120, "total_engagement": 9000}],
         },
         "hot_posts": [{"title": "T6 real experience", "total_engagement": 9000, "platform": "Douyin"}],
@@ -110,21 +115,41 @@ def test_render_market_report_prompt_injects_json_context() -> None:
     assert "只使用给定信息" in prompt
 
 
-def test_normalize_market_report_summary_keeps_markdown_report_and_notes() -> None:
-    from app.services.report_agent import normalize_market_report_summary
+def test_normalize_report_narrative_uses_fixed_fields_and_rule_based_fallbacks() -> None:
+    from app.services.report_agent import normalize_report_narrative
 
-    summary = normalize_market_report_summary(
+    narrative = normalize_report_narrative(
         {
-            "report_markdown": "# Market Report\n\n## Event\nLaunch event",
-            "data_notes": ["Comment location is not real user residence."],
-        }
+            "headline": "  测试标题  ",
+            "executive_summary": "测试摘要",
+            "section_insights": {
+                "market_rhythm": " ",
+                "market_topics": "话题判断",
+                "unexpected": "不得透传",
+            },
+            "data_notes": [" 评论位置不代表用户真实所在地。 ", ""],
+        },
+        ("market_rhythm", "market_topics", "market_platforms", "market_feedback"),
+        {
+            "market_rhythm": "节奏规则结论",
+            "market_platforms": "平台规则结论",
+        },
     )
 
-    assert summary["report_markdown"].startswith("# Market Report")
-    assert summary["data_notes"] == ["Comment location is not real user residence."]
+    assert narrative == {
+        "headline": "测试标题",
+        "executive_summary": "测试摘要",
+        "section_insights": {
+            "market_rhythm": "节奏规则结论",
+            "market_topics": "话题判断",
+            "market_platforms": "平台规则结论",
+            "market_feedback": "",
+        },
+        "data_notes": ["评论位置不代表用户真实所在地。"],
+    }
 
 
-def test_run_market_report_agent_returns_prompt_and_context_for_transparency(monkeypatch) -> None:
+def test_run_market_report_agent_returns_fixed_narrative_and_builder_charts(monkeypatch) -> None:
     from app.services import report_agent
 
     captured = {}
@@ -143,16 +168,30 @@ def test_run_market_report_agent_returns_prompt_and_context_for_transparency(mon
         report_agent,
         "get_default_prompt_template",
         lambda scene, database_url=None: {
-            "prompt_version": "market_report_v1",
-            "prompt_content": "Market report\n{{market_context_json}}",
+            "prompt_version": "market_report_v2",
+            "prompt_content": (
+                '{"headline":"","executive_summary":"","section_insights":'
+                '{"market_rhythm":"","market_topics":"","market_platforms":"","market_feedback":""},'
+                '"data_notes":[]}\n{{market_context_json}}'
+            ),
         },
     )
 
     def fake_call(prompt, *, base_url, api_key, model, timeout_seconds):
         captured.update({"prompt": prompt, "base_url": base_url, "api_key": api_key, "model": model, "timeout_seconds": timeout_seconds})
         return {
-            "report_markdown": "# Market Report\n\n## Event Overview\nThis is a new launch event.",
-            "data_notes": ["Input is based on event-level VOC data."],
+            "headline": "测试标题",
+            "executive_summary": "测试摘要",
+            "section_insights": {
+                "market_rhythm": "节奏判断",
+                "market_topics": "话题判断",
+                "market_platforms": "平台判断",
+                "market_feedback": "反馈判断",
+            },
+            "data_notes": [],
+            "structured_report": {
+                "charts": [{"chart_id": "llm-chart", "template_id": "F4", "data": [{"value": 999}]}],
+            },
         }
 
     monkeypatch.setattr(report_agent, "call_openai_compatible_json", fake_call)
@@ -161,9 +200,24 @@ def test_run_market_report_agent_returns_prompt_and_context_for_transparency(mon
     result = report_agent.run_market_report_agent("event_001")
 
     assert result["event_id"] == "event_001"
-    assert result["prompt_version"] == "market_report_v1"
-    assert result["summary"]["report_markdown"].startswith("# Market Report")
-    assert result["summary"]["data_notes"] == ["Input is based on event-level VOC data."]
+    assert result["prompt_version"] == "market_report_v2"
+    assert result["summary"]["report_narrative"] == {
+        "headline": "测试标题",
+        "executive_summary": "测试摘要",
+        "section_insights": {
+            "market_rhythm": "节奏判断",
+            "market_topics": "话题判断",
+            "market_platforms": "平台判断",
+            "market_feedback": "反馈判断",
+        },
+        "data_notes": [],
+    }
+    charts = result["summary"]["structured_report"]["charts"]
+    assert [chart["template_id"] for chart in charts] == ["F3", "F5", "F8", "L14"]
+    assert [chart["insight"] for chart in charts] == ["节奏判断", "话题判断", "平台判断", "反馈判断"]
+    assert charts[0]["data"] == result["context"]["volume_trend"]
+    assert charts[2]["data"][0]["engagement_per_content"] == 1500.0
+    assert all(chart["chart_id"] != "llm-chart" for chart in charts)
     assert result["context"]["event_overview"]["event_name"] == "ID.AURA T6 launch"
     assert result["rendered_prompt"] == captured["prompt"]
     assert "ID.AURA T6 launch" in result["rendered_prompt"]
@@ -186,13 +240,160 @@ def test_run_market_report_agent_falls_back_to_builtin_prompt(monkeypatch) -> No
         },
     )
     monkeypatch.setattr(report_agent, "get_default_prompt_template", lambda scene, database_url=None: (_ for _ in ()).throw(ValueError("missing")))
-    monkeypatch.setattr(report_agent, "call_openai_compatible_json", lambda *args, **kwargs: {"report_markdown": "# ok"})
+    monkeypatch.setattr(report_agent, "call_openai_compatible_json", lambda *args, **kwargs: {})
     monkeypatch.setattr(report_agent, "save_market_report_agent_result", lambda result, database_url=None: result)
 
     result = report_agent.run_market_report_agent("event_001")
 
     assert result["prompt_version"] == report_agent.DEFAULT_MARKET_REPORT_PROMPT_VERSION
-    assert result["summary"]["report_markdown"] == "# ok"
+    assert report_agent.DEFAULT_MARKET_REPORT_PROMPT_VERSION == "market_report_summary_v2"
+    assert result["summary"]["report_narrative"]["section_insights"]["market_rhythm"] == "The event volume concentrated on one peak day."
+    charts = result["summary"]["structured_report"]["charts"]
+    assert [chart["template_id"] for chart in charts] == ["F3", "F5", "F8", "L14"]
+    assert [chart["insight"] for chart in charts] == [
+        "The event volume concentrated on one peak day.",
+        "#T6 是讨论最集中的话题。",
+        "Douyin contributed the main event volume.",
+        "Users discussed appearance with visible purchase signals.",
+    ]
+
+
+def test_resolve_market_report_prompt_upgrades_any_incompatible_contract(monkeypatch) -> None:
+    from app.services import report_agent
+
+    monkeypatch.setattr(
+        report_agent,
+        "get_default_prompt_template",
+        lambda scene, database_url=None: {
+            "prompt_version": "custom_market_report_v1",
+            "prompt_content": 'Return {"report_markdown": ""}',
+        },
+    )
+
+    prompt, version = report_agent.resolve_market_report_prompt()
+
+    assert version == "market_report_summary_v2"
+    assert prompt == report_agent.DEFAULT_MARKET_REPORT_PROMPT
+    assert "report_markdown" not in prompt
+
+
+def test_build_report_summary_rejects_llm_insight_when_chart_data_is_empty() -> None:
+    from app.services.report_agent import build_report_summary
+
+    summary = build_report_summary(
+        {
+            "headline": "测试标题",
+            "executive_summary": "测试摘要",
+            "section_insights": {"market_rhythm": "虚构的增长趋势"},
+            "data_notes": [],
+        },
+        [
+            {
+                "chart_id": "market-volume-trend",
+                "template_id": "F3",
+                "title": "传播规模与节奏",
+                "subtitle": "按日声量变化",
+                "insight": "",
+                "source_label": "volume_trend",
+                "data": [],
+                "meta": {"empty_reason": "暂无可用数据"},
+            }
+        ],
+        ("market_rhythm",),
+        {"market_rhythm": ""},
+        {"market-volume-trend": "market_rhythm"},
+    )
+
+    assert summary["report_narrative"]["section_insights"]["market_rhythm"] == ""
+    assert summary["structured_report"]["charts"][0]["insight"] == ""
+
+
+def test_normalize_cached_v1_report_keeps_markdown_without_inventing_charts() -> None:
+    from app.services.report_agent import normalize_cached_report_row
+
+    result = normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": "market_report_summary_v1",
+            "generated_at": "2026-06-22T10:00:00",
+            "summary_json": {
+                "report_markdown": "# Cached Market Report",
+                "data_notes": ["历史数据说明"],
+            },
+            "context_json": {"event_overview": {"event_name": "ID.AURA T6 launch"}},
+            "rendered_prompt": "Cached prompt",
+        }
+    )
+
+    assert result["summary"] == {
+        "report_markdown": "# Cached Market Report",
+        "data_notes": ["历史数据说明"],
+    }
+    assert "structured_report" not in result["summary"]
+
+
+def test_normalize_partial_cached_report_prefers_legacy_markdown_without_empty_chart_spec() -> None:
+    from app.services.report_agent import normalize_cached_report_row
+
+    result = normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": "market_report_summary_v1",
+            "summary_json": {
+                "report_markdown": "# Cached Market Report",
+                "data_notes": [],
+                "structured_report": {},
+            },
+            "context_json": {},
+            "rendered_prompt": "Cached prompt",
+        }
+    )
+
+    assert result["summary"] == {
+        "report_markdown": "# Cached Market Report",
+        "data_notes": [],
+    }
+    assert "structured_report" not in result["summary"]
+
+
+def test_normalize_cached_v2_report_restores_saved_narrative_and_charts() -> None:
+    from app.services.report_agent import normalize_cached_report_row
+
+    summary = {
+        "report_narrative": {
+            "headline": "历史标题",
+            "executive_summary": "历史摘要",
+            "section_insights": {"market_rhythm": "历史节奏判断"},
+            "data_notes": [],
+        },
+        "structured_report": {
+            "charts": [
+                {
+                    "chart_id": "market-volume-trend",
+                    "template_id": "F3",
+                    "title": "传播规模与节奏",
+                    "subtitle": "按日声量变化",
+                    "insight": "历史节奏判断",
+                    "source_label": "volume_trend",
+                    "data": [{"date": "2026-05-17", "total_volume": 211}],
+                    "meta": {},
+                }
+            ]
+        },
+    }
+
+    result = normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": "market_report_summary_v2",
+            "generated_at": "2026-06-22T10:00:00",
+            "summary_json": summary,
+            "context_json": {},
+            "rendered_prompt": "Cached prompt",
+        }
+    )
+
+    assert result["summary"] == summary
 
 
 def test_market_report_agent_api_runs_summary(tmp_path, monkeypatch) -> None:
@@ -206,10 +407,17 @@ def test_market_report_agent_api_runs_summary(tmp_path, monkeypatch) -> None:
         captured["event_id"] = event_id
         return {
             "event_id": event_id,
-            "prompt_version": "market_report_v1",
+            "prompt_version": "market_report_summary_v2",
             "summary": {
-                "report_markdown": "# Market Report\n\nThis is a launch event.",
-                "data_notes": [],
+                "report_narrative": {
+                    "headline": "市场部测试报告",
+                    "executive_summary": "测试摘要",
+                    "section_insights": {"market_rhythm": "节奏判断"},
+                    "data_notes": [],
+                },
+                "structured_report": {
+                    "charts": [{"chart_id": "market-volume-trend", "template_id": "F3", "data": []}],
+                },
             },
             "context": {"event_overview": {"event_name": "ID.AURA T6 launch"}},
             "rendered_prompt": "Market report",
@@ -221,7 +429,8 @@ def test_market_report_agent_api_runs_summary(tmp_path, monkeypatch) -> None:
     response = client.post("/api/voc/events/event_001/market/report-agent/run")
 
     assert response.status_code == 200
-    assert response.json()["summary"]["report_markdown"].startswith("# Market Report")
+    assert response.json()["summary"]["report_narrative"]["headline"] == "市场部测试报告"
+    assert response.json()["summary"]["structured_report"]["charts"][0]["template_id"] == "F3"
     assert response.json()["rendered_prompt"] == "Market report"
     assert captured["event_id"] == "event_001"
 

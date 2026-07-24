@@ -21,110 +21,84 @@ DEFAULT_AI_CONFIG_NAME = "default"
 DEFAULT_PROMPT_SCENE = "comment_user_profile"
 DEFAULT_PROMPT_VERSION = "comment_user_profile_v1"
 MARKET_REPORT_PROMPT_SCENE = "market_report_summary"
-MARKET_REPORT_PROMPT_VERSION = "market_report_summary_v1"
+MARKET_REPORT_PROMPT_VERSION = "market_report_summary_v2"
 PRODUCT_REPORT_PROMPT_SCENE = "product_report_summary"
-PRODUCT_REPORT_PROMPT_VERSION = "product_report_summary_v1"
+PRODUCT_REPORT_PROMPT_VERSION = "product_report_summary_v2"
 SALES_REPORT_PROMPT_SCENE = "sales_report_summary"
-SALES_REPORT_PROMPT_VERSION = "sales_report_summary_v1"
+SALES_REPORT_PROMPT_VERSION = "sales_report_summary_v2"
 DEFAULT_PROMPT_SCENES = {DEFAULT_PROMPT_SCENE, MARKET_REPORT_PROMPT_SCENE, PRODUCT_REPORT_PROMPT_SCENE, SALES_REPORT_PROMPT_SCENE}
-MARKET_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 市场分析助手。请只基于给定的市场看板结构化数据，生成市场部视角的 Markdown 事件报告。
+MARKET_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 市场分析助手。请只基于给定的市场看板结构化数据生成固定字段的叙事文案。
 
-报告目标：
-让业务人员快速读懂：这是什么事件、起止日期、传播规模、热门话题、KOL 与传播主体、受众画像、用户反馈质量、市场判断。
+约束：
+1. 所有判断必须来自 market_context_json；输入缺失时不得推断、补齐趋势或编造外部信息。
+2. 图表类型和数值由系统固定。不要生成图表、图型、排序、数据点或 structured_report，也不要修改输入数值。
+3. 地区信息只代表评论位置响应，不代表用户真实所在地或内容发布地。
+4. data_notes 只放真正影响判断的数据说明。
+5. 输出必须是 JSON 对象，字段和 section_insights 的键不可增减，不要输出 Markdown。
 
-数据口径约束：
-1. 输入数据是系统整理后的 market_context_json，所有判断必须来自该 JSON，不要编造外部信息。
-2. 受众画像只使用 audience.user_profile_distribution 中给出的画像标签，不要要求或提及年龄、性别、收入等人口统计字段。
-3. 地区信息只代表评论位置响应，不代表用户真实所在地，也不代表内容发布地。
-4. 用户讨论点来自评论标注字段、话题统计和看板已汇总字段，如 top_aspect、top_intent、sentiment_distribution、purchase_signal_distribution、hot_topics；不要要求额外关键词聚类。
-5. 如果没有情感时间序列，只总结整体正/中/负反馈结构，不要声称无法分析用户反馈。
-6. KOL 受众第一版按事件整体用户画像表达，不要推断单个 KOL 的独立受众画像。
-
-输出要求：
-1. 输出必须是 JSON 对象，字段不可增减。
-2. report_markdown 是一篇完整 Markdown 报告，不要把内容拆成多个 JSON 字段。
-3. report_markdown 建议包含这些章节，但如果输入没有足够信息，可以自然合并或略过，不要硬写“数据受限”：
-   # 市场部 VOC 事件总结
-   ## 事件概况
-   ## 传播规模与节奏
-   ## 热门话题与内容资产
-   ## KOL 与传播主体
-   ## 受众画像与用户反馈
-   ## 市场判断
-4. data_notes 只放真正影响判断的数据说明，例如输入字段为空、样本量过小、地区只代表评论位置；不得列出年龄、性别、收入、完整人口画像、额外关键词聚类等系统未定义字段。
-
-输出 JSON 格式：
+严格输出：
 {
-  "report_markdown": "",
+  "headline": "",
+  "executive_summary": "",
+  "section_insights": {
+    "market_rhythm": "",
+    "market_topics": "",
+    "market_platforms": "",
+    "market_feedback": ""
+  },
   "data_notes": []
 }
 
 市场看板结构化数据：
 {{market_context_json}}
 """
-PRODUCT_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 产品分析助手。请只基于给定的产品看板结构化数据，生成产品部视角的 Markdown 事件报告。
+PRODUCT_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 产品分析助手。请只基于给定的产品看板结构化数据生成固定字段的叙事文案。
 
-报告目标：
-让产品部快速读懂：用户主要关注哪些产品点，哪些是惊喜点、吐槽点、转化点，用户拿本车和哪些对象对比，对比维度是什么，本车优势/劣势/中性对比结构如何，并附带代表性用户原声。
+约束：
+1. 所有判断必须来自 product_context_json；输入缺失时不得推断、补齐竞品事实或编造外部信息。
+2. 图表类型和数值由系统固定。不要生成图表、图型、排序、数据点或 structured_report，也不要修改输入数值。
+3. PKO 只使用 pko 中已有的 target、dimension、result、reason 和 comment_text。
+4. 只总结机会、风险、转化信号与 PKO 事实，不生成产品建议。
+5. data_notes 只放真正影响判断的数据说明。
+6. 输出必须是 JSON 对象，字段和 section_insights 的键不可增减，不要输出 Markdown。
 
-数据口径约束：
-1. 输入数据是系统整理后的 product_context_json，所有判断必须来自该 JSON，不要编造外部信息。
-2. PKO 只使用 pko 中给出的 target、dimension、result、reason、comment_text，不要自行补充竞品事实。
-3. 代表性原声必须来自 evidence_comments 中的 comment_text，不要改写为用户没有说过的话。
-4. 不输出营销投放建议，不输出 AI 能力说明；本报告只负责产品侧事实总结和产品判断。
-5. 如果某类数据为空，可以自然略过，不要要求新增年龄、性别、收入、外部销量或配置参数等系统未提供字段。
-
-输出要求：
-1. 输出必须是 JSON 对象，字段不可增减。
-2. report_markdown 是一篇完整 Markdown 报告，不要把内容拆成多个 JSON 字段。
-3. report_markdown 建议包含这些章节：
-   # 产品部 VOC 事件总结
-   ## 事件概况
-   ## 用户关注点
-   ## 产品机会：惊喜、吐槽与转化
-   ## PKO 对比位置
-   ## 代表性用户原声
-   ## 产品判断
-4. data_notes 只放真正影响判断的数据说明，例如输入字段为空、样本量过小、代表性原声不足；不要列出系统未定义字段。
-
-输出 JSON 格式：
+严格输出：
 {
-  "report_markdown": "",
+  "headline": "",
+  "executive_summary": "",
+  "section_insights": {
+    "product_focus": "",
+    "product_sentiment": "",
+    "product_opportunity": "",
+    "product_pko_relationships": "",
+    "product_pko_results": ""
+  },
   "data_notes": []
 }
 
 产品看板结构化数据：
 {{product_context_json}}
 """
-SALES_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 销售线索分析助手。请只基于给定的销售看板结构化数据，生成销售部视角的 Markdown 事件报告。
+SALES_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 销售线索分析助手。请只基于给定的销售看板结构化数据生成固定字段的叙事文案。
 
-报告目标：
-让销售人员快速读懂：这个事件产生了多少可跟进线索，线索质量如何，这些人是什么样的人，来自哪些渠道和内容，哪些用户应该优先查看。
+约束：
+1. 所有判断必须来自 sales_context_json；输入缺失时不得推断、补齐用户信息或编造外部信息。
+2. 图表类型和数值由系统固定。不要生成图表、图型、排序、数据点或 structured_report，也不要修改输入数值。
+3. 不输出手机号、微信、真实身份、年龄、性别、收入等系统未提供字段。
+4. 不生成营销承诺，只输出线索质量、意图和来源判断。
+5. data_notes 只放真正影响判断的数据说明。
+6. 输出必须是 JSON 对象，字段和 section_insights 的键不可增减，不要输出 Markdown。
 
-数据口径约束：
-1. 输入数据是系统整理后的 sales_context_json，所有判断必须来自该 JSON，不要编造外部信息。
-2. 不要输出手机号、微信、真实身份、年龄、性别、收入等系统未提供字段。
-3. 用户画像只能使用 lead_quality.profile_segments 和 profile_distribution 中已有标签；画像覆盖不足时自然说明“仅基于已画像用户判断”。
-4. 渠道判断只能使用 lead_source.platform_efficiency、content_leads、lead_comments 中已有字段。
-5. 代表性原声必须来自 evidence_comments 或 lead_comments 的 comment_text，不要改写为用户没有说过的话。
-6. 不生成强营销话术，不替销售承诺优惠；只输出线索判断、优先级和跟进方向。
-
-输出要求：
-1. 输出必须是 JSON 对象，字段不可增减。
-2. report_markdown 是一篇完整 Markdown 报告，不要把内容拆成多个 JSON 字段。
-3. report_markdown 建议包含这些章节：
-   # 销售部 VOC 线索总结
-   ## 事件线索总览
-   ## 线索质量分层
-   ## 高意向用户画像
-   ## 线索来源渠道
-   ## 建议优先查看的用户
-   ## 代表性用户原声
-4. data_notes 只放真正影响判断的数据说明，例如样本量过小、画像覆盖不足、来源字段为空；不要列出系统未定义字段。
-
-输出 JSON 格式：
+严格输出：
 {
-  "report_markdown": "",
+  "headline": "",
+  "executive_summary": "",
+  "section_insights": {
+    "sales_funnel": "",
+    "sales_signals": "",
+    "sales_intents": "",
+    "sales_sources": ""
+  },
   "data_notes": []
 }
 

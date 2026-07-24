@@ -22,8 +22,8 @@ def sample_sales_dashboard() -> dict:
                 "sales_intent_rate": 31.5,
                 "strong_signal_count": 27,
                 "mid_signal_count": 24,
-                "mid_high_signal_count": 51,
-                "mid_high_signal_rate": 20.6,
+                "mid_high_purchase_signal_count": 51,
+                "mid_high_purchase_signal_rate": 20.6,
                 "rule_based_conclusion": "本事件产生了可跟进销售线索。",
             },
             "intent_distribution": [{"label": "询价", "count": 32, "rate": 41.0}],
@@ -118,7 +118,7 @@ def test_render_sales_report_prompt_injects_json_context() -> None:
     assert "只使用给定信息" in prompt
 
 
-def test_run_sales_report_agent_returns_markdown_and_context(monkeypatch) -> None:
+def test_run_sales_report_agent_returns_fixed_narrative_and_builder_charts(monkeypatch) -> None:
     from app.services import report_agent
 
     captured = {}
@@ -137,16 +137,30 @@ def test_run_sales_report_agent_returns_markdown_and_context(monkeypatch) -> Non
         report_agent,
         "get_default_prompt_template",
         lambda scene, database_url=None: {
-            "prompt_version": "sales_report_v1",
-            "prompt_content": "Sales report\n{{sales_context_json}}",
+            "prompt_version": "sales_report_v2",
+            "prompt_content": (
+                '{"headline":"","executive_summary":"","section_insights":'
+                '{"sales_funnel":"","sales_signals":"","sales_intents":"","sales_sources":""},'
+                '"data_notes":[]}\n{{sales_context_json}}'
+            ),
         },
     )
 
     def fake_call(prompt, *, base_url, api_key, model, timeout_seconds):
         captured.update({"prompt": prompt, "base_url": base_url, "model": model})
         return {
-            "report_markdown": "# Sales Report\n\n## 线索质量\n本事件产生了可跟进线索。",
-            "data_notes": ["Input is based on sales dashboard data."],
+            "headline": "销售测试标题",
+            "executive_summary": "销售测试摘要",
+            "section_insights": {
+                "sales_funnel": "漏斗判断",
+                "sales_signals": "信号判断",
+                "sales_intents": "意图判断",
+                "sales_sources": "",
+            },
+            "data_notes": ["销售数据说明"],
+            "structured_report": {
+                "charts": [{"chart_id": "llm-chart", "template_id": "F3", "data": [{"value": 999}]}],
+            },
         }
 
     monkeypatch.setattr(report_agent, "call_openai_compatible_json", fake_call)
@@ -155,8 +169,23 @@ def test_run_sales_report_agent_returns_markdown_and_context(monkeypatch) -> Non
     result = report_agent.run_sales_report_agent("event_001")
 
     assert result["event_id"] == "event_001"
-    assert result["prompt_version"] == "sales_report_v1"
-    assert result["summary"]["report_markdown"].startswith("# Sales Report")
+    assert result["prompt_version"] == "sales_report_v2"
+    assert result["summary"]["report_narrative"] == {
+        "headline": "销售测试标题",
+        "executive_summary": "销售测试摘要",
+        "section_insights": {
+                "sales_funnel": "漏斗判断",
+                "sales_signals": "信号判断",
+                "sales_intents": "意图判断",
+                "sales_sources": "懂车帝贡献了最多高意向线索。",
+        },
+        "data_notes": ["销售数据说明"],
+    }
+    charts = result["summary"]["structured_report"]["charts"]
+    assert [chart["template_id"] for chart in charts] == ["L13", "F4", "F5", "F6"]
+    assert [chart["insight"] for chart in charts] == ["漏斗判断", "信号判断", "意图判断", "懂车帝贡献了最多高意向线索。"]
+    assert charts[0]["data"][-1] == {"stage": "中/强购买信号", "count": 51}
+    assert all(chart["chart_id"] != "llm-chart" for chart in charts)
     assert result["context"]["lead_source"]["summary"]["top_platform"] == "懂车帝"
     assert "ID.AURA T6 launch" in result["rendered_prompt"]
     assert captured["base_url"] == "https://llm.example/v1"

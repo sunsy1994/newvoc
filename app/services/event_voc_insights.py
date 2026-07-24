@@ -1307,17 +1307,27 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
     top_explicit_target = explicit_target_distribution[0]["label"] if explicit_target_distribution else None
+
+    def nonempty_string(value: Any) -> bool:
+        return isinstance(value, str) and bool(value.strip())
+
     renderable_evidence = [
         item
         for item in normalized
-        if str(item.get("comment_id") or "").strip()
-        and str(item.get("comment_text") or "").strip()
+        if nonempty_string(item.get("comment_id"))
+        and nonempty_string(item.get("comment_text"))
     ]
     legacy_text_evidence = [
         item
         for item in normalized
-        if not str(item.get("comment_id") or "").strip()
-        and str(item.get("comment_text") or "").strip()
+        if (
+            item.get("comment_id") is None
+            or (
+                isinstance(item.get("comment_id"), str)
+                and not item["comment_id"].strip()
+            )
+        )
+        and nonempty_string(item.get("comment_text"))
     ]
 
     def ordered_evidence(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

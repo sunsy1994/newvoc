@@ -171,6 +171,40 @@ def test_product_pko_story_caps_after_removing_unrenderable_records() -> None:
     assert all(row["comment_id"].startswith("valid-") for row in evidence)
 
 
+def test_product_pko_story_filters_malformed_high_interaction_records_before_top_fifty() -> None:
+    from app.services.event_voc_insights import build_product_pko_story
+
+    malformed = [
+        {
+            "comment_id": {"bad": index},
+            "target": "畸形对象",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": {"bad": index},
+            "interaction_cnt": 1000 - index,
+        }
+        for index in range(60)
+    ]
+    valid = [
+        {
+            "comment_id": f"valid-{index:03d}",
+            "target": "真实竞品",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": f"真实评论 {index}",
+            "interaction_cnt": 100 - index,
+        }
+        for index in range(55)
+    ]
+
+    evidence = build_product_pko_story([*malformed, *valid])["evidence_comments"]
+
+    assert len(evidence) == 50
+    assert [row["comment_id"] for row in evidence] == [
+        f"valid-{index:03d}" for index in range(50)
+    ]
+
+
 def test_product_report_pko_uses_deterministic_top_fifty_not_target_diversity() -> None:
     from app.services.event_voc_insights import build_product_pko_story
     from app.services.report_agent import build_product_report_context

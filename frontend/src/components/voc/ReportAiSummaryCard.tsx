@@ -90,6 +90,43 @@ function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+function isSafeChartMeta(
+  templateId: unknown,
+  dataLength: number,
+  value: unknown,
+): boolean {
+  if (!isReportTemplateId(templateId) || !isRecord(value)) return false;
+  const keys = Object.keys(value);
+  if (templateId === "L12") {
+    const displayedCount = value.displayed_count;
+    const totalCount = value.total_count;
+    const expectedKeys = dataLength
+      ? ["displayed_count", "total_count", "unit"]
+      : ["displayed_count", "empty_reason", "total_count", "unit"];
+    return (
+      keys.length === expectedKeys.length
+      && expectedKeys.every((key) => keys.includes(key))
+      && typeof displayedCount === "number"
+      && Number.isSafeInteger(displayedCount)
+      && displayedCount === dataLength
+      && displayedCount <= 50
+      && typeof totalCount === "number"
+      && Number.isSafeInteger(totalCount)
+      && totalCount >= dataLength
+      && value.unit === "条对比评论"
+      && (
+        dataLength > 0
+        || (totalCount === 0 && value.empty_reason === "暂无可用数据")
+      )
+    );
+  }
+  if (dataLength > 0) return keys.length === 0;
+  return (
+    keys.length === 1
+    && value.empty_reason === "暂无可用数据"
+  );
+}
+
 function isReportNarrative(value: unknown): value is ReportNarrative {
   if (!isRecord(value) || !isRecord(value.section_insights)) return false;
   return (
@@ -111,6 +148,7 @@ function isDepartmentChart(value: unknown) {
     && typeof value.source_label === "string"
     && isReportTemplateId(value.template_id)
     && value.data.every(isRecord)
+    && isSafeChartMeta(value.template_id, value.data.length, value.meta)
   );
 }
 

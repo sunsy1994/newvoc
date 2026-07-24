@@ -10,6 +10,10 @@ type ReportVisualShellProps = {
 };
 
 export function ReportVisualShell({ chart, children, hasData = chart.data.length > 0 }: ReportVisualShellProps) {
+  const emptyReason =
+    typeof chart.meta?.empty_reason === "string" && chart.meta.empty_reason.trim()
+      ? chart.meta.empty_reason
+      : "暂无可用于此图表的数据";
   return (
     <section
       role="figure"
@@ -39,7 +43,7 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
             color: reportChartTheme.muted,
           }}
         >
-          {chart.meta.empty_reason || "暂无可用于此图表的数据"}
+          {emptyReason}
         </div>
       ) : (
         <div className="mt-4">{children}</div>

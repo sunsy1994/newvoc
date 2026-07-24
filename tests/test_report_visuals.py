@@ -6,6 +6,7 @@ from app.services.report_visuals import (
     build_product_report_charts,
     build_sales_report_charts,
     has_renderable_data,
+    normalize_report_chart_meta,
     normalize_report_chart_data,
 )
 
@@ -268,3 +269,31 @@ def test_builders_drop_rows_that_cannot_render_and_expose_empty_reason():
     for chart in (market[2], market[3], sales[0]):
         assert chart["data"] == []
         assert chart["meta"]["empty_reason"] == "暂无可用数据"
+
+
+@pytest.mark.parametrize(
+    "template_id",
+    ["F3", "F4", "F5", "F6", "F7", "F8", "L13", "L14"],
+)
+def test_non_l12_cache_meta_allows_only_fixed_safe_shapes(template_id):
+    assert normalize_report_chart_meta(template_id, [{}], {}) == {}
+    assert normalize_report_chart_meta(
+        template_id,
+        [],
+        {"empty_reason": "暂无可用数据"},
+    ) == {"empty_reason": "暂无可用数据"}
+    assert normalize_report_chart_meta(template_id, [{}], {"unexpected": []}) is None
+    assert normalize_report_chart_meta(
+        template_id,
+        [],
+        {"empty_reason": {"unsafe": True}},
+    ) is None
+    assert normalize_report_chart_meta(
+        template_id,
+        [],
+        {"empty_reason": "其他空态"},
+    ) is None
+
+
+def test_cache_meta_rejects_unknown_template():
+    assert normalize_report_chart_meta("UNKNOWN", [], {}) is None

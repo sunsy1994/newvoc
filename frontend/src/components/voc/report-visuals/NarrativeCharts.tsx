@@ -137,8 +137,18 @@ export function L12TypeColonnade({ chart }: NarrativeChartProps) {
   const descriptionBaseId = useId();
   const [activeIndex, setActiveIndex] = useState(0);
   const activeRecord = records[activeIndex] ?? records[0];
-  const displayedCount = chart.meta.displayed_count ?? records.length;
-  const totalCount = chart.meta.total_count ?? displayedCount;
+  const displayedCount =
+    typeof chart.meta.displayed_count === "number"
+    && Number.isSafeInteger(chart.meta.displayed_count)
+    && chart.meta.displayed_count >= 0
+      ? chart.meta.displayed_count
+      : records.length;
+  const totalCount =
+    typeof chart.meta.total_count === "number"
+    && Number.isSafeInteger(chart.meta.total_count)
+    && chart.meta.total_count >= displayedCount
+      ? chart.meta.total_count
+      : displayedCount;
 
   return (
     <ReportVisualShell chart={chart} hasData={records.length > 0}>

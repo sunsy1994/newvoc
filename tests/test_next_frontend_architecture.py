@@ -1868,6 +1868,54 @@ unknownTemplateV2.report_markdown = "# 未知模板时保留 Markdown";
 const emptyChartsV2 = JSON.parse(JSON.stringify(completeV2));
 emptyChartsV2.structured_report.charts = [];
 emptyChartsV2.report_markdown = "# 图表缺失时保留 Markdown";
+const unsafeMetaV2 = JSON.parse(JSON.stringify(completeV2));
+unsafeMetaV2.structured_report.charts[0].meta = {
+  empty_reason: { unsafe: true },
+};
+unsafeMetaV2.report_markdown = "# Meta 异常时保留 Markdown";
+const completeProductV2 = {
+  report_markdown: "# 旧产品报告",
+  report_narrative: {
+    headline: "完整产品 v2",
+    executive_summary: "结构完整",
+    section_insights: {
+      product_focus: "关注",
+      product_sentiment: "情感",
+      product_opportunity: "机会",
+      product_pko_relationships: "关系",
+      product_pko_results: "结果",
+    },
+    data_notes: [],
+  },
+  structured_report: {
+    charts: [
+      ["product-focus", "F5"],
+      ["product-sentiment", "F6"],
+      ["product-opportunity", "F5"],
+      ["product-pko-evidence", "L12"],
+      ["product-pko-matrix", "F7"],
+    ].map(([chart_id, template_id]) => ({
+      chart_id,
+      template_id,
+      title: chart_id,
+      subtitle: "固定副标题",
+      insight: "",
+      source_label: chart_id,
+      data: [],
+      meta: template_id === "L12"
+        ? {
+            displayed_count: 0,
+            total_count: 0,
+            unit: "条对比评论",
+            empty_reason: "暂无可用数据",
+          }
+        : { empty_reason: "暂无可用数据" },
+    })),
+  },
+};
+const unsafeL12MetaV2 = JSON.parse(JSON.stringify(completeProductV2));
+unsafeL12MetaV2.structured_report.charts[3].meta.displayed_count = { unsafe: true };
+unsafeL12MetaV2.report_markdown = "# L12 Meta 异常时保留 Markdown";
 
 process.stdout.write(JSON.stringify({
   unknownRegistry: renderRegistry({
@@ -1905,6 +1953,14 @@ process.stdout.write(JSON.stringify({
   emptyChartsPresentation:
     typeof resolvePresentation === "function"
       ? resolvePresentation(emptyChartsV2)
+      : null,
+  unsafeMetaPresentation:
+    typeof resolvePresentation === "function"
+      ? resolvePresentation(unsafeMetaV2)
+      : null,
+  unsafeL12MetaPresentation:
+    typeof resolvePresentation === "function"
+      ? resolvePresentation(unsafeL12MetaV2)
       : null,
 }));
 """
@@ -1944,6 +2000,14 @@ def test_report_card_keeps_markdown_when_v2_fields_are_incomplete() -> None:
     assert probe["emptyChartsPresentation"] == {
         "kind": "markdown",
         "reportMarkdown": "# 图表缺失时保留 Markdown",
+    }
+    assert probe["unsafeMetaPresentation"] == {
+        "kind": "markdown",
+        "reportMarkdown": "# Meta 异常时保留 Markdown",
+    }
+    assert probe["unsafeL12MetaPresentation"] == {
+        "kind": "markdown",
+        "reportMarkdown": "# L12 Meta 异常时保留 Markdown",
     }
 
 

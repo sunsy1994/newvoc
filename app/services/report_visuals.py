@@ -16,6 +16,7 @@ PKO_RESULT_BUCKETS = {
     "unclear": "unclear",
 }
 REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"}
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
 SALES_FUNNEL_STAGES = ("已打标评论", "车相关评论", "销售相关意图", "中/强购买信号")
 RESULT_BUCKETS = {"advantage", "disadvantage", "neutral", "unclear"}
 LABEL_KEYS = ("label", "name", "date", "platform", "category", "dimension")
@@ -176,6 +177,50 @@ def has_renderable_data(chart: Any) -> bool:
         isinstance(template_id, str)
         and template_id in REPORT_TEMPLATE_IDS
         and normalize_report_chart_data(template_id, chart.get("data"))
+    )
+
+
+def normalize_report_chart_meta(
+    template_id: str,
+    data: list[dict[str, Any]],
+    value: Any,
+) -> dict[str, Any] | None:
+    if template_id not in REPORT_TEMPLATE_IDS:
+        return None
+    if not isinstance(value, dict):
+        return None
+    meta = dict(value)
+    if template_id == "L12":
+        expected_keys = {"displayed_count", "total_count", "unit"}
+        if not data:
+            expected_keys.add("empty_reason")
+        if set(meta) != expected_keys:
+            return None
+        displayed_count = meta.get("displayed_count")
+        total_count = meta.get("total_count")
+        if not (
+            isinstance(displayed_count, int)
+            and not isinstance(displayed_count, bool)
+            and displayed_count == len(data)
+            and displayed_count <= 50
+            and isinstance(total_count, int)
+            and not isinstance(total_count, bool)
+            and total_count >= displayed_count
+            and total_count <= MAX_SAFE_INTEGER
+            and meta.get("unit") == "条对比评论"
+        ):
+            return None
+        if not data and (
+            total_count != 0 or meta.get("empty_reason") != "暂无可用数据"
+        ):
+            return None
+        return meta
+    if data:
+        return meta if not meta else None
+    return (
+        meta
+        if meta == {"empty_reason": "暂无可用数据"}
+        else None
     )
 
 

@@ -706,15 +706,154 @@ def test_cached_chart_requires_fixed_system_metadata() -> None:
     chart = build_market_report_charts(
         {"volume_trend": [{"date": "2026-07-01", "total_volume": 12}]}
     )[0]
+    contract = report_agent.MARKET_REPORT_CHART_CONTRACT[0]
+
+    assert (
+        report_agent._valid_cached_chart(
+            {**chart, "meta": {"unexpected": []}},
+            *contract,
+        )
+        is False
+    )
     chart["title"] = ""
 
     assert (
         report_agent._valid_cached_chart(
             chart,
-            *report_agent.MARKET_REPORT_CHART_CONTRACT[0],
+            *contract,
         )
         is False
     )
+
+
+def test_cached_l12_meta_requires_safe_scalars_and_consistent_counts() -> None:
+    from app.services import report_agent
+    from app.services.report_visuals import build_product_report_charts
+
+    chart = build_product_report_charts(
+        {
+            "pko": {
+                "evidence_comments": [
+                    {
+                        "comment_id": "pko-1",
+                        "target": "竞品A",
+                        "dimension": "空间",
+                        "result": "优势",
+                        "comment_text": "空间更好",
+                    }
+                ]
+            }
+        }
+    )[3]
+    contract = report_agent.PRODUCT_REPORT_CHART_CONTRACT[3]
+
+    assert report_agent._valid_cached_chart(chart, *contract) is True
+    for unsafe_meta in (
+        {"displayed_count": {}, "total_count": 1, "unit": "条对比评论"},
+        {"displayed_count": 1, "total_count": [], "unit": "条对比评论"},
+        {"displayed_count": 1, "total_count": 1, "unit": {"bad": "value"}},
+        {"displayed_count": 0, "total_count": 1, "unit": "条对比评论"},
+        {"displayed_count": 1, "total_count": 0, "unit": "条对比评论"},
+        {"displayed_count": True, "total_count": 1, "unit": "条对比评论"},
+        {"displayed_count": 1.0, "total_count": 1, "unit": "条对比评论"},
+        {
+            "displayed_count": 1,
+            "total_count": 1,
+            "unit": "条对比评论",
+            "unexpected": "value",
+        },
+        {
+            "displayed_count": 1,
+            "total_count": 1,
+            "unit": "条对比评论",
+            "empty_reason": "暂无可用数据",
+        },
+        {
+            "displayed_count": 1,
+            "total_count": 9_007_199_254_740_992,
+            "unit": "条对比评论",
+        },
+    ):
+        assert (
+            report_agent._valid_cached_chart(
+                {**chart, "meta": unsafe_meta},
+                *contract,
+            )
+            is False
+        )
+
+    empty_chart = build_product_report_charts({"pko": {}})[3]
+    assert report_agent._valid_cached_chart(empty_chart, *contract) is True
+    assert (
+        report_agent._valid_cached_chart(
+            {
+                **empty_chart,
+                "meta": {
+                    **empty_chart["meta"],
+                    "total_count": 1,
+                },
+            },
+            *contract,
+        )
+        is False
+    )
+
+    sixty_rows = [
+        {
+            "comment_id": f"pko-{index:03d}",
+            "target": "竞品A",
+            "dimension": "空间",
+            "result": "优势",
+            "comment_text": f"评论 {index}",
+            "interaction_cnt": 100 - index,
+        }
+        for index in range(60)
+    ]
+    capped_chart = build_product_report_charts(
+        {"pko": {"evidence_comments": sixty_rows}}
+    )[3]
+    assert capped_chart["meta"]["displayed_count"] == 50
+    assert capped_chart["meta"]["total_count"] == 60
+    assert report_agent._valid_cached_chart(capped_chart, *contract) is True
+
+
+def test_complete_historical_v2_cache_restores_copy_without_current_truncation() -> None:
+    from app.services import report_agent
+    from app.services.report_visuals import build_market_report_charts
+
+    charts = build_market_report_charts(
+        report_agent.build_market_report_context(sample_market_dashboard())
+    )
+    historical_insight = " 历史判断 " + "长" * (
+        report_agent.MAX_REPORT_SECTION_INSIGHT_LENGTH + 30
+    )
+    for chart in charts:
+        chart["insight"] = historical_insight
+    historical_narrative = {
+        "headline": " 历史标题 " + "长" * (report_agent.MAX_REPORT_HEADLINE_LENGTH + 30),
+        "executive_summary": " 历史摘要 "
+        + "长" * (report_agent.MAX_REPORT_EXECUTIVE_SUMMARY_LENGTH + 30),
+        "section_insights": {
+            code: historical_insight for code in report_agent.MARKET_REPORT_SECTION_CODES
+        },
+        "data_notes": [
+            " 历史说明 " + "长" * (report_agent.MAX_REPORT_DATA_NOTE_LENGTH + 30)
+        ],
+    }
+    cached_summary = {
+        "report_narrative": historical_narrative,
+        "structured_report": {"charts": charts},
+    }
+
+    result = report_agent.normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": report_agent.DEFAULT_MARKET_REPORT_PROMPT_VERSION,
+            "summary_json": cached_summary,
+        }
+    )
+
+    assert result["summary"] == cached_summary
 
 
 def test_normalize_cached_v2_report_restores_saved_narrative_and_charts() -> None:

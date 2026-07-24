@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
@@ -17,6 +18,7 @@ from app.services.report_visuals import (
     build_sales_report_charts,
     has_renderable_data,
     normalize_report_chart_data,
+    normalize_report_chart_meta,
 )
 from app.services.system_settings import (
     MARKET_REPORT_PROMPT_CONTENT,
@@ -279,8 +281,10 @@ def build_product_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
         item
         for item in (pko_story.get("evidence_comments") or [])
         if isinstance(item, dict)
-        and str(item.get("comment_id") or "").strip()
-        and str(item.get("comment_text") or "").strip()
+        and isinstance(item.get("comment_id"), str)
+        and bool(item["comment_id"].strip())
+        and isinstance(item.get("comment_text"), str)
+        and bool(item["comment_text"].strip())
     ][:50]
 
     for item in pko_evidence:
@@ -635,6 +639,8 @@ def _valid_cached_chart(
         return False
     if normalize_report_chart_data(expected_template_id, data) != data:
         return False
+    if normalize_report_chart_meta(expected_template_id, data, meta) is None:
+        return False
     if has_renderable_data(chart):
         return True
     return (
@@ -698,23 +704,18 @@ def normalize_cached_report_summary(
     if not section_codes:
         return normalize_market_report_summary(raw)
 
-    summary: dict[str, Any] = {}
-    summary["report_narrative"] = normalize_report_narrative(raw_narrative, section_codes, {})
-    structured_report = dict(raw_structured_report)
-    structured_report["charts"] = []
-    for chart in raw_charts:
-        item = dict(chart)
-        item["insight"] = _bounded_text(
-            item.get("insight"),
-            MAX_REPORT_SECTION_INSIGHT_LENGTH,
-        )
-        structured_report["charts"].append(item)
-    summary["structured_report"] = structured_report
+    summary: dict[str, Any] = {
+        "report_narrative": deepcopy(raw_narrative),
+        "structured_report": deepcopy(raw_structured_report),
+    }
 
-    if "report_markdown" in raw:
-        summary["report_markdown"] = _bounded_text(raw.get("report_markdown"), 200_000)
-    if "data_notes" in raw:
-        summary["data_notes"] = normalize_data_notes(raw.get("data_notes"))
+    if isinstance(raw.get("report_markdown"), str):
+        summary["report_markdown"] = raw["report_markdown"]
+    if (
+        isinstance(raw.get("data_notes"), list)
+        and all(isinstance(note, str) for note in raw["data_notes"])
+    ):
+        summary["data_notes"] = list(raw["data_notes"])
     return summary
 
 

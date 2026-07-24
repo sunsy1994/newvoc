@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 
 def sample_market_context() -> dict:
     return {
@@ -87,15 +89,43 @@ def test_event_report_builder_requires_charts_evidence_and_calculations() -> Non
     assert "路径：" not in str(structured["template_sections"])
     assert "product.evidence_comments" not in str(structured["template_sections"])
     assert all(section["cards"] for section in structured["template_sections"])
-    assert {chart["chart_type"] for chart in structured["charts"]} >= {"metric_cards", "bar", "trend", "table"}
-    trend_chart = next(chart for chart in structured["charts"] if chart["chart_id"] == "event_rhythm_summary")
+    assert [chart["template_id"] for chart in structured["charts"]] == ["F3", "L14", "F6", "L13"]
+    trend_chart = structured["charts"][0]
     assert trend_chart["data"][0] == {"date": "2026-05-14", "content_count": 3, "comment_count": 21, "total_volume": 24}
-    assert trend_chart["x_field"] == "date"
-    assert trend_chart["series"] == ["content_count", "comment_count"]
+    assert trend_chart["chart_id"] == "market-volume-trend"
+    assert trend_chart["source_label"] == "volume_trend"
     assert structured["evidence_references"]
     assert structured["calculation_notes"]
     assert all(item["source_path"] for item in structured["evidence_references"])
     assert "report_markdown" in report["summary"]
+
+
+def test_saved_event_report_restores_fixed_charts_unchanged() -> None:
+    from app.agents.report import builder
+    from app.agents.report.storage import normalize_event_report_row
+
+    report = builder.build_event_report_payload(
+        event_id="event_001",
+        market_context=sample_market_context(),
+        product_context=sample_product_context(),
+        sales_context=sample_sales_context(),
+        llm_summary={"executive_summary": ["外观是最明确的机会点。"], "recommendations": [], "sections": []},
+    )
+    saved_charts = report["summary"]["structured_report"]["charts"]
+
+    restored = normalize_event_report_row(
+        {
+            "event_id": report["event_id"],
+            "prompt_version": report["prompt_version"],
+            "generated_at": datetime(2026, 7, 24, 10, 30),
+            "summary_json": report["summary"],
+            "context_json": report["context"],
+            "rendered_prompt": report["rendered_prompt"],
+        }
+    )
+
+    assert restored["summary"]["structured_report"]["charts"] == saved_charts
+    assert [chart["template_id"] for chart in restored["summary"]["structured_report"]["charts"]] == ["F3", "L14", "F6", "L13"]
 
 
 def test_report_agent_dispatcher_runs_event_report(monkeypatch) -> None:

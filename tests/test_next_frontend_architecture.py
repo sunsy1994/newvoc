@@ -2286,3 +2286,11 @@ def test_l14_allocates_exactly_one_hundred_cells_without_mutating_categories() -
     ]
     assert probe["l14CellCount"] == 100
     assert probe["l14HasRemainder"] is True
+
+
+def test_event_report_uses_shared_svg_registry_and_keeps_legacy_chart_fallback() -> None:
+    source = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert "isReportVisualChart(chart)" in source
+    assert "<ReportChartRegistry chart={chart}" in source
+    assert "renderChart(chart)" in source

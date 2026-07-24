@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from app.services.report_visuals import build_event_report_charts
+
 
 def _get(source: dict[str, Any], path: str, default: Any = None) -> Any:
     current: Any = source
@@ -25,78 +27,6 @@ def _event_overview(market_context: dict[str, Any], product_context: dict[str, A
         or _get(sales_context, "event_overview", {})
         or {}
     )
-
-
-def _metric_cards(market_context: dict[str, Any], product_context: dict[str, Any], sales_context: dict[str, Any]) -> dict[str, Any]:
-    scale = _get(market_context, "scale", {})
-    focus_summary = _get(product_context, "product_focus.summary", {})
-    lead_summary = _get(sales_context, "lead_quality.summary", {})
-    return {
-        "chart_id": "event_key_metrics",
-        "chart_type": "metric_cards",
-        "title": "事件关键指标",
-        "data": [
-            {"label": "总声量", "value": scale.get("total_volume", 0), "method": "content_count + comment_count"},
-            {"label": "内容数", "value": scale.get("content_count", 0), "method": "内容资产去重计数"},
-            {"label": "评论数", "value": scale.get("comment_count", 0), "method": "评论资产去重计数"},
-            {"label": "产品关注点", "value": focus_summary.get("aspect_count", 0), "method": "已标注产品关注点去重计数"},
-            {"label": "中高购买信号", "value": lead_summary.get("mid_high_purchase_signal_count", 0), "method": "销售线索中购买信号为中/强的评论数"},
-        ],
-    }
-
-
-def _aspect_bar(product_context: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "chart_id": "product_aspect_mentions",
-        "chart_type": "bar",
-        "title": "产品关注点声量分布",
-        "x_field": "aspect",
-        "y_field": "comment_count",
-        "data": [
-            {
-                "aspect": item.get("aspect"),
-                "comment_count": item.get("comment_count", 0),
-                "positive_rate": item.get("positive_rate", 0),
-                "negative_rate": item.get("negative_rate", 0),
-            }
-            for item in _list(product_context, "product_focus.aspects")[:8]
-        ],
-    }
-
-
-def _trend_chart(market_context: dict[str, Any]) -> dict[str, Any]:
-    rhythm = _get(market_context, "rhythm", {})
-    volume_trend = _list(market_context, "volume_trend")
-    if volume_trend:
-        return {
-            "chart_id": "event_rhythm_summary",
-            "chart_type": "trend",
-            "title": "传播节奏摘要",
-            "x_field": "date",
-            "series": ["content_count", "comment_count"],
-            "data": [
-                {
-                    "date": item.get("date"),
-                    "content_count": item.get("content_count", 0),
-                    "comment_count": item.get("comment_count", 0),
-                    "total_volume": item.get("total_volume", 0),
-                }
-                for item in volume_trend
-            ],
-            "note": "按日期展示内容发布数与评论数，用于观察传播节奏和互动滞后。",
-        }
-    return {
-        "chart_id": "event_rhythm_summary",
-        "chart_type": "trend",
-        "title": "传播节奏摘要",
-        "x_field": "date",
-        "y_field": "volume",
-        "data": [
-            {"date": rhythm.get("peak_date") or "峰值日", "volume": rhythm.get("peak_volume", 0), "label": "峰值声量"},
-            {"date": "事件整体", "volume": rhythm.get("total_volume") or _get(market_context, "scale.total_volume", 0), "label": "总声量"},
-        ],
-        "note": "第一版使用看板节奏摘要生成趋势型图表，后续可接入逐日明细。",
-    }
 
 
 def _evidence_table(market_context: dict[str, Any], product_context: dict[str, Any], sales_context: dict[str, Any]) -> dict[str, Any]:
@@ -331,12 +261,8 @@ def build_event_report_payload(
 ) -> dict[str, Any]:
     event = _event_overview(market_context, product_context, sales_context)
     title = f"{event.get('event_name') or event_id}事件综合报告"
-    charts = [
-        _metric_cards(market_context, product_context, sales_context),
-        _aspect_bar(product_context),
-        _trend_chart(market_context),
-        _evidence_table(market_context, product_context, sales_context),
-    ]
+    charts = build_event_report_charts(market_context, product_context, sales_context)
+    evidence_chart = _evidence_table(market_context, product_context, sales_context)
     structured_report = {
         "title": title,
         "event": event,
@@ -344,7 +270,7 @@ def build_event_report_payload(
         "recommendations": [str(item) for item in (llm_summary.get("recommendations") or [])][:5],
         "sections": llm_summary.get("sections") if isinstance(llm_summary.get("sections"), list) else [],
         "charts": charts,
-        "evidence_references": _evidence_references(charts),
+        "evidence_references": _evidence_references([evidence_chart]),
         "calculation_notes": _calculation_notes(),
     }
     structured_report["template_sections"] = _template_sections(
@@ -356,7 +282,7 @@ def build_event_report_payload(
     return {
         "status": "generated",
         "message": f"已生成《{title}》。",
-        "answer": f"已生成《{title}》。你可以在事件报告入口查看图文报告，报告包含指标卡、图表、证据引用和数据计算方式。",
+        "answer": f"已生成《{title}》。你可以在事件报告入口查看图文报告，报告包含固定图表、证据引用和数据计算方式。",
         "suggested_questions": [],
         "requires_clarification": False,
         "event_id": event_id,

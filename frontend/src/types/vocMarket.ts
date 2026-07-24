@@ -377,7 +377,7 @@ export type StructuredReport = {
   recommendations: string[];
   sections: Array<Record<string, unknown>>;
   template_sections?: StructuredReportTemplateSection[];
-  charts: ReportChartSpec[];
+  charts: Array<ReportChartSpec | ReportVisualChart>;
   evidence_references: StructuredReportEvidence[];
   calculation_notes: StructuredReportCalculation[];
 };

@@ -49,6 +49,15 @@ def _sort_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return ordered
 
 
+def _renderable_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if str(row.get("comment_id") or "").strip()
+        and str(row.get("comment_text") or "").strip()
+    ]
+
+
 def _pko_evidence(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized = []
     for row in _sort_pko_rows(rows)[:50]:
@@ -87,7 +96,7 @@ def build_product_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]
         )
         for row in _rows(rows)
     ]
-    evidence_rows = _rows(pko.get("evidence_comments"))
+    evidence_rows = _renderable_pko_rows(_rows(pko.get("evidence_comments")))
     evidence = _pko_evidence(evidence_rows)
     evidence_meta = {"displayed_count": len(evidence), "total_count": len(evidence_rows), "unit": "条对比评论"}
     if not evidence:
@@ -114,7 +123,7 @@ def build_sales_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]:
             ("已打标评论", "labeled_comment_count"),
             ("车相关评论", "vehicle_related_count"),
             ("销售相关意图", "sales_intent_comment_count"),
-            ("中/强购买信号", "mid_high_signal_count"),
+            ("中/强购买信号", "mid_high_purchase_signal_count"),
         )
         if summary.get(key) is not None
     ]

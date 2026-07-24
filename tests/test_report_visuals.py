@@ -39,6 +39,23 @@ def test_sales_report_chart_order_is_fixed():
     assert [item["template_id"] for item in charts] == ["L13", "F4", "F5", "F6"]
 
 
+def test_sales_funnel_uses_the_real_mid_high_purchase_signal_field():
+    chart = build_sales_report_charts(
+        {
+            "lead_quality": {
+                "summary": {
+                    "labeled_comment_count": 120,
+                    "vehicle_related_count": 100,
+                    "sales_intent_comment_count": 40,
+                    "mid_high_purchase_signal_count": 12,
+                }
+            }
+        }
+    )[0]
+
+    assert [row["count"] for row in chart["data"]] == [120, 100, 40, 12]
+
+
 def test_l12_keeps_real_records_and_caps_at_fifty():
     rows = [
         {
@@ -70,21 +87,24 @@ def test_missing_data_stays_empty():
     assert all(chart["meta"]["empty_reason"] for chart in charts)
 
 
-def test_l12_normalizes_missing_fields_without_creating_records():
+def test_l12_excludes_unrenderable_records_from_data_and_counts():
     chart = build_product_report_charts(
         {
             "pko": {
                 "evidence_comments": [
-                    {"comment_id": "one", "result": "劣势"},
-                    {"comment_id": "two"},
+                    {"comment_id": "one", "comment_text": "first"},
+                    {"comment_id": "missing-copy"},
+                    {"comment_id": "blank-copy", "comment_text": "  "},
+                    {"comment_text": "missing id"},
+                    {"comment_id": "two", "comment_text": "second"},
                 ]
             }
         }
     )[3]
-    assert chart["data"] == [
-        {"comment_id": "one", "result": "disadvantage", "target": "其他对象", "dimension": "未明确维度"},
-        {"comment_id": "two", "target": "其他对象", "dimension": "未明确维度", "result": "unclear"},
-    ]
+
+    assert [row["comment_id"] for row in chart["data"]] == ["one", "two"]
+    assert chart["meta"]["displayed_count"] == 2
+    assert chart["meta"]["total_count"] == 2
 
 
 def test_event_report_uses_the_four_cross_department_charts_in_fixed_order():

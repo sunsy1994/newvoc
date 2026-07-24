@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { reportChartTheme as theme } from "./chartTheme";
 import { ReportVisualShell } from "./ReportVisualShell";
@@ -38,6 +38,21 @@ const RESULT_BUCKETS = new Set<ResultBucket>([
   "neutral",
   "unclear",
 ]);
+
+const RISK_COLOR = "var(--voc-chart-6)";
+
+export function resultBucketLabel(bucket: ResultBucket): string {
+  return {
+    advantage: "优势",
+    disadvantage: "劣势",
+    neutral: "中性",
+    unclear: "不明确",
+  }[bucket];
+}
+
+export function isL12ActivationKey(key: string): boolean {
+  return key === "Enter" || key === " ";
+}
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -106,7 +121,7 @@ export function mapL12Records(data: Array<Record<string, unknown>>): PkoRecord[]
 
 function bucketColor(bucket: ResultBucket): string {
   if (bucket === "advantage") return theme.primary;
-  if (bucket === "disadvantage") return "var(--theme-negative)";
+  if (bucket === "disadvantage") return RISK_COLOR;
   if (bucket === "neutral") return theme.secondary;
   return theme.muted;
 }
@@ -119,15 +134,15 @@ export function L12TypeColonnade({ chart }: NarrativeChartProps) {
   const records = mapL12Records(chart.data);
   const targets = unique(records.map((record) => record.target));
   const dimensions = unique(records.map((record) => record.dimension));
-  const [activeId, setActiveId] = useState(records[0]?.comment_id ?? "");
-  const activeRecord =
-    records.find((record) => record.comment_id === activeId) ?? records[0];
+  const descriptionBaseId = useId();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeRecord = records[activeIndex] ?? records[0];
   const displayedCount = chart.meta.displayed_count ?? records.length;
   const totalCount = chart.meta.total_count ?? displayedCount;
 
   return (
     <ReportVisualShell chart={chart} hasData={records.length > 0}>
-      <svg viewBox="0 0 400 310" role="img" aria-label={`${chart.title}对比关系图`}>
+      <svg viewBox="0 0 400 310" role="list" aria-label={`${chart.title}对比关系记录`}>
         {narrativeMotionStyles()}
         {targets.map((target, index) => {
           const y = groupY(index, targets.length);
@@ -145,16 +160,25 @@ export function L12TypeColonnade({ chart }: NarrativeChartProps) {
           const sourceY = groupY(targets.indexOf(record.target), targets.length);
           const targetY = groupY(dimensions.indexOf(record.dimension), dimensions.length);
           const offset = ((index % 5) - 2) * 1.1;
-          const copy = `${record.target}，${record.dimension}，${record.comment_text}`;
+          const resultLabel = resultBucketLabel(record.result_bucket);
+          const descriptionId = `${descriptionBaseId}-record-${index}`;
+          const copy = `${record.target}，${record.dimension}，结果：${resultLabel}，${record.comment_text}`;
           return (
             <g
               key={`${record.comment_id}-${index}`}
               className="report-l12-record report-narrative-reveal"
               tabIndex={0}
-              role="button"
+              role="listitem"
               aria-label={copy}
-              onFocus={() => setActiveId(record.comment_id)}
-              onMouseEnter={() => setActiveId(record.comment_id)}
+              aria-describedby={descriptionId}
+              onFocus={() => setActiveIndex(index)}
+              onMouseEnter={() => setActiveIndex(index)}
+              onKeyDown={(event) => {
+                if (isL12ActivationKey(event.key)) {
+                  event.preventDefault();
+                  setActiveIndex(index);
+                }
+              }}
             >
               <title>{copy}</title>
               <path
@@ -199,6 +223,9 @@ export function L12TypeColonnade({ chart }: NarrativeChartProps) {
           <p className="text-xs font-semibold" style={{ color: theme.ink }}>
             {activeRecord.target} → {activeRecord.dimension}
           </p>
+          <p className="mt-1 text-xs font-semibold" style={{ color: theme.body }}>
+            结果：{resultBucketLabel(activeRecord.result_bucket)}
+          </p>
           <p className="mt-1 text-sm leading-6" style={{ color: theme.body }}>
             {activeRecord.comment_text}
           </p>
@@ -206,8 +233,12 @@ export function L12TypeColonnade({ chart }: NarrativeChartProps) {
       ) : null}
       <ul className="sr-only">
         {records.map((record, index) => (
-          <li key={`copy-${record.comment_id}-${index}`}>
-            {record.target}；{record.dimension}；{record.comment_text}
+          <li
+            id={`${descriptionBaseId}-record-${index}`}
+            key={`copy-${record.comment_id}-${index}`}
+          >
+            {record.target}；{record.dimension}；结果：
+            {resultBucketLabel(record.result_bucket)}；{record.comment_text}
           </li>
         ))}
       </ul>
@@ -366,7 +397,7 @@ export function allocateHundredCells(
 
 function hundredColor(group: HundredGroup): string {
   if (group.is_remainder) return theme.border;
-  if (/负|劣|消极/.test(group.label)) return "var(--theme-negative)";
+  if (/负|劣|消极/.test(group.label)) return RISK_COLOR;
   if (/正|优|积极/.test(group.label)) return theme.primary;
   if (/中性|未明确|不明确/.test(group.label)) return theme.muted;
   return theme.secondary;

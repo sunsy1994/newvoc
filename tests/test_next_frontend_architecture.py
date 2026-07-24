@@ -1681,18 +1681,19 @@ def test_report_chart_registry_is_closed_and_complete() -> None:
     assert "eval(" not in source
 
 
-def test_narrative_chart_exports_and_l12_interactions_are_explicit() -> None:
+def test_narrative_charts_use_defined_tokens_and_explicit_interactions() -> None:
     source = Path(
         "frontend/src/components/voc/report-visuals/NarrativeCharts.tsx"
     ).read_text(encoding="utf-8")
+    globals_source = Path("frontend/src/app/globals.css").read_text(encoding="utf-8")
 
     for export_name in ["L12TypeColonnade", "L13HourglassStream", "L14HundredField"]:
         assert f"export function {export_name}" in source
     assert "data-pko-record" in source
     assert "comment_text" in source
-    assert "tabIndex={0}" in source
-    assert "onFocus" in source
-    assert "onMouseEnter" in source
+    assert "--voc-chart-6" in globals_source
+    assert "var(--voc-chart-6)" in source
+    assert "var(--theme-negative)" not in source
     assert "prefers-reduced-motion" in source
     assert "Math.random" not in source
 
@@ -1772,9 +1773,16 @@ const l12Data = [
     comment_text: "第三条用户原声",
   },
   {
-    comment_id: "missing-copy",
+    comment_id: "c-4",
     target: "竞品 C",
     dimension: "配置",
+    result: "unclear",
+    comment_text: "第四条用户原声",
+  },
+  {
+    comment_id: "missing-copy",
+    target: "竞品 D",
+    dimension: "服务",
     result: "unclear",
   },
 ];
@@ -1790,7 +1798,7 @@ const l12Chart = {
   chart_id: "l12",
   template_id: "L12",
   data: l12Data,
-  meta: { displayed_count: 3, total_count: 8, unit: "条对比评论" },
+  meta: { displayed_count: 4, total_count: 4, unit: "条对比评论" },
 };
 const l13Data = [
   { stage: "已打标评论", count: 200 },
@@ -1840,12 +1848,33 @@ const zeroTailL13Markup = ReactDOMServer.renderToStaticMarkup(
 process.stdout.write(JSON.stringify({
   l12Records: narrative.mapL12Records(l12Data),
   l12PathCount: (l12Markup.match(/data-pko-record=/g) || []).length,
+  l12ListItemCount: (l12Markup.match(/role="listitem"/g) || []).length,
+  l12HasListRole: l12Markup.includes('role="list"'),
+  l12HasFakeButtonRole: l12Markup.includes('role="button"'),
+  l12DescribedByIds: [...l12Markup.matchAll(/aria-describedby="([^"]+)"/g)].map(
+    (match) => match[1],
+  ),
+  l12DescriptionIdsExist: [...l12Markup.matchAll(/aria-describedby="([^"]+)"/g)].every(
+    (match) => l12Markup.includes(`id="${match[1]}"`),
+  ),
   l12HasCopy: [
     l12Markup.includes("第一条用户原声"),
     l12Markup.includes("第二条用户原声"),
     l12Markup.includes("第三条用户原声"),
+    l12Markup.includes("第四条用户原声"),
   ],
-  l12HasCount: l12Markup.includes("展示 3 / 总计 8 条"),
+  l12HasCount: l12Markup.includes("展示 4 / 总计 4 条"),
+  l12ResultLabels: typeof narrative.resultBucketLabel === "function"
+    ? ["advantage", "disadvantage", "neutral", "unclear"].map(narrative.resultBucketLabel)
+    : null,
+  l12HasResultCopy: ["优势", "劣势", "中性", "不明确"].map(
+    (label) => l12Markup.includes(`结果：${label}`),
+  ),
+  l12ActivationKeys: typeof narrative.isL12ActivationKey === "function"
+    ? ["Enter", " ", "Escape"].map(narrative.isL12ActivationKey)
+    : null,
+  usesRiskToken: l12Markup.includes("var(--voc-chart-6)")
+    && l14Markup.includes("var(--voc-chart-6)"),
   l13Stages: narrative.mapL13Stages(l13Data),
   l13Widths: l13Data.map((row) => narrative.stageWidth(row.count, 200)),
   l13Order: [
@@ -1876,10 +1905,24 @@ process.stdout.write(JSON.stringify({
 def test_l12_renders_one_path_per_real_record_and_exposes_original_copy() -> None:
     probe = _run_narrative_chart_probe()
 
-    assert [row["comment_id"] for row in probe["l12Records"]] == ["c-1", "c-2", "c-3"]
-    assert probe["l12PathCount"] == 3
-    assert probe["l12HasCopy"] == [True, True, True]
+    assert [row["comment_id"] for row in probe["l12Records"]] == ["c-1", "c-2", "c-3", "c-4"]
+    assert probe["l12PathCount"] == 4
+    assert probe["l12HasCopy"] == [True, True, True, True]
     assert probe["l12HasCount"] is True
+    assert probe["l12ResultLabels"] == ["优势", "劣势", "中性", "不明确"]
+    assert probe["l12HasResultCopy"] == [True, True, True, True]
+    assert probe["usesRiskToken"] is True
+
+
+def test_l12_exposes_list_semantics_descriptions_and_activation_keys() -> None:
+    probe = _run_narrative_chart_probe()
+
+    assert probe["l12HasListRole"] is True
+    assert probe["l12HasFakeButtonRole"] is False
+    assert probe["l12ListItemCount"] == probe["l12PathCount"] == 4
+    assert len(probe["l12DescribedByIds"]) == 4
+    assert probe["l12DescriptionIdsExist"] is True
+    assert probe["l12ActivationKeys"] == [True, True, False]
 
 
 def test_l13_preserves_subset_order_and_uses_first_stage_ratio() -> None:

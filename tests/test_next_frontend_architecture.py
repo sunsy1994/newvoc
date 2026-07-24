@@ -1438,3 +1438,42 @@ def test_auto_voc_compact_chat_is_capped_to_the_viewport() -> None:
     assert "xl:h-[calc(100vh-4rem)]" in component
     assert "xl:max-h-[900px]" in component
     assert 'className="flex h-full min-h-[860px]' not in component
+
+
+def test_report_visuals_use_native_svg_and_autovoc_tokens() -> None:
+    root = Path("frontend/src/components/voc/report-visuals")
+    source = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.tsx"))
+
+    assert "<svg" in source
+    assert "var(--theme-primary)" in source
+    assert "echarts" not in source.lower()
+    assert "chart.js" not in source.lower()
+    assert "cdn.jsdelivr" not in source.lower()
+
+
+def test_basics_chart_exports_are_closed() -> None:
+    source = Path("frontend/src/components/voc/report-visuals/BasicsCharts.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    for export_name in [
+        "F3HairlineArea",
+        "F4TickDonut",
+        "F5TickRows",
+        "F6PairedRungs",
+        "F7StackedRungs",
+        "F8PlumbScatter",
+    ]:
+        assert f"export function {export_name}" in source
+
+
+def test_basics_charts_handle_zero_values_long_labels_and_accessible_motion() -> None:
+    source = Path("frontend/src/components/voc/report-visuals/BasicsCharts.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Math.max(1" in source
+    assert "textLength" in source or "truncateSvgLabel" in source
+    assert "prefers-reduced-motion" in source
+    assert "tabIndex={0}" in source
+    assert "rows[peakIndex] ??" in source

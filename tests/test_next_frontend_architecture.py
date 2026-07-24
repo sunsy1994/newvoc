@@ -2294,3 +2294,95 @@ def test_event_report_uses_shared_svg_registry_and_keeps_legacy_chart_fallback()
     assert "isReportVisualChart(chart)" in source
     assert "<ReportChartRegistry chart={chart}" in source
     assert "renderChart(chart)" in source
+    assert "report.charts.map(renderStructuredReportChart)" in source
+
+
+def test_event_report_mixed_svg_and_legacy_charts_render_in_input_order() -> None:
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+
+const source = fs.readFileSync(path.join(base, "src/components/voc/ReportAiSummaryCard.tsx"), "utf8");
+const output = ts.transpileModule(source, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2017,
+    jsx: ts.JsxEmit.ReactJSX,
+    esModuleInterop: true,
+  },
+}).outputText;
+const loaded = { exports: {} };
+const emptyIcon = () => null;
+const localRequire = (id) => {
+  if (id === "react") return React;
+  if (id === "react/jsx-runtime") return jsxRuntime;
+  if (id === "lucide-react") {
+    return {
+      Bot: emptyIcon,
+      Check: emptyIcon,
+      Clipboard: emptyIcon,
+      Loader2: emptyIcon,
+      Sparkles: emptyIcon,
+      X: emptyIcon,
+    };
+  }
+  if (id === "@/components/ui/hover-border-gradient") {
+    return { HoverBorderGradient: ({ children }) => React.createElement("button", null, children) };
+  }
+  if (id === "@/components/voc/report-visuals/ReportChartRegistry") {
+    return {
+      ReportChartRegistry: ({ chart }) =>
+        React.createElement("svg", { "data-chart-id": chart.chart_id }),
+      isReportTemplateId: (value) =>
+        ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"].includes(value),
+    };
+  }
+  if (id === "@/config/navigation") return { apiBaseUrl: "" };
+  throw new Error(`Unexpected import: ${id}`);
+};
+new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+
+const charts = [
+  {
+    chart_id: "svg-first",
+    template_id: "F3",
+    title: "SVG",
+    subtitle: "",
+    insight: "",
+    source_label: "test",
+    data: [],
+    meta: { empty_reason: "暂无可用数据" },
+  },
+  {
+    chart_id: "legacy-second",
+    chart_type: "bar",
+    title: "Legacy",
+    data: [{ label: "A", value: 2 }],
+    x_field: "label",
+    y_field: "value",
+  },
+];
+const markup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(
+    React.Fragment,
+    null,
+    charts.map((chart) => loaded.exports.renderStructuredReportChart(chart)),
+  ),
+);
+process.stdout.write(markup);
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        cwd=Path.cwd(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.index('data-chart-id="svg-first"') < completed.stdout.index("Legacy")

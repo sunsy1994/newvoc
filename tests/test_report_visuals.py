@@ -86,6 +86,29 @@ def test_l12_keeps_real_records_and_caps_at_fifty():
     assert chart["data"][0]["comment_id"] == "c-000"
 
 
+def test_l12_uses_comment_id_as_stable_tie_breaker():
+    rows = [
+        {
+            "comment_id": comment_id,
+            "target": "竞品A",
+            "dimension": "空间",
+            "result": "优势",
+            "comment_text": f"原声 {comment_id}",
+            "interaction_cnt": 10,
+            "published_at": "2026-07-24T10:00:00",
+        }
+        for comment_id in ["c-003", "c-001", "c-002"]
+    ]
+
+    chart = build_product_report_charts({"pko": {"evidence_comments": rows}})[3]
+
+    assert [row["comment_id"] for row in chart["data"]] == [
+        "c-001",
+        "c-002",
+        "c-003",
+    ]
+
+
 def test_missing_data_stays_empty():
     charts = build_market_report_charts({})
     assert all(chart["data"] == [] for chart in charts)

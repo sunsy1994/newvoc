@@ -425,6 +425,12 @@ function isReportVisualChart(chart: ReportChartSpec | ReportVisualChart): chart 
   return "template_id" in chart && isReportTemplateId(chart.template_id);
 }
 
+export function renderStructuredReportChart(chart: ReportChartSpec | ReportVisualChart) {
+  return isReportVisualChart(chart)
+    ? <ReportChartRegistry chart={chart} key={chart.chart_id} />
+    : renderChart(chart);
+}
+
 const templateToneStyles: Record<StructuredReportTemplateSection["tone"], { label: string; shell: string; chip: string; card: string; accent: string }> = {
   red: {
     label: "bg-[#b84545] text-white",
@@ -557,11 +563,7 @@ export function StructuredReportView({ report }: { report: StructuredReport }) {
       {reportViewMode === "report" ? (
         <div className="space-y-4">
           <div className="grid gap-3 lg:grid-cols-2">
-            {report.charts.map((chart) =>
-              isReportVisualChart(chart)
-                ? <ReportChartRegistry chart={chart} key={chart.chart_id} />
-                : renderChart(chart)
-            )}
+            {report.charts.map(renderStructuredReportChart)}
           </div>
           <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
             <p className="text-sm font-semibold text-[var(--theme-ink)]">证据引用</p>

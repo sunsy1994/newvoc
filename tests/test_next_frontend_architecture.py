@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -1449,9 +1450,22 @@ def test_report_visuals_use_native_svg_and_autovoc_tokens() -> None:
 
     assert "<svg" in source
     assert "var(--theme-primary)" in source
-    assert "echarts" not in source.lower()
-    assert "chart.js" not in source.lower()
-    assert "cdn.jsdelivr" not in source.lower()
+    prohibited_runtime = re.compile(
+        r"""(?:\bfrom\s+|\bimport\s*(?:\(\s*)?|\brequire\s*\(\s*)"""
+        r"""["'](?:echarts|chart\.js)(?:/[^"']*)?["']""",
+        re.IGNORECASE,
+    )
+    prohibited_cdn = re.compile(
+        r"""https?://[^"'()\s]*(?:echarts|chart(?:\.min)?\.js)[^"'()\s]*""",
+        re.IGNORECASE,
+    )
+    assert prohibited_runtime.search('import * as charts from "echarts"')
+    assert prohibited_runtime.search('const charts = require("echarts/core")')
+    assert prohibited_cdn.search(
+        '<script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js">'
+    )
+    assert prohibited_runtime.search(source) is None
+    assert prohibited_cdn.search(source) is None
 
 
 def test_basics_chart_exports_are_closed() -> None:
@@ -1653,3 +1667,249 @@ def test_basics_charts_cap_unit_nodes_preserve_proportion_and_empty_invalid_f8()
     assert "暂无可用于此图表的数据" in probe["invalidF8Markup"]
     assert "<svg" not in probe["invalidF8Markup"]
     assert ".report-chart-point:focus-visible" in source
+
+
+def test_report_chart_registry_is_closed_and_complete() -> None:
+    source = Path(
+        "frontend/src/components/voc/report-visuals/ReportChartRegistry.tsx"
+    ).read_text(encoding="utf-8")
+
+    for template_id in ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"]:
+        assert f"{template_id}:" in source
+    assert "satisfies Record<ReportTemplateId" in source
+    assert "dangerouslySetInnerHTML" not in source
+    assert "eval(" not in source
+
+
+def test_narrative_chart_exports_and_l12_interactions_are_explicit() -> None:
+    source = Path(
+        "frontend/src/components/voc/report-visuals/NarrativeCharts.tsx"
+    ).read_text(encoding="utf-8")
+
+    for export_name in ["L12TypeColonnade", "L13HourglassStream", "L14HundredField"]:
+        assert f"export function {export_name}" in source
+    assert "data-pko-record" in source
+    assert "comment_text" in source
+    assert "tabIndex={0}" in source
+    assert "onFocus" in source
+    assert "onMouseEnter" in source
+    assert "prefers-reduced-motion" in source
+    assert "Math.random" not in source
+
+
+@lru_cache(maxsize=1)
+def _run_narrative_chart_probe() -> dict:
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+const themeModule = {
+  reportChartTheme: {
+    primary: "var(--theme-primary)",
+    secondary: "var(--theme-selected-text)",
+    ink: "var(--theme-ink)",
+    body: "var(--theme-body)",
+    muted: "var(--theme-muted)",
+    border: "var(--theme-border)",
+    panel: "var(--theme-soft-panel)",
+    white: "var(--theme-white)",
+  },
+};
+
+function loadTsx(relativePath, stubs) {
+  const source = fs.readFileSync(path.join(base, relativePath), "utf8");
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2017,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  const localRequire = (id) => {
+    if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
+    if (id === "react") return React;
+    if (id === "react/jsx-runtime") return jsxRuntime;
+    throw new Error(`Unexpected import: ${id}`);
+  };
+  new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
+}
+
+const shell = loadTsx(
+  "src/components/voc/report-visuals/ReportVisualShell.tsx",
+  { "./chartTheme": themeModule },
+);
+const narrative = loadTsx(
+  "src/components/voc/report-visuals/NarrativeCharts.tsx",
+  { "./chartTheme": themeModule, "./ReportVisualShell": shell },
+);
+const l12Data = [
+  {
+    comment_id: "c-1",
+    target: "竞品 A",
+    dimension: "空间",
+    result: "advantage",
+    comment_text: "第一条用户原声",
+  },
+  {
+    comment_id: "c-2",
+    target: "竞品 A",
+    dimension: "价格",
+    result: "disadvantage",
+    comment_text: "第二条用户原声",
+  },
+  {
+    comment_id: "c-3",
+    target: "竞品 B",
+    dimension: "空间",
+    result: "neutral",
+    comment_text: "第三条用户原声",
+  },
+  {
+    comment_id: "missing-copy",
+    target: "竞品 C",
+    dimension: "配置",
+    result: "unclear",
+  },
+];
+const chartBase = {
+  title: "测试图表",
+  subtitle: "测试副标题",
+  insight: "",
+  source_label: "test.source",
+  meta: {},
+};
+const l12Chart = {
+  ...chartBase,
+  chart_id: "l12",
+  template_id: "L12",
+  data: l12Data,
+  meta: { displayed_count: 3, total_count: 8, unit: "条对比评论" },
+};
+const l13Data = [
+  { stage: "已打标评论", count: 200 },
+  { stage: "车相关评论", count: 100 },
+  { stage: "销售相关意图", count: 50 },
+];
+const l13Chart = {
+  ...chartBase,
+  chart_id: "l13",
+  template_id: "L13",
+  data: l13Data,
+};
+const l14Data = [
+  { label: "正向", rate: 49.6 },
+  { label: "中性", rate: 25.2 },
+  { label: "负向", rate: 25.2 },
+  { label: "只有数量", count: 10 },
+];
+const l14Chart = {
+  ...chartBase,
+  chart_id: "l14",
+  template_id: "L14",
+  data: l14Data,
+};
+const l12Markup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(narrative.L12TypeColonnade, { chart: l12Chart }),
+);
+const l13Markup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(narrative.L13HourglassStream, { chart: l13Chart }),
+);
+const l14Markup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(narrative.L14HundredField, { chart: l14Chart }),
+);
+const zeroTailL13Markup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(narrative.L13HourglassStream, {
+    chart: {
+      ...l13Chart,
+      data: [
+        { stage: "已打标评论", count: 10 },
+        { stage: "车相关评论", count: 0 },
+        { stage: "销售相关意图", count: 0 },
+      ],
+    },
+  }),
+);
+
+process.stdout.write(JSON.stringify({
+  l12Records: narrative.mapL12Records(l12Data),
+  l12PathCount: (l12Markup.match(/data-pko-record=/g) || []).length,
+  l12HasCopy: [
+    l12Markup.includes("第一条用户原声"),
+    l12Markup.includes("第二条用户原声"),
+    l12Markup.includes("第三条用户原声"),
+  ],
+  l12HasCount: l12Markup.includes("展示 3 / 总计 8 条"),
+  l13Stages: narrative.mapL13Stages(l13Data),
+  l13Widths: l13Data.map((row) => narrative.stageWidth(row.count, 200)),
+  l13Order: [
+    l13Markup.indexOf("已打标评论"),
+    l13Markup.indexOf("车相关评论"),
+    l13Markup.indexOf("销售相关意图"),
+  ],
+  invalidL13: narrative.mapL13Stages([
+    { stage: "第一阶段", count: 10 },
+    { stage: "不是子集", count: 11 },
+  ]),
+  zeroTailL13Markup,
+  l14Groups: narrative.allocateHundredCells(l14Data),
+  l14CellCount: (l14Markup.match(/data-hundred-cell=/g) || []).length,
+  l14HasRemainder: l14Markup.includes("rounding_remainder"),
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return json.loads(completed.stdout)
+
+
+def test_l12_renders_one_path_per_real_record_and_exposes_original_copy() -> None:
+    probe = _run_narrative_chart_probe()
+
+    assert [row["comment_id"] for row in probe["l12Records"]] == ["c-1", "c-2", "c-3"]
+    assert probe["l12PathCount"] == 3
+    assert probe["l12HasCopy"] == [True, True, True]
+    assert probe["l12HasCount"] is True
+
+
+def test_l13_preserves_subset_order_and_uses_first_stage_ratio() -> None:
+    probe = _run_narrative_chart_probe()
+
+    assert probe["l13Stages"] == [
+        {"label": "已打标评论", "count": 200},
+        {"label": "车相关评论", "count": 100},
+        {"label": "销售相关意图", "count": 50},
+    ]
+    assert probe["l13Widths"] == [290, 145, 72.5]
+    assert probe["l13Order"] == sorted(probe["l13Order"])
+    assert probe["invalidL13"] == []
+    assert "NaN" not in probe["zeroTailL13Markup"]
+    assert "Infinity" not in probe["zeroTailL13Markup"]
+
+
+def test_l14_allocates_exactly_one_hundred_cells_without_mutating_categories() -> None:
+    probe = _run_narrative_chart_probe()
+
+    assert probe["l14Groups"] == [
+        {"key": "正向", "label": "正向", "count": 49, "is_remainder": False},
+        {"key": "中性", "label": "中性", "count": 25, "is_remainder": False},
+        {"key": "负向", "label": "负向", "count": 25, "is_remainder": False},
+        {
+            "key": "rounding_remainder",
+            "label": "舍入余量",
+            "count": 1,
+            "is_remainder": True,
+        },
+    ]
+    assert probe["l14CellCount"] == 100
+    assert probe["l14HasRemainder"] is True

@@ -1,3 +1,6 @@
+import json
+import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 
@@ -1477,3 +1480,176 @@ def test_basics_charts_handle_zero_values_long_labels_and_accessible_motion() ->
     assert "prefers-reduced-motion" in source
     assert "tabIndex={0}" in source
     assert "rows[peakIndex] ??" in source
+
+
+@lru_cache(maxsize=1)
+def _run_basics_chart_probe() -> dict:
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+const themeModule = {
+  reportChartTheme: {
+    primary: "var(--theme-primary)",
+    secondary: "var(--theme-selected-text)",
+    ink: "var(--theme-ink)",
+    body: "var(--theme-body)",
+    muted: "var(--theme-muted)",
+    border: "var(--theme-border)",
+    panel: "var(--theme-soft-panel)",
+    white: "var(--theme-white)",
+  },
+};
+
+function loadTsx(relativePath, stubs) {
+  const source = fs.readFileSync(path.join(base, relativePath), "utf8");
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2017,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  const localRequire = (id) => {
+    if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
+    if (id === "react/jsx-runtime") return jsxRuntime;
+    throw new Error(`Unexpected import: ${id}`);
+  };
+  new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
+}
+
+const shell = loadTsx(
+  "src/components/voc/report-visuals/ReportVisualShell.tsx",
+  { "./chartTheme": themeModule },
+);
+const basics = loadTsx(
+  "src/components/voc/report-visuals/BasicsCharts.tsx",
+  { "./chartTheme": themeModule, "./ReportVisualShell": shell },
+);
+const call = (name, ...args) =>
+  typeof basics[name] === "function" ? basics[name](...args) : null;
+const invalidF8Chart = {
+  chart_id: "invalid-f8",
+  template_id: "F8",
+  title: "平台传播效率",
+  subtitle: "规模与反馈效率",
+  insight: "",
+  source_label: "platform.platform_efficiency",
+  data: [{ platform: "仅有规模", total_volume: 120 }],
+  meta: {},
+};
+
+process.stdout.write(JSON.stringify({
+  f5: call("mapF5Rows", [
+    { topic: "热门议题", comment_count: 120 },
+    { aspect: "空间", comment_count: 57, mention_rate: 28.5 },
+    {
+      aspect: "转化",
+      comment_count: 40,
+      mention_rate: 20,
+      opportunity_score: 12.5,
+    },
+    { label: "询价", count: 10, rate: 20 },
+    { category: "不允许的标签", value: 99 },
+    { topic: "缺失数值" },
+    { label: "空值", comment_count: null },
+  ]),
+  f6Product: call("mapF6Rows", [
+    { aspect: "空间", positive_rate: 60, negative_rate: 15 },
+    { aspect: "缺少负向", positive_rate: 40 },
+  ]),
+  f6Sales: call("mapF6Rows", [
+    { platform: "抖音", comment_count: 120, high_intent_comment_count: 31 },
+    { platform: "缺少线索", comment_count: 20 },
+    { label: "伪通用行", primary: 10, secondary: 5 },
+  ]),
+  f7: call("mapF7Rows", [
+    {
+      dimension: "价格",
+      total_count: 99,
+      advantage_count: 2,
+      disadvantage_count: 3,
+      neutral_count: 1,
+      unclear_count: 4,
+      random_count: 50,
+    },
+    { dimension: "只有总数", total_count: 7 },
+  ]),
+  f8: call("mapF8Points", [
+    { platform: "抖音", total_volume: 120, engagement_per_content: 42.5 },
+    { platform: "缺少效率", total_volume: 80 },
+    { platform: "错误通用坐标", x: 10, y: 20 },
+  ]),
+  unitCounts: [
+    call("boundedUnitCount", 1000, 1000),
+    call("boundedUnitCount", 500, 1000),
+    call("boundedUnitCount", 1, 1000),
+    call("boundedUnitCount", 0, 1000),
+  ],
+  lengths: [
+    call("proportionalLength", 50, 100, 240),
+    call("proportionalLength", 25, 100, 240),
+  ],
+  invalidF8Markup: ReactDOMServer.renderToStaticMarkup(
+    React.createElement(basics.F8PlumbScatter, { chart: invalidF8Chart }),
+  ),
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return json.loads(completed.stdout)
+
+
+def test_basics_charts_map_only_real_f5_and_f6_payload_fields() -> None:
+    probe = _run_basics_chart_probe()
+
+    assert probe["f5"] == [
+        {"label": "热门议题", "value": 120},
+        {"label": "空间", "value": 28.5},
+        {"label": "转化", "value": 12.5},
+        {"label": "询价", "value": 10},
+    ]
+    assert probe["f6Product"] == [{"label": "空间", "first": 60, "second": 15}]
+    assert probe["f6Sales"] == [{"label": "抖音", "first": 120, "second": 31}]
+
+
+def test_basics_charts_map_real_f7_segments_and_valid_f8_points() -> None:
+    probe = _run_basics_chart_probe()
+
+    assert probe["f7"] == [
+        {
+            "label": "价格",
+            "segments": [
+                {"label": "优势", "value": 2},
+                {"label": "劣势", "value": 3},
+                {"label": "中性", "value": 1},
+                {"label": "不明确", "value": 4},
+            ],
+        }
+    ]
+    assert probe["f8"] == [{"label": "抖音", "x": 120, "y": 42.5}]
+
+
+def test_basics_charts_cap_unit_nodes_preserve_proportion_and_empty_invalid_f8() -> None:
+    probe = _run_basics_chart_probe()
+    source = Path("frontend/src/components/voc/report-visuals/BasicsCharts.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert probe["unitCounts"] == [80, 40, 1, 0]
+    assert probe["lengths"] == [120, 60]
+    assert "暂无可用于此图表的数据" in probe["invalidF8Markup"]
+    assert "<svg" not in probe["invalidF8Markup"]
+    assert ".report-chart-point:focus-visible" in source

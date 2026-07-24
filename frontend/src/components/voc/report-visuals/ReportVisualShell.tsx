@@ -6,9 +6,10 @@ import type { ReportVisualChart } from "./types";
 type ReportVisualShellProps = {
   chart: ReportVisualChart;
   children: ReactNode;
+  hasData?: boolean;
 };
 
-export function ReportVisualShell({ chart, children }: ReportVisualShellProps) {
+export function ReportVisualShell({ chart, children, hasData = chart.data.length > 0 }: ReportVisualShellProps) {
   return (
     <section
       role="figure"
@@ -29,7 +30,7 @@ export function ReportVisualShell({ chart, children }: ReportVisualShellProps) {
         </p>
       </header>
 
-      {chart.data.length === 0 ? (
+      {!hasData ? (
         <div
           className="my-5 rounded-xl border border-dashed px-4 py-10 text-center text-sm"
           style={{

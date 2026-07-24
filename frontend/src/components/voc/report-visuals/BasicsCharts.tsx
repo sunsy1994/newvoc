@@ -11,27 +11,61 @@ type Segment = {
   value: number;
 };
 
+type SingleValueRow = {
+  label: string;
+  value: number;
+};
+
+type PairedValueRow = {
+  label: string;
+  first: number;
+  second: number;
+};
+
+type StackedValueRow = {
+  label: string;
+  segments: Segment[];
+};
+
+type ScatterPoint = {
+  label: string;
+  x: number;
+  y: number;
+};
+
 const labelKeys = ["label", "name", "date", "platform", "category", "dimension"];
 const valueKeys = ["value", "count", "total", "percentage", "percent", "rate", "total_volume"];
 
 function finiteNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || (typeof value === "string" && !value.trim())) {
+    return undefined;
+  }
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? Math.max(0, number) : undefined;
 }
 
-function readNumber(row: Record<string, unknown>, keys: string[], fallback = 0): number {
+function readOptionalNumber(row: Record<string, unknown>, keys: string[]): number | undefined {
   for (const key of keys) {
     const value = finiteNumber(row[key]);
     if (value !== undefined) return value;
   }
-  return fallback;
+  return undefined;
+}
+
+function readNumber(row: Record<string, unknown>, keys: string[], fallback = 0): number {
+  return readOptionalNumber(row, keys) ?? fallback;
+}
+
+function readString(row: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
 }
 
 function readLabel(row: Record<string, unknown>, index: number): string {
-  for (const key of labelKeys) {
-    if (typeof row[key] === "string" && row[key]) return row[key];
-  }
-  return `项目 ${index + 1}`;
+  return readString(row, labelKeys) ?? `项目 ${index + 1}`;
 }
 
 function truncateSvgLabel(label: string, maxChars: number): string {
@@ -55,28 +89,91 @@ function allocateTicks(values: number[], tickTotal = 100): number[] {
   return ticks;
 }
 
-function segmentValues(row: Record<string, unknown>): Segment[] {
-  if (Array.isArray(row.segments)) {
-    return row.segments.flatMap((segment, index) => {
-      if (!segment || typeof segment !== "object") return [];
-      const record = segment as Record<string, unknown>;
-      const value = readNumber(record, valueKeys);
-      return [{ label: readLabel(record, index), value }];
-    });
-  }
+export function mapF5Rows(data: Array<Record<string, unknown>>): SingleValueRow[] {
+  return data.flatMap((row) => {
+    const topic = readString(row, ["topic"]);
+    if (topic) {
+      const value = readOptionalNumber(row, ["comment_count"]);
+      return value !== undefined ? [{ label: topic, value }] : [];
+    }
 
-  const ignored = new Set([...labelKeys, "x", "y", "x_value", "y_value"]);
-  return Object.entries(row).flatMap(([label, rawValue]) => {
-    if (ignored.has(label)) return [];
-    const value = finiteNumber(rawValue);
-    return value === undefined ? [] : [{ label, value }];
+    const aspect = readString(row, ["aspect"]);
+    if (aspect) {
+      const value =
+        readOptionalNumber(row, ["opportunity_score"]) ??
+        readOptionalNumber(row, ["mention_rate"]);
+      return value !== undefined ? [{ label: aspect, value }] : [];
+    }
+
+    const label = readString(row, ["label"]);
+    const value = readOptionalNumber(row, ["count", "rate"]);
+    return label && value !== undefined ? [{ label, value }] : [];
   });
+}
+
+export function mapF6Rows(data: Array<Record<string, unknown>>): PairedValueRow[] {
+  return data.flatMap((row) => {
+    const aspect = readString(row, ["aspect"]);
+    if (aspect) {
+      const first = readOptionalNumber(row, ["positive_rate"]);
+      const second = readOptionalNumber(row, ["negative_rate"]);
+      return first !== undefined && second !== undefined ? [{ label: aspect, first, second }] : [];
+    }
+
+    const platform = readString(row, ["platform"]);
+    const first = readOptionalNumber(row, ["comment_count"]);
+    const second = readOptionalNumber(row, ["high_intent_comment_count"]);
+    return platform && first !== undefined && second !== undefined
+      ? [{ label: platform, first, second }]
+      : [];
+  });
+}
+
+export function mapF7Rows(data: Array<Record<string, unknown>>): StackedValueRow[] {
+  const fields = [
+    ["advantage_count", "优势"],
+    ["disadvantage_count", "劣势"],
+    ["neutral_count", "中性"],
+    ["unclear_count", "不明确"],
+  ] as const;
+
+  return data.flatMap((row) => {
+    const label = readString(row, ["dimension"]);
+    const segments = fields.flatMap(([key, segmentLabel]) => {
+      const value = readOptionalNumber(row, [key]);
+      return value === undefined ? [] : [{ label: segmentLabel, value }];
+    });
+    return label && segments.length ? [{ label, segments }] : [];
+  });
+}
+
+export function mapF8Points(data: Array<Record<string, unknown>>): ScatterPoint[] {
+  return data.flatMap((row) => {
+    const label = readString(row, ["platform"]);
+    const x = readOptionalNumber(row, ["total_volume"]);
+    const y = readOptionalNumber(row, ["engagement_per_content"]);
+    return label && x !== undefined && y !== undefined ? [{ label, x, y }] : [];
+  });
+}
+
+export function proportionalLength(value: number, maxValue: number, length: number): number {
+  return maxValue > 0 ? (Math.max(0, value) / maxValue) * length : 0;
+}
+
+export function boundedUnitCount(value: number, maxValue: number, limit = 80): number {
+  if (value <= 0 || maxValue <= 0) return 0;
+  return Math.min(limit, Math.max(1, Math.round((value / maxValue) * limit)));
 }
 
 function ChartMotionStyles() {
   return (
     <style>{`
       .report-chart-reveal { animation: report-chart-reveal 480ms ease-out both; }
+      .report-chart-point:focus-visible { outline: none; }
+      .report-chart-point:focus-visible circle {
+        stroke: var(--theme-ink);
+        stroke-width: 2;
+      }
       @keyframes report-chart-reveal { from { opacity: 0; transform: translateY(3px); } }
       @media (prefers-reduced-motion: reduce) {
         .report-chart-reveal { animation: none; }
@@ -222,22 +319,19 @@ export function F4TickDonut({ chart }: BasicsChartProps) {
 }
 
 export function F5TickRows({ chart }: BasicsChartProps) {
-  const rows = chart.data.map((row, index) => ({
-    label: readLabel(row, index),
-    value: readNumber(row, valueKeys),
-  }));
+  const rows = mapF5Rows(chart.data);
   const maxValue = Math.max(1, ...rows.map((row) => row.value));
   const rowHeight = Math.min(42, 210 / Math.max(1, rows.length));
   const availableWidth = 230;
 
   return (
-    <ReportVisualShell chart={chart}>
+    <ReportVisualShell chart={chart} hasData={rows.length > 0}>
       <svg viewBox="0 0 400 280" role="img" aria-label={`${chart.title}横向条形图`}>
         <ChartMotionStyles />
         {rows.map((row, rowIndex) => {
           const y = 30 + rowIndex * rowHeight;
-          const width = (row.value / maxValue) * availableWidth;
-          const ticks = Math.max(0, Math.round(row.value));
+          const width = proportionalLength(row.value, maxValue, availableWidth);
+          const ticks = boundedUnitCount(row.value, maxValue);
           return (
             <g key={`${row.label}-${rowIndex}`}>
               <text x="92" y={y + 4} textAnchor="end" fontSize="9" fill={theme.body}>
@@ -267,18 +361,14 @@ export function F5TickRows({ chart }: BasicsChartProps) {
 }
 
 export function F6PairedRungs({ chart }: BasicsChartProps) {
-  const rows = chart.data.map((row, index) => ({
-    label: readLabel(row, index),
-    first: readNumber(row, ["primary", "positive_rate", "total_feedback", "first", "value"]),
-    second: readNumber(row, ["secondary", "negative_rate", "sales_leads", "second", "count"]),
-  }));
+  const rows = mapF6Rows(chart.data);
   const maxValue = Math.max(1, ...rows.flatMap((row) => [row.first, row.second]));
   const base = 230;
   const rungHeight = 165;
   const columnWidth = 320 / Math.max(1, rows.length);
 
   return (
-    <ReportVisualShell chart={chart}>
+    <ReportVisualShell chart={chart} hasData={rows.length > 0}>
       <svg viewBox="0 0 400 280" role="img" aria-label={`${chart.title}双系列比较图`}>
         <ChartMotionStyles />
         <line x1="30" y1={base + 4} x2="370" y2={base + 4} stroke={theme.border} />
@@ -290,8 +380,8 @@ export function F6PairedRungs({ chart }: BasicsChartProps) {
                 { value: row.first, x: center - 10, color: theme.secondary },
                 { value: row.second, x: center + 10, color: theme.primary },
               ].map((series, seriesIndex) => {
-                const rungCount = Math.max(0, Math.round(series.value));
-                const height = (series.value / maxValue) * rungHeight;
+                const rungCount = boundedUnitCount(series.value, maxValue);
+                const height = proportionalLength(series.value, maxValue, rungHeight);
                 return (
                   <g key={seriesIndex}>
                     {Array.from({ length: rungCount }, (_, rungIndex) => {
@@ -333,17 +423,14 @@ export function F6PairedRungs({ chart }: BasicsChartProps) {
 }
 
 export function F7StackedRungs({ chart }: BasicsChartProps) {
-  const rows = chart.data.map((row, index) => ({
-    label: readLabel(row, index),
-    segments: segmentValues(row),
-  }));
+  const rows = mapF7Rows(chart.data);
   const colors = [theme.primary, theme.secondary, theme.ink, theme.muted];
   const rowHeight = Math.min(44, 210 / Math.max(1, rows.length));
   const left = 108;
   const availableWidth = 250;
 
   return (
-    <ReportVisualShell chart={chart}>
+    <ReportVisualShell chart={chart} hasData={rows.length > 0}>
       <svg viewBox="0 0 400 280" role="img" aria-label={`${chart.title}堆叠条形图`}>
         <ChartMotionStyles />
         {rows.map((row, rowIndex) => {
@@ -388,11 +475,7 @@ export function F7StackedRungs({ chart }: BasicsChartProps) {
 }
 
 export function F8PlumbScatter({ chart }: BasicsChartProps) {
-  const points = chart.data.map((row, index) => ({
-    label: readLabel(row, index),
-    x: readNumber(row, ["x", "x_value", "scale", "total_volume", "volume"]),
-    y: readNumber(row, ["y", "y_value", "efficiency", "rate", "feedback_rate"]),
-  }));
+  const points = mapF8Points(chart.data);
   const xMax = Math.max(1, ...points.map((point) => point.x));
   const yMax = Math.max(1, ...points.map((point) => point.y));
   const left = 48;
@@ -403,7 +486,7 @@ export function F8PlumbScatter({ chart }: BasicsChartProps) {
   const mapY = (value: number) => base - (value / yMax) * (base - top);
 
   return (
-    <ReportVisualShell chart={chart}>
+    <ReportVisualShell chart={chart} hasData={points.length > 0}>
       <svg viewBox="0 0 400 280" role="img" aria-label={`${chart.title}散点图`}>
         <ChartMotionStyles />
         {Array.from({ length: 21 }, (_, index) => {
@@ -429,7 +512,7 @@ export function F8PlumbScatter({ chart }: BasicsChartProps) {
               tabIndex={0}
               role="img"
               aria-label={`${point.label}，X ${point.x}，Y ${point.y}`}
-              className="report-chart-reveal outline-none"
+              className="report-chart-point report-chart-reveal"
             >
               <title>{`${point.label}：X ${point.x} · Y ${point.y}`}</title>
               <line x1={x} x2={x} y1={base} y2={y} stroke={theme.muted} strokeWidth="0.7" />

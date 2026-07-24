@@ -2297,6 +2297,13 @@ def test_event_report_uses_shared_svg_registry_and_keeps_legacy_chart_fallback()
     assert "report.charts.map(renderStructuredReportChart)" in source
 
 
+def test_event_report_view_toggle_exposes_pressed_state() -> None:
+    source = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert 'aria-pressed={reportViewMode === "dashboard"}' in source
+    assert 'aria-pressed={reportViewMode === "report"}' in source
+
+
 def test_event_report_mixed_svg_and_legacy_charts_render_in_input_order() -> None:
     script = r"""
 const fs = require("fs");

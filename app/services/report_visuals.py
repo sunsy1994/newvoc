@@ -322,7 +322,15 @@ def build_product_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]
     ]
     evidence_rows = _renderable_pko_rows(_rows(pko.get("evidence_comments")))
     evidence = _pko_evidence(evidence_rows)
-    evidence_meta = {"displayed_count": len(evidence), "total_count": len(evidence_rows), "unit": "条对比评论"}
+    raw_total_count = pko.get("evidence_total_count")
+    total_count = (
+        raw_total_count
+        if isinstance(raw_total_count, int)
+        and not isinstance(raw_total_count, bool)
+        and len(evidence_rows) <= raw_total_count <= MAX_SAFE_INTEGER
+        else len(evidence_rows)
+    )
+    evidence_meta = {"displayed_count": len(evidence), "total_count": total_count, "unit": "条对比评论"}
     if not evidence:
         evidence_meta["empty_reason"] = "暂无可用数据"
     chart_data = [

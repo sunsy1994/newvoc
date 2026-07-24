@@ -1400,6 +1400,7 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "dimension_distribution": dimension_distribution,
         "result_distribution": result_distribution,
         "dimension_result_matrix": dimension_result_matrix[:6],
+        "evidence_total_count": len(renderable_evidence),
         "evidence_comments": evidence_comments[:50],
     }
 

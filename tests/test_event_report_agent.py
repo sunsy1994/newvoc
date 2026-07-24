@@ -128,6 +128,76 @@ def test_saved_event_report_restores_fixed_charts_unchanged() -> None:
     assert [chart["template_id"] for chart in restored["summary"]["structured_report"]["charts"]] == ["F3", "L14", "F6", "L13"]
 
 
+def test_event_report_maps_bounded_llm_section_summaries_to_renderable_charts() -> None:
+    from app.agents.report import builder
+
+    market = sample_market_context()
+    market["feedback_quality"]["sentiment_distribution"] = [
+        {"label": "正向", "rate": 60},
+        {"label": "负向", "rate": 40},
+    ]
+    sales = sample_sales_context()
+    sales["lead_quality"]["summary"].update(
+        {
+            "labeled_comment_count": 100,
+            "vehicle_related_count": 80,
+            "sales_intent_comment_count": 40,
+        }
+    )
+    report = builder.build_event_report_payload(
+        event_id="event_001",
+        market_context=market,
+        product_context=sample_product_context(),
+        sales_context=sales,
+        llm_summary={
+            "executive_summary": ["总判断"],
+            "sections": [
+                {"title": "市场传播", "summary": "市场判断" * 100},
+                {"title": "产品反馈", "summary": "产品判断"},
+                {"title": "销售线索", "summary": "销售判断"},
+            ],
+        },
+    )
+
+    charts = report["summary"]["structured_report"]["charts"]
+    assert charts[0]["insight"] == charts[1]["insight"]
+    assert charts[0]["insight"].startswith("市场判断")
+    assert len(charts[0]["insight"]) <= 160
+    assert charts[2]["insight"] == "产品判断"
+    assert charts[3]["insight"] == "销售判断"
+    assert charts[0]["data"] == market["volume_trend"]
+
+
+def test_event_report_drops_invalid_or_ungrounded_chart_insights() -> None:
+    from app.agents.report import builder
+
+    market = sample_market_context()
+    market["volume_trend"] = []
+    market["feedback_quality"]["sentiment_distribution"] = [
+        {"label": "正向", "rate": 60},
+        {"label": "负向", "rate": 40},
+    ]
+    report = builder.build_event_report_payload(
+        event_id="event_001",
+        market_context=market,
+        product_context=sample_product_context(),
+        sales_context=sample_sales_context(),
+        llm_summary={
+            "sections": [
+                {"title": "市场传播", "summary": "无数据也声称增长"},
+                {"title": "产品反馈", "summary": {"unsafe": "value"}},
+                {"title": "销售线索", "summary": ["unsafe"]},
+            ],
+        },
+    )
+
+    charts = report["summary"]["structured_report"]["charts"]
+    assert charts[0]["insight"] == ""
+    assert charts[1]["insight"] == "无数据也声称增长"
+    assert charts[2]["insight"] == ""
+    assert charts[3]["insight"] == ""
+
+
 def test_report_agent_dispatcher_runs_event_report(monkeypatch) -> None:
     from app.agents.core import dispatcher
 

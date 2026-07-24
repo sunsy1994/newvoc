@@ -8,18 +8,27 @@
 
 | 检查 | 命令 | 结果 |
 | --- | --- | --- |
-| 后端全量测试 | `python -m pytest -q -p no:cacheprovider` | exit 0；332 passed；1 个既有 LangGraph pending-deprecation warning |
+| 后端全量测试 | `python -m pytest -q -p no:cacheprovider` | exit 0；336 passed；1 个既有 LangGraph pending-deprecation warning |
 | 前端类型检查 | `npm run typecheck`（`frontend`） | exit 0 |
 | 前端生产构建 | `npm run build`（`frontend`） | exit 0；编译成功；30/30 静态页面生成成功 |
 | 外部图表运行时扫描 | `rg -n "echarts\|chart\\.js\|cdn\\.jsdelivr\|dangerouslySetInnerHTML\|eval\\(" frontend/src/components/voc/report-visuals` | 无匹配 |
 | diff 格式检查 | `git diff --check` | exit 0；仅 Windows LF/CRLF 提示 |
 | PKO 稳定排序 | `test_l12_uses_comment_id_as_stable_tie_breaker` | 通过；互动量和发布时间相同时按 `comment_id` 升序 |
+| PKO 真实总数 | `test_product_pko_real_report_path_keeps_up_to_fifty_renderable_records` | 通过；生产链路保留真实总数 60，确定性展示 50 |
+| L12 缓存 meta | `test_l12_cache_meta_keeps_real_total_larger_than_displayed_data` | 通过；接受 `displayed_count=50/total_count=60`，拒绝总数小于展示数 |
+| 事件图表叙事 | 两个 event report insight 测试 | 通过；固定映射、160 字上限、非字符串拒绝、空图不采用 LLM 推断 |
+| 事件模式切换 | `test_event_report_view_toggle_exposes_pressed_state` | 通过；看板/报告按钮暴露 `aria-pressed` |
 | 混合图表 SSR | `test_event_report_mixed_svg_and_legacy_charts_render_in_input_order` | 通过；SVG 与旧版图表保持输入顺序并由同一入口渲染 |
 | 空状态 | `test_missing_data_stays_empty` 及九模板 renderability 参数化测试 | 通过；无业务数据时保留固定模板、给出 `empty_reason`，不生成演示数据 |
 
 混合图表测试严格按 RED/GREEN 执行：新增测试首先因
 `renderStructuredReportChart is not a function` 失败；导出最小统一渲染函数并复用到
 `StructuredReportView` 后通过。
+
+终审修复同样按 RED/GREEN 执行：新增的 PKO 真实总数、事件图表叙事与
+`aria-pressed` 测试最初共 4 项失败，最小实现后全部通过。事件图表叙事固定映射为
+F3/L14 使用市场章节、F6 使用产品章节、L13 使用销售章节；只有对应图表数据满足
+SVG 渲染契约时才写入受限长度的 LLM 短结论，图表数值与 meta 仍全部来自确定性代码。
 
 ## 真实数据与服务检查
 

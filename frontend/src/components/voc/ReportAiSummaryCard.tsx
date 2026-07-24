@@ -543,6 +543,7 @@ export function StructuredReportView({ report }: { report: StructuredReport }) {
             <button
               type="button"
               onClick={() => setReportViewMode("dashboard")}
+              aria-pressed={reportViewMode === "dashboard"}
               className={`rounded-lg px-3 py-1.5 transition ${reportViewMode === "dashboard" ? "bg-[var(--theme-primary)] text-white" : "text-[var(--theme-body)] hover:bg-[var(--theme-hover-bg)]"}`}
             >
               看板模式
@@ -550,6 +551,7 @@ export function StructuredReportView({ report }: { report: StructuredReport }) {
             <button
               type="button"
               onClick={() => setReportViewMode("report")}
+              aria-pressed={reportViewMode === "report"}
               className={`rounded-lg px-3 py-1.5 transition ${reportViewMode === "report" ? "bg-[var(--theme-primary)] text-white" : "text-[var(--theme-body)] hover:bg-[var(--theme-hover-bg)]"}`}
             >
               报告模式

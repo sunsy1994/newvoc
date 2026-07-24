@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from app.services.report_visuals import build_event_report_charts
+from app.services.report_visuals import build_event_report_charts, has_renderable_data
+
+
+MAX_CHART_INSIGHT_LENGTH = 160
 
 
 def _get(source: dict[str, Any], path: str, default: Any = None) -> Any:
@@ -84,6 +87,56 @@ def _template_card(title: str, body: str, bullets: list[str], badge: str = "") -
         "body": body,
         "bullets": [item for item in bullets if item][:4],
     }
+
+
+def _bounded_text(value: Any, limit: int = MAX_CHART_INSIGHT_LENGTH) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()[:limit]
+
+
+def _event_chart_insights(llm_summary: dict[str, Any]) -> dict[str, str]:
+    sections = llm_summary.get("sections")
+    if not isinstance(sections, list):
+        return {}
+    by_view: dict[str, str] = {}
+    candidates: list[tuple[str, str]] = []
+    for section in sections[:3]:
+        if not isinstance(section, dict):
+            candidates.append(("", ""))
+            continue
+        summary = _bounded_text(section.get("summary"))
+        if not summary:
+            candidates.append(("", ""))
+            continue
+        title = section.get("title") if isinstance(section.get("title"), str) else ""
+        if "市场" in title or "传播" in title:
+            view = "market"
+        elif "产品" in title:
+            view = "product"
+        elif "销售" in title or "线索" in title:
+            view = "sales"
+        else:
+            view = ""
+        candidates.append((view, summary))
+        if view:
+            by_view.setdefault(view, summary)
+    for index, view in enumerate(("market", "product", "sales")):
+        if view not in by_view and index < len(candidates):
+            summary = candidates[index][1]
+            if summary:
+                by_view[view] = summary
+    return by_view
+
+
+def _apply_event_chart_insights(
+    charts: list[dict[str, Any]],
+    llm_summary: dict[str, Any],
+) -> None:
+    insights = _event_chart_insights(llm_summary)
+    chart_views = ("market", "market", "product", "sales")
+    for chart, view in zip(charts, chart_views):
+        chart["insight"] = insights.get(view, "") if has_renderable_data(chart) else ""
 
 
 def _template_sections(
@@ -262,6 +315,7 @@ def build_event_report_payload(
     event = _event_overview(market_context, product_context, sales_context)
     title = f"{event.get('event_name') or event_id}事件综合报告"
     charts = build_event_report_charts(market_context, product_context, sales_context)
+    _apply_event_chart_insights(charts, llm_summary)
     evidence_chart = _evidence_table(market_context, product_context, sales_context)
     structured_report = {
         "title": title,

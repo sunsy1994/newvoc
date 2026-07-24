@@ -129,12 +129,14 @@ def test_product_pko_real_report_path_keeps_up_to_fifty_renderable_records() -> 
     chart = build_product_report_charts(context)[3]
 
     assert len(story["evidence_comments"]) == 50
+    assert story["evidence_total_count"] == 60
     assert len(context["pko"]["evidence_comments"]) == 50
+    assert context["pko"]["evidence_total_count"] == 60
     assert len(context["evidence_comments"]) == 50
     assert len(chart["data"]) == 50
     assert chart["meta"] == {
         "displayed_count": 50,
-        "total_count": 50,
+        "total_count": 60,
         "unit": "条对比评论",
     }
 

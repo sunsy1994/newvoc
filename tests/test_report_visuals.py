@@ -320,3 +320,24 @@ def test_non_l12_cache_meta_allows_only_fixed_safe_shapes(template_id):
 
 def test_cache_meta_rejects_unknown_template():
     assert normalize_report_chart_meta("UNKNOWN", [], {}) is None
+
+
+def test_l12_cache_meta_keeps_real_total_larger_than_displayed_data():
+    data = [
+        {
+            "comment_id": f"c-{index:03d}",
+            "target": "竞品A",
+            "dimension": "空间",
+            "result_bucket": "advantage",
+            "comment_text": f"原声 {index}",
+        }
+        for index in range(50)
+    ]
+    meta = {"displayed_count": 50, "total_count": 60, "unit": "条对比评论"}
+
+    assert normalize_report_chart_meta("L12", data, meta) == meta
+    assert normalize_report_chart_meta(
+        "L12",
+        data,
+        {"displayed_count": 50, "total_count": 49, "unit": "条对比评论"},
+    ) is None

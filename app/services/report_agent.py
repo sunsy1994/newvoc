@@ -315,6 +315,7 @@ def build_product_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
             "dimension_distribution": (pko_story.get("dimension_distribution") or [])[:8],
             "result_distribution": pko_story.get("result_distribution") or [],
             "dimension_result_matrix": (pko_story.get("dimension_result_matrix") or [])[:8],
+            "evidence_total_count": pko_story.get("evidence_total_count"),
             "evidence_comments": pko_evidence,
         },
         "evidence_comments": evidence_comments[:50],

@@ -31,7 +31,23 @@ const REPORT_CHARTS = {
   L14: L14HundredField,
 } satisfies Record<ReportTemplateId, ComponentType<ChartProps>>;
 
+export function isReportTemplateId(value: unknown): value is ReportTemplateId {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(REPORT_CHARTS, value);
+}
+
 export function ReportChartRegistry({ chart }: ChartProps) {
-  const Chart = REPORT_CHARTS[chart.template_id];
+  const templateId = (chart as { template_id?: unknown } | null)?.template_id;
+  if (!isReportTemplateId(templateId)) {
+    return (
+      <section
+        role="status"
+        className="rounded-2xl border border-dashed border-[var(--theme-border)] bg-[var(--theme-white)] p-8 text-center text-sm text-[var(--theme-muted)]"
+      >
+        暂不支持该图表模板
+      </section>
+    );
+  }
+
+  const Chart = REPORT_CHARTS[templateId];
   return <Chart chart={chart} />;
 }

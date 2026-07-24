@@ -65,7 +65,10 @@ def sample_market_dashboard() -> dict:
                 "mid_high_purchase_signal_rate": 19.8,
                 "rule_based_conclusion": "Users discussed appearance with visible purchase signals.",
             },
-            "sentiment_distribution": [{"label": "positive", "count": 120, "rate": 52.4}],
+            "sentiment_distribution": [
+                {"label": "positive", "count": 120, "rate": 52.4},
+                {"label": "other", "count": 109, "rate": 47.6},
+            ],
             "purchase_signal_distribution": [{"label": "strong", "count": 18, "rate": 7.1}],
         },
         "user_profile_distribution": [{"main_label": "family travel", "user_cnt": 51}],
@@ -258,7 +261,7 @@ def test_run_market_report_agent_falls_back_to_builtin_prompt(monkeypatch) -> No
     ]
 
 
-def test_resolve_market_report_prompt_upgrades_any_incompatible_contract(monkeypatch) -> None:
+def test_resolve_market_report_prompt_preserves_custom_content_and_appends_v2_contract(monkeypatch) -> None:
     from app.services import report_agent
 
     monkeypatch.setattr(
@@ -272,9 +275,37 @@ def test_resolve_market_report_prompt_upgrades_any_incompatible_contract(monkeyp
 
     prompt, version = report_agent.resolve_market_report_prompt()
 
-    assert version == "market_report_summary_v2"
-    assert prompt == report_agent.DEFAULT_MARKET_REPORT_PROMPT
-    assert "report_markdown" not in prompt
+    assert version == "custom_market_report_v1"
+    assert prompt.startswith('Return {"report_markdown": ""}')
+    assert report_agent.REPORT_PROMPT_CONTRACT_MARKER in prompt
+    assert '"headline"' in prompt
+    assert '"executive_summary"' in prompt
+    assert '"market_rhythm"' in prompt
+
+
+def test_custom_prompt_cannot_bypass_fixed_contract_by_mentioning_all_fields(monkeypatch) -> None:
+    from app.services import report_agent
+
+    custom = (
+        '{"headline":"","executive_summary":"","section_insights":'
+        '{"market_rhythm":"","market_topics":"","market_platforms":"","market_feedback":""},'
+        '"data_notes":[],"structured_report":{"charts":[]}}'
+    )
+    monkeypatch.setattr(
+        report_agent,
+        "get_default_prompt_template",
+        lambda scene, database_url=None: {
+            "prompt_version": "custom_market_v7",
+            "prompt_content": custom,
+        },
+    )
+
+    prompt, version = report_agent.resolve_market_report_prompt()
+
+    assert version == "custom_market_v7"
+    assert prompt.startswith(custom)
+    assert report_agent.REPORT_PROMPT_CONTRACT_MARKER in prompt
+    assert "不得输出 report_markdown、structured_report 或图表数据" in prompt
 
 
 def test_build_report_summary_rejects_llm_insight_when_chart_data_is_empty() -> None:
@@ -306,6 +337,94 @@ def test_build_report_summary_rejects_llm_insight_when_chart_data_is_empty() -> 
 
     assert summary["report_narrative"]["section_insights"]["market_rhythm"] == ""
     assert summary["structured_report"]["charts"][0]["insight"] == ""
+    assert summary["report_narrative"]["headline"] == "暂无可用报告数据"
+    assert summary["report_narrative"]["executive_summary"] == "当前数据不足，无法生成可靠报告结论。"
+
+
+def test_build_report_summary_rejects_all_llm_copy_when_nonempty_chart_cannot_render() -> None:
+    from app.services.report_agent import build_report_summary
+
+    summary = build_report_summary(
+        {
+            "headline": "虚构的平台优势",
+            "executive_summary": "虚构的摘要",
+            "section_insights": {"market_platforms": "虚构的效率判断"},
+            "data_notes": [],
+        },
+        [
+            {
+                "chart_id": "market-platform-efficiency",
+                "template_id": "F8",
+                "title": "平台传播效率",
+                "subtitle": "规模与反馈效率",
+                "insight": "",
+                "source_label": "platform.platform_efficiency",
+                "data": [{"platform": "抖音", "total_volume": 20}],
+                "meta": {},
+            }
+        ],
+        ("market_platforms",),
+        {"market_platforms": "平台数据不足。"},
+        {"market-platform-efficiency": "market_platforms"},
+    )
+
+    assert summary["report_narrative"] == {
+        "headline": "暂无可用报告数据",
+        "executive_summary": "当前数据不足，无法生成可靠报告结论。",
+        "section_insights": {"market_platforms": "平台数据不足。"},
+        "data_notes": [],
+    }
+    assert summary["structured_report"]["charts"][0]["insight"] == "平台数据不足。"
+
+
+def test_normalize_report_narrative_rejects_non_strings_and_caps_lengths() -> None:
+    from app.services import report_agent
+
+    narrative = report_agent.normalize_report_narrative(
+        {
+            "headline": {"claim": "不得字符串化"},
+            "executive_summary": ["不得", "字符串化"],
+            "section_insights": {
+                "market_rhythm": {"claim": "不得字符串化"},
+                "market_topics": "话" * (report_agent.MAX_REPORT_SECTION_INSIGHT_LENGTH + 20),
+            },
+            "data_notes": [
+                {"note": "不得字符串化"},
+                42,
+                *[
+                    f"说明{index}" + "长" * report_agent.MAX_REPORT_DATA_NOTE_LENGTH
+                    for index in range(report_agent.MAX_REPORT_DATA_NOTES + 3)
+                ],
+            ],
+        },
+        ("market_rhythm", "market_topics"),
+        {"market_rhythm": "规则结论"},
+    )
+
+    assert narrative["headline"] == ""
+    assert narrative["executive_summary"] == ""
+    assert narrative["section_insights"]["market_rhythm"] == "规则结论"
+    assert len(narrative["section_insights"]["market_topics"]) == report_agent.MAX_REPORT_SECTION_INSIGHT_LENGTH
+    assert len(narrative["data_notes"]) == report_agent.MAX_REPORT_DATA_NOTES
+    assert all(isinstance(note, str) for note in narrative["data_notes"])
+    assert all(len(note) <= report_agent.MAX_REPORT_DATA_NOTE_LENGTH for note in narrative["data_notes"])
+
+    bounded = report_agent.normalize_report_narrative(
+        {
+            "headline": "标" * (report_agent.MAX_REPORT_HEADLINE_LENGTH + 20),
+            "executive_summary": "摘"
+            * (report_agent.MAX_REPORT_EXECUTIVE_SUMMARY_LENGTH + 20),
+            "section_insights": {},
+            "data_notes": [],
+        },
+        (),
+        {},
+    )
+    assert len(bounded["headline"]) == report_agent.MAX_REPORT_HEADLINE_LENGTH
+    assert (
+        len(bounded["executive_summary"])
+        == report_agent.MAX_REPORT_EXECUTIVE_SUMMARY_LENGTH
+    )
 
 
 def test_normalize_cached_v1_report_keeps_markdown_without_inventing_charts() -> None:
@@ -356,6 +475,248 @@ def test_normalize_partial_cached_report_prefers_legacy_markdown_without_empty_c
     assert "structured_report" not in result["summary"]
 
 
+def test_normalize_partial_v2_shaped_cache_does_not_hide_legacy_markdown() -> None:
+    from app.services.report_agent import normalize_cached_report_row
+
+    result = normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": "market_report_summary_v2",
+            "summary_json": {
+                "report_markdown": "# Cached Market Report",
+                "data_notes": [],
+                "report_narrative": {},
+                "structured_report": {"charts": []},
+            },
+            "context_json": {},
+            "rendered_prompt": "Cached prompt",
+        }
+    )
+
+    assert result["summary"] == {
+        "report_markdown": "# Cached Market Report",
+        "data_notes": [],
+    }
+
+
+def test_normalize_cache_with_unknown_template_does_not_hide_legacy_markdown() -> None:
+    from app.services.report_agent import normalize_cached_report_row
+
+    result = normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": "market_report_summary_v2",
+            "summary_json": {
+                "report_markdown": "# Cached Market Report",
+                "data_notes": [],
+                "report_narrative": {
+                    "headline": "历史标题",
+                    "executive_summary": "历史摘要",
+                    "section_insights": {
+                        "market_rhythm": "节奏",
+                        "market_topics": "话题",
+                        "market_platforms": "平台",
+                        "market_feedback": "反馈",
+                    },
+                    "data_notes": [],
+                },
+                "structured_report": {
+                    "charts": [
+                        {
+                            "chart_id": "market-volume-trend",
+                            "template_id": "UNKNOWN",
+                            "title": "错误模板",
+                            "subtitle": "",
+                            "insight": "",
+                            "source_label": "",
+                            "data": [],
+                            "meta": {"empty_reason": "暂无可用数据"},
+                        },
+                        {
+                            "chart_id": "market-hot-topics",
+                            "template_id": "F5",
+                            "title": "热门话题结构",
+                            "subtitle": "按讨论量展示",
+                            "insight": "话题",
+                            "source_label": "hot_topics.topics",
+                            "data": [{"topic": "外观", "comment_count": 8}],
+                            "meta": {},
+                        },
+                        {
+                            "chart_id": "market-platform-efficiency",
+                            "template_id": "F8",
+                            "title": "平台传播效率",
+                            "subtitle": "规模与反馈效率",
+                            "insight": "平台",
+                            "source_label": "platform.platform_efficiency",
+                            "data": [
+                                {
+                                    "platform": "抖音",
+                                    "total_volume": 20,
+                                    "engagement_per_content": 6,
+                                }
+                            ],
+                            "meta": {},
+                        },
+                        {
+                            "chart_id": "market-feedback-sentiment",
+                            "template_id": "L14",
+                            "title": "用户反馈构成",
+                            "subtitle": "情感分布",
+                            "insight": "反馈",
+                            "source_label": "feedback_quality.sentiment_distribution",
+                            "data": [
+                                {"label": "正向", "rate": 70},
+                                {"label": "负向", "rate": 30},
+                            ],
+                            "meta": {},
+                        },
+                    ]
+                },
+            },
+            "context_json": {},
+            "rendered_prompt": "Cached prompt",
+        }
+    )
+
+    assert result["summary"]["report_markdown"] == "# Cached Market Report"
+    assert "structured_report" not in result["summary"]
+
+
+def test_known_v2_prompt_version_cannot_restore_another_department_contract() -> None:
+    from app.services.report_agent import normalize_cached_report_row
+    from app.services.report_visuals import build_product_report_charts
+
+    charts = build_product_report_charts(
+        {
+            "product_focus": {
+                "aspects": [
+                    {
+                        "aspect": "外观",
+                        "mention_rate": 50,
+                        "positive_rate": 70,
+                        "negative_rate": 10,
+                    }
+                ]
+            },
+            "product_opportunity": {
+                "surprise_points": [
+                    {"aspect": "外观", "opportunity_score": 20},
+                ]
+            },
+            "pko": {
+                "evidence_comments": [
+                    {
+                        "comment_id": "pko-1",
+                        "target": "竞品A",
+                        "dimension": "空间",
+                        "result": "优势",
+                        "comment_text": "空间更好",
+                    }
+                ],
+                "dimension_result_matrix": [
+                    {"dimension": "空间", "advantage_count": 1},
+                ],
+            },
+        }
+    )
+    result = normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": "market_report_summary_v2",
+            "summary_json": {
+                "report_markdown": "# 保留市场部历史报告",
+                "report_narrative": {
+                    "headline": "产品标题",
+                    "executive_summary": "产品摘要",
+                    "section_insights": {
+                        "product_focus": "关注点",
+                        "product_sentiment": "情感",
+                        "product_opportunity": "机会",
+                        "product_pko_relationships": "关系",
+                        "product_pko_results": "结果",
+                    },
+                    "data_notes": [],
+                },
+                "structured_report": {"charts": charts},
+            },
+        }
+    )
+
+    assert result["summary"]["report_markdown"] == "# 保留市场部历史报告"
+    assert "structured_report" not in result["summary"]
+
+
+def test_cached_chart_with_mixed_invalid_rows_falls_back_to_markdown() -> None:
+    from app.services.report_agent import normalize_cached_report_row
+    from app.services.report_visuals import build_market_report_charts
+
+    charts = build_market_report_charts(
+        {
+            "volume_trend": [{"date": "2026-07-01", "total_volume": 12}],
+            "hot_topics": {"topics": [{"topic": "外观", "comment_count": 8}]},
+            "platform": {
+                "platform_efficiency": [
+                    {
+                        "platform": "抖音",
+                        "total_volume": 20,
+                        "engagement_per_content": 6,
+                    }
+                ]
+            },
+            "feedback_quality": {
+                "sentiment_distribution": [
+                    {"label": "正向", "rate": 70},
+                    {"label": "负向", "rate": 30},
+                ]
+            },
+        }
+    )
+    charts[2]["data"].append({"platform": "缺少二维坐标"})
+    result = normalize_cached_report_row(
+        {
+            "event_id": "event_001",
+            "prompt_version": "market_report_summary_v2",
+            "summary_json": {
+                "report_markdown": "# 保留历史报告",
+                "report_narrative": {
+                    "headline": "历史标题",
+                    "executive_summary": "历史摘要",
+                    "section_insights": {
+                        "market_rhythm": "节奏",
+                        "market_topics": "话题",
+                        "market_platforms": "平台",
+                        "market_feedback": "反馈",
+                    },
+                    "data_notes": [],
+                },
+                "structured_report": {"charts": charts},
+            },
+        }
+    )
+
+    assert result["summary"]["report_markdown"] == "# 保留历史报告"
+    assert "structured_report" not in result["summary"]
+
+
+def test_cached_chart_requires_fixed_system_metadata() -> None:
+    from app.services import report_agent
+    from app.services.report_visuals import build_market_report_charts
+
+    chart = build_market_report_charts(
+        {"volume_trend": [{"date": "2026-07-01", "total_volume": 12}]}
+    )[0]
+    chart["title"] = ""
+
+    assert (
+        report_agent._valid_cached_chart(
+            chart,
+            *report_agent.MARKET_REPORT_CHART_CONTRACT[0],
+        )
+        is False
+    )
+
+
 def test_normalize_cached_v2_report_restores_saved_narrative_and_charts() -> None:
     from app.services.report_agent import normalize_cached_report_row
 
@@ -363,7 +724,12 @@ def test_normalize_cached_v2_report_restores_saved_narrative_and_charts() -> Non
         "report_narrative": {
             "headline": "历史标题",
             "executive_summary": "历史摘要",
-            "section_insights": {"market_rhythm": "历史节奏判断"},
+            "section_insights": {
+                "market_rhythm": "历史节奏判断",
+                "market_topics": "历史话题判断",
+                "market_platforms": "历史平台判断",
+                "market_feedback": "历史反馈判断",
+            },
             "data_notes": [],
         },
         "structured_report": {
@@ -377,7 +743,46 @@ def test_normalize_cached_v2_report_restores_saved_narrative_and_charts() -> Non
                     "source_label": "volume_trend",
                     "data": [{"date": "2026-05-17", "total_volume": 211}],
                     "meta": {},
-                }
+                },
+                {
+                    "chart_id": "market-hot-topics",
+                    "template_id": "F5",
+                    "title": "热门话题结构",
+                    "subtitle": "按讨论量展示",
+                    "insight": "历史话题判断",
+                    "source_label": "hot_topics.topics",
+                    "data": [{"topic": "外观", "comment_count": 8}],
+                    "meta": {},
+                },
+                {
+                    "chart_id": "market-platform-efficiency",
+                    "template_id": "F8",
+                    "title": "平台传播效率",
+                    "subtitle": "规模与反馈效率",
+                    "insight": "历史平台判断",
+                    "source_label": "platform.platform_efficiency",
+                    "data": [
+                        {
+                            "platform": "抖音",
+                            "total_volume": 20,
+                            "engagement_per_content": 6,
+                        }
+                    ],
+                    "meta": {},
+                },
+                {
+                    "chart_id": "market-feedback-sentiment",
+                    "template_id": "L14",
+                    "title": "用户反馈构成",
+                    "subtitle": "情感分布",
+                    "insight": "历史反馈判断",
+                    "source_label": "feedback_quality.sentiment_distribution",
+                    "data": [
+                        {"label": "正向", "rate": 70},
+                        {"label": "负向", "rate": 30},
+                    ],
+                    "meta": {},
+                },
             ]
         },
     }

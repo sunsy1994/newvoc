@@ -4,7 +4,10 @@ import { Bot, Check, Clipboard, Loader2, Sparkles, X } from "lucide-react";
 import { Fragment, useState } from "react";
 
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
-import { ReportChartRegistry } from "@/components/voc/report-visuals/ReportChartRegistry";
+import {
+  isReportTemplateId,
+  ReportChartRegistry,
+} from "@/components/voc/report-visuals/ReportChartRegistry";
 import { apiBaseUrl } from "@/config/navigation";
 import type {
   DepartmentReportAgentPayload,
@@ -29,8 +32,148 @@ type LoadingMode = "latest" | "generate" | "";
 type EventReportViewMode = "dashboard" | "report";
 type ReportViewMode = "summary" | "charts" | "evidence";
 
+type DepartmentReportPresentation =
+  | {
+      kind: "department";
+      reportNarrative: ReportNarrative;
+      structuredReport: DepartmentStructuredReport;
+    }
+  | { kind: "markdown"; reportMarkdown: string }
+  | { kind: "empty" };
+
+const DEPARTMENT_REPORT_CONTRACTS = [
+  {
+    sectionCodes: ["market_rhythm", "market_topics", "market_platforms", "market_feedback"],
+    charts: [
+      ["market-volume-trend", "F3"],
+      ["market-hot-topics", "F5"],
+      ["market-platform-efficiency", "F8"],
+      ["market-feedback-sentiment", "L14"],
+    ],
+  },
+  {
+    sectionCodes: [
+      "product_focus",
+      "product_sentiment",
+      "product_opportunity",
+      "product_pko_relationships",
+      "product_pko_results",
+    ],
+    charts: [
+      ["product-focus", "F5"],
+      ["product-sentiment", "F6"],
+      ["product-opportunity", "F5"],
+      ["product-pko-evidence", "L12"],
+      ["product-pko-matrix", "F7"],
+    ],
+  },
+  {
+    sectionCodes: ["sales_funnel", "sales_signals", "sales_intents", "sales_sources"],
+    charts: [
+      ["sales-lead-funnel", "L13"],
+      ["sales-purchase-signals", "F4"],
+      ["sales-intents", "F5"],
+      ["sales-source-efficiency", "F6"],
+    ],
+  },
+] as const;
+
 function buildUrl(path: string, eventId: string) {
   return `${apiBaseUrl}${path.replace("{eventId}", encodeURIComponent(eventId))}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isReportNarrative(value: unknown): value is ReportNarrative {
+  if (!isRecord(value) || !isRecord(value.section_insights)) return false;
+  return (
+    typeof value.headline === "string"
+    && typeof value.executive_summary === "string"
+    && Object.values(value.section_insights).every((item) => typeof item === "string")
+    && isStringList(value.data_notes)
+  );
+}
+
+function isDepartmentChart(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.meta) || !Array.isArray(value.data)) return false;
+  return (
+    typeof value.chart_id === "string"
+    && typeof value.template_id === "string"
+    && typeof value.title === "string"
+    && typeof value.subtitle === "string"
+    && typeof value.insight === "string"
+    && typeof value.source_label === "string"
+    && isReportTemplateId(value.template_id)
+    && value.data.every(isRecord)
+  );
+}
+
+function isEvidenceReference(value: unknown) {
+  return (
+    isRecord(value)
+    && typeof value.source === "string"
+    && typeof value.quote === "string"
+    && typeof value.source_path === "string"
+  );
+}
+
+function isCalculationNote(value: unknown) {
+  return isRecord(value) && typeof value.metric === "string" && typeof value.method === "string";
+}
+
+function isDepartmentStructuredReport(value: unknown): value is DepartmentStructuredReport {
+  if (!isRecord(value) || !Array.isArray(value.charts) || !value.charts.every(isDepartmentChart)) {
+    return false;
+  }
+  return (
+    (value.evidence_references === undefined
+      || (Array.isArray(value.evidence_references) && value.evidence_references.every(isEvidenceReference)))
+    && (value.calculation_notes === undefined
+      || (Array.isArray(value.calculation_notes) && value.calculation_notes.every(isCalculationNote)))
+  );
+}
+
+function matchingDepartmentSectionCodes(
+  structuredReport: DepartmentStructuredReport,
+): readonly string[] | undefined {
+  return DEPARTMENT_REPORT_CONTRACTS.find(
+    (contract) =>
+      contract.charts.length === structuredReport.charts.length
+      && contract.charts.every(
+        ([chartId, templateId], index) =>
+          structuredReport.charts[index]?.chart_id === chartId
+          && structuredReport.charts[index]?.template_id === templateId,
+      ),
+  )?.sectionCodes;
+}
+
+export function resolveDepartmentReportPresentation(summary: unknown): DepartmentReportPresentation {
+  if (!isRecord(summary)) return { kind: "empty" };
+  if (isReportNarrative(summary.report_narrative) && isDepartmentStructuredReport(summary.structured_report)) {
+    const sectionCodes = matchingDepartmentSectionCodes(summary.structured_report);
+    const narrativeCodes = Object.keys(summary.report_narrative.section_insights);
+    if (
+      sectionCodes
+      && narrativeCodes.length === sectionCodes.length
+      && sectionCodes.every((code) => narrativeCodes.includes(code))
+    ) {
+      return {
+        kind: "department",
+        reportNarrative: summary.report_narrative,
+        structuredReport: summary.structured_report,
+      };
+    }
+  }
+  if (typeof summary.report_markdown === "string" && summary.report_markdown) {
+    return { kind: "markdown", reportMarkdown: summary.report_markdown };
+  }
+  return { kind: "empty" };
 }
 
 function stripMarkdownFence(markdown: string) {
@@ -557,10 +700,12 @@ export function ReportAiSummaryCard({
   const [loadingMode, setLoadingMode] = useState<LoadingMode>("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const reportMarkdown = payload?.summary.report_markdown ?? "";
-  const reportNarrative = payload?.summary.report_narrative;
-  const structuredReport = payload?.summary.structured_report;
-  const dataNotes = reportNarrative?.data_notes ?? payload?.summary.data_notes ?? [];
+  const presentation = resolveDepartmentReportPresentation(payload?.summary);
+  const reportMarkdown = presentation.kind === "markdown" ? presentation.reportMarkdown : "";
+  const reportNarrative = presentation.kind === "department" ? presentation.reportNarrative : undefined;
+  const structuredReport = presentation.kind === "department" ? presentation.structuredReport : undefined;
+  const dataNotes = reportNarrative?.data_notes
+    ?? (isStringList(payload?.summary.data_notes) ? payload.summary.data_notes : []);
   const copyText = reportNarrative && structuredReport
     ? buildDepartmentCopyText(reportNarrative, structuredReport)
     : `${reportMarkdown}${dataNotes.length ? `\n\n数据说明：\n${dataNotes.map((note) => `- ${note}`).join("\n")}` : ""}`;

@@ -107,6 +107,107 @@ def test_build_product_report_context_keeps_product_story_sections() -> None:
     assert context["evidence_comments"][0]["comment_text"] == "和ID.4比，价格没优势。"
 
 
+def test_product_pko_real_report_path_keeps_up_to_fifty_renderable_records() -> None:
+    from app.services.event_voc_insights import build_product_pko_story
+    from app.services.report_agent import build_product_report_context
+    from app.services.report_visuals import build_product_report_charts
+
+    rows = [
+        {
+            "comment_id": f"pko-{index:03d}",
+            "target": f"竞品{index % 9}",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": f"真实评论 {index}",
+            "interaction_cnt": 100 - index,
+            "published_at": f"2026-07-{(index % 28) + 1:02d}",
+        }
+        for index in range(60)
+    ]
+    story = build_product_pko_story(rows)
+    context = build_product_report_context({"product_pko_story": story})
+    chart = build_product_report_charts(context)[3]
+
+    assert len(story["evidence_comments"]) == 50
+    assert len(context["pko"]["evidence_comments"]) == 50
+    assert len(context["evidence_comments"]) == 50
+    assert len(chart["data"]) == 50
+    assert chart["meta"] == {
+        "displayed_count": 50,
+        "total_count": 50,
+        "unit": "条对比评论",
+    }
+
+
+def test_product_pko_story_caps_after_removing_unrenderable_records() -> None:
+    from app.services.event_voc_insights import build_product_pko_story
+
+    invalid = [
+        {
+            "comment_id": f"invalid-{index:03d}",
+            "target": "竞品A",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": "",
+            "interaction_cnt": 200 - index,
+        }
+        for index in range(12)
+    ]
+    valid = [
+        {
+            "comment_id": f"valid-{index:03d}",
+            "target": "竞品A",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": f"真实评论 {index}",
+            "interaction_cnt": 100 - index,
+        }
+        for index in range(55)
+    ]
+
+    evidence = build_product_pko_story([*invalid, *valid])["evidence_comments"]
+
+    assert len(evidence) == 50
+    assert all(row["comment_id"].startswith("valid-") for row in evidence)
+
+
+def test_product_report_pko_uses_deterministic_top_fifty_not_target_diversity() -> None:
+    from app.services.event_voc_insights import build_product_pko_story
+    from app.services.report_agent import build_product_report_context
+
+    high_interaction = [
+        {
+            "comment_id": f"high-{index:03d}",
+            "target": "高频竞品",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": f"高互动评论 {index}",
+            "interaction_cnt": 200 - index,
+            "published_at": "2026-07-20",
+        }
+        for index in range(50)
+    ]
+    long_tail = [
+        {
+            "comment_id": f"tail-{index:03d}",
+            "target": f"长尾竞品 {index}",
+            "dimension": "空间",
+            "result": "中性对比",
+            "comment_text": f"低互动评论 {index}",
+            "interaction_cnt": 100 - index,
+            "published_at": "2026-07-19",
+        }
+        for index in range(50)
+    ]
+
+    story = build_product_pko_story([*high_interaction, *long_tail])
+    context = build_product_report_context({"product_pko_story": story})
+
+    assert [row["comment_id"] for row in context["pko"]["evidence_comments"]] == [
+        f"high-{index:03d}" for index in range(50)
+    ]
+
+
 def test_render_product_report_prompt_injects_json_context() -> None:
     from app.services.report_agent import render_product_report_prompt
 

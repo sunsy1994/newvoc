@@ -1696,6 +1696,257 @@ def test_report_chart_registry_is_closed_and_complete() -> None:
     assert "eval(" not in source
 
 
+@lru_cache(maxsize=1)
+def _run_report_card_boundary_probe() -> dict:
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+
+function loadTsx(relativePath, stubs) {
+  const source = fs.readFileSync(path.join(base, relativePath), "utf8");
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2017,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  const localRequire = (id) => {
+    if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
+    if (id === "react") return React;
+    if (id === "react/jsx-runtime") return jsxRuntime;
+    throw new Error(`Unexpected import: ${id}`);
+  };
+  new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
+}
+
+const chartStub = ({ chart }) =>
+  React.createElement("svg", { "data-chart": chart.template_id });
+const registry = loadTsx(
+  "src/components/voc/report-visuals/ReportChartRegistry.tsx",
+  {
+    "./BasicsCharts": {
+      F3HairlineArea: chartStub,
+      F4TickDonut: chartStub,
+      F5TickRows: chartStub,
+      F6PairedRungs: chartStub,
+      F7StackedRungs: chartStub,
+      F8PlumbScatter: chartStub,
+    },
+    "./NarrativeCharts": {
+      L12TypeColonnade: chartStub,
+      L13HourglassStream: chartStub,
+      L14HundredField: chartStub,
+    },
+  },
+);
+
+function renderRegistry(chart) {
+  try {
+    return {
+      threw: false,
+      markup: ReactDOMServer.renderToStaticMarkup(
+        React.createElement(registry.ReportChartRegistry, { chart }),
+      ),
+    };
+  } catch (error) {
+    return { threw: true, markup: String(error) };
+  }
+}
+
+const emptyIcon = () => null;
+const reportCard = loadTsx(
+  "src/components/voc/ReportAiSummaryCard.tsx",
+  {
+    "lucide-react": {
+      Bot: emptyIcon,
+      Check: emptyIcon,
+      Clipboard: emptyIcon,
+      Loader2: emptyIcon,
+      Sparkles: emptyIcon,
+      X: emptyIcon,
+    },
+    "@/components/ui/hover-border-gradient": {
+      HoverBorderGradient: ({ children }) => React.createElement("button", null, children),
+    },
+    "@/components/voc/report-visuals/ReportChartRegistry": {
+      ReportChartRegistry: () => null,
+      isReportTemplateId: (value) =>
+        ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"].includes(value),
+    },
+    "@/config/navigation": { apiBaseUrl: "" },
+  },
+);
+const resolvePresentation = reportCard.resolveDepartmentReportPresentation;
+const malformedV2 = {
+  report_markdown: "# 保留的 v1 报告",
+  report_narrative: {
+    headline: "不完整 v2",
+    executive_summary: "缺少 data_notes",
+    section_insights: {},
+  },
+  structured_report: {
+    charts: [{
+      chart_id: "incomplete-chart",
+      template_id: "F3",
+      title: "缺少字段",
+      data: [],
+    }],
+  },
+};
+const completeV2 = {
+  report_markdown: "# 旧报告",
+  report_narrative: {
+    headline: "完整 v2",
+    executive_summary: "结构完整",
+    section_insights: {
+      market_rhythm: "稳定",
+      market_topics: "集中",
+      market_platforms: "高效",
+      market_feedback: "正向",
+    },
+    data_notes: [],
+  },
+  structured_report: {
+    charts: [
+      {
+        chart_id: "market-volume-trend",
+        template_id: "F3",
+        title: "声量走势",
+        subtitle: "日趋势",
+        insight: "稳定",
+        source_label: "volume.daily_trend",
+        data: [],
+        meta: { empty_reason: "暂无可用数据" },
+      },
+      {
+        chart_id: "market-hot-topics",
+        template_id: "F5",
+        title: "热门话题",
+        subtitle: "讨论量",
+        insight: "集中",
+        source_label: "topics",
+        data: [],
+        meta: { empty_reason: "暂无可用数据" },
+      },
+      {
+        chart_id: "market-platform-efficiency",
+        template_id: "F8",
+        title: "平台效率",
+        subtitle: "规模与效率",
+        insight: "高效",
+        source_label: "platforms",
+        data: [],
+        meta: { empty_reason: "暂无可用数据" },
+      },
+      {
+        chart_id: "market-feedback-sentiment",
+        template_id: "L14",
+        title: "反馈构成",
+        subtitle: "情感分布",
+        insight: "正向",
+        source_label: "sentiment",
+        data: [],
+        meta: { empty_reason: "暂无可用数据" },
+      },
+    ],
+    evidence_references: [],
+    calculation_notes: [],
+  },
+};
+const unknownTemplateV2 = JSON.parse(JSON.stringify(completeV2));
+unknownTemplateV2.structured_report.charts[2].template_id = "X99";
+unknownTemplateV2.report_markdown = "# 未知模板时保留 Markdown";
+const emptyChartsV2 = JSON.parse(JSON.stringify(completeV2));
+emptyChartsV2.structured_report.charts = [];
+emptyChartsV2.report_markdown = "# 图表缺失时保留 Markdown";
+
+process.stdout.write(JSON.stringify({
+  unknownRegistry: renderRegistry({
+    chart_id: "unknown",
+    template_id: "X99",
+    title: "未知模板",
+    subtitle: "",
+    insight: "",
+    source_label: "test",
+    data: [],
+    meta: {},
+  }),
+  missingRegistry: renderRegistry({
+    chart_id: "missing",
+    title: "缺失模板",
+    subtitle: "",
+    insight: "",
+    source_label: "test",
+    data: [],
+    meta: {},
+  }),
+  hasPresentationResolver: typeof resolvePresentation === "function",
+  malformedPresentation:
+    typeof resolvePresentation === "function"
+      ? resolvePresentation(malformedV2)
+      : null,
+  completePresentation:
+    typeof resolvePresentation === "function"
+      ? resolvePresentation(completeV2)
+      : null,
+  unknownTemplatePresentation:
+    typeof resolvePresentation === "function"
+      ? resolvePresentation(unknownTemplateV2)
+      : null,
+  emptyChartsPresentation:
+    typeof resolvePresentation === "function"
+      ? resolvePresentation(emptyChartsV2)
+      : null,
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return json.loads(completed.stdout)
+
+
+def test_report_chart_registry_renders_deterministic_empty_state_for_unknown_templates() -> None:
+    probe = _run_report_card_boundary_probe()
+
+    for result in [probe["unknownRegistry"], probe["missingRegistry"]]:
+        assert result["threw"] is False
+        assert "暂不支持该图表模板" in result["markup"]
+        assert "<svg" not in result["markup"]
+
+
+def test_report_card_keeps_markdown_when_v2_fields_are_incomplete() -> None:
+    probe = _run_report_card_boundary_probe()
+
+    assert probe["hasPresentationResolver"] is True
+    assert probe["malformedPresentation"] == {
+        "kind": "markdown",
+        "reportMarkdown": "# 保留的 v1 报告",
+    }
+    assert probe["completePresentation"]["kind"] == "department"
+    assert probe["completePresentation"]["reportNarrative"]["headline"] == "完整 v2"
+    assert probe["unknownTemplatePresentation"] == {
+        "kind": "markdown",
+        "reportMarkdown": "# 未知模板时保留 Markdown",
+    }
+    assert probe["emptyChartsPresentation"] == {
+        "kind": "markdown",
+        "reportMarkdown": "# 图表缺失时保留 Markdown",
+    }
+
+
 def test_narrative_charts_use_defined_tokens_and_explicit_interactions() -> None:
     source = Path(
         "frontend/src/components/voc/report-visuals/NarrativeCharts.tsx"

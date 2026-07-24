@@ -11,7 +11,13 @@ from psycopg.types.json import Jsonb
 from app.config import DATABASE_URL
 from app.services.comment_user_ai_profile import call_openai_compatible_json
 from app.services.event_voc_insights import get_voc_event_market_dashboard, get_voc_event_product_dashboard, get_voc_event_sales_dashboard
-from app.services.report_visuals import build_market_report_charts, build_product_report_charts, build_sales_report_charts
+from app.services.report_visuals import (
+    build_market_report_charts,
+    build_product_report_charts,
+    build_sales_report_charts,
+    has_renderable_data,
+    normalize_report_chart_data,
+)
 from app.services.system_settings import (
     MARKET_REPORT_PROMPT_CONTENT,
     MARKET_REPORT_PROMPT_VERSION,
@@ -61,6 +67,50 @@ SALES_REPORT_CHART_SECTIONS = {
     "sales-intents": "sales_intents",
     "sales-source-efficiency": "sales_sources",
 }
+MAX_REPORT_HEADLINE_LENGTH = 120
+MAX_REPORT_EXECUTIVE_SUMMARY_LENGTH = 1200
+MAX_REPORT_SECTION_INSIGHT_LENGTH = 600
+MAX_REPORT_DATA_NOTE_LENGTH = 300
+MAX_REPORT_DATA_NOTES = 10
+EMPTY_REPORT_HEADLINE = "暂无可用报告数据"
+EMPTY_REPORT_EXECUTIVE_SUMMARY = "当前数据不足，无法生成可靠报告结论。"
+REPORT_PROMPT_CONTRACT_MARKER = "[AUTO_VOC_FIXED_NARRATIVE_V2_CONTRACT]"
+MARKET_REPORT_CHART_CONTRACT = (
+    ("market-volume-trend", "F3", "传播规模与节奏", "按日声量变化", "volume_trend"),
+    ("market-hot-topics", "F5", "热门话题结构", "按讨论量展示", "hot_topics.topics"),
+    ("market-platform-efficiency", "F8", "平台传播效率", "规模与反馈效率", "platform.platform_efficiency"),
+    ("market-feedback-sentiment", "L14", "用户反馈构成", "情感分布", "feedback_quality.sentiment_distribution"),
+)
+PRODUCT_REPORT_CHART_CONTRACT = (
+    ("product-focus", "F5", "产品关注点", "按提及占比展示", "product_focus.aspects"),
+    ("product-sentiment", "F6", "产品点正负反馈", "正向与负向反馈率", "product_focus.aspects"),
+    ("product-opportunity", "F5", "机会、风险与转化", "系统计算的机会分", "product_opportunity"),
+    ("product-pko-evidence", "L12", "PKO 车系与对比维度", "每条线对应一条真实评论", "pko.evidence_comments"),
+    ("product-pko-matrix", "F7", "PKO 维度结果明细", "优势、劣势与中性结果", "pko.dimension_result_matrix"),
+)
+SALES_REPORT_CHART_CONTRACT = (
+    ("sales-lead-funnel", "L13", "线索转化漏斗", "固定转化阶段", "lead_quality.summary"),
+    ("sales-purchase-signals", "F4", "购买信号结构", "强、中、弱及未标注信号", "lead_quality.purchase_signal_distribution"),
+    ("sales-intents", "F5", "用户意图分布", "评论数与占比", "lead_quality.intent_distribution"),
+    ("sales-source-efficiency", "F6", "渠道线索效率", "总反馈量与销售线索量", "lead_source.platform_efficiency"),
+)
+REPORT_CACHE_CONTRACTS = (
+    (
+        DEFAULT_MARKET_REPORT_PROMPT_VERSION,
+        MARKET_REPORT_SECTION_CODES,
+        MARKET_REPORT_CHART_CONTRACT,
+    ),
+    (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        PRODUCT_REPORT_SECTION_CODES,
+        PRODUCT_REPORT_CHART_CONTRACT,
+    ),
+    (
+        DEFAULT_SALES_REPORT_PROMPT_VERSION,
+        SALES_REPORT_SECTION_CODES,
+        SALES_REPORT_CHART_CONTRACT,
+    ),
+)
 
 MARKET_REPORT_CACHE_TABLE_SQL = """
 CREATE SCHEMA IF NOT EXISTS data_asset;
@@ -225,8 +275,15 @@ def build_product_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
     opportunity_story = dashboard.get("product_opportunity_story") or {}
     pko_story = dashboard.get("product_pko_story") or {}
     evidence_comments = []
+    pko_evidence = [
+        item
+        for item in (pko_story.get("evidence_comments") or [])
+        if isinstance(item, dict)
+        and str(item.get("comment_id") or "").strip()
+        and str(item.get("comment_text") or "").strip()
+    ][:50]
 
-    for item in pko_story.get("evidence_comments") or []:
+    for item in pko_evidence:
         evidence_comments.append(item)
     for aspect in focus_story.get("aspects") or []:
         for comment in aspect.get("evidence_comments") or []:
@@ -254,9 +311,9 @@ def build_product_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
             "dimension_distribution": (pko_story.get("dimension_distribution") or [])[:8],
             "result_distribution": pko_story.get("result_distribution") or [],
             "dimension_result_matrix": (pko_story.get("dimension_result_matrix") or [])[:8],
-            "evidence_comments": (pko_story.get("evidence_comments") or [])[:8],
+            "evidence_comments": pko_evidence,
         },
-        "evidence_comments": evidence_comments[:12],
+        "evidence_comments": evidence_comments[:50],
     }
 
 
@@ -330,13 +387,18 @@ def render_sales_report_prompt(template: str, sales_context: dict[str, Any]) -> 
     return rendered
 
 
+def _bounded_text(value: Any, max_length: int) -> str:
+    return value.strip()[:max_length] if isinstance(value, str) else ""
+
+
 def normalize_data_notes(value: Any) -> list[str]:
-    raw_notes = value or []
-    if isinstance(raw_notes, str):
-        return [raw_notes.strip()] if raw_notes.strip() else []
-    if isinstance(raw_notes, list):
-        return [str(item).strip() for item in raw_notes if item is not None and str(item).strip()]
-    return []
+    raw_notes = [value] if isinstance(value, str) else value if isinstance(value, list) else []
+    notes = [
+        note
+        for item in raw_notes
+        if (note := _bounded_text(item, MAX_REPORT_DATA_NOTE_LENGTH))
+    ]
+    return notes[:MAX_REPORT_DATA_NOTES]
 
 
 def normalize_report_narrative(
@@ -347,10 +409,20 @@ def normalize_report_narrative(
     raw = payload if isinstance(payload, dict) else {}
     raw_insights = raw.get("section_insights") if isinstance(raw.get("section_insights"), dict) else {}
     return {
-        "headline": str(raw.get("headline") or "").strip(),
-        "executive_summary": str(raw.get("executive_summary") or "").strip(),
+        "headline": _bounded_text(raw.get("headline"), MAX_REPORT_HEADLINE_LENGTH),
+        "executive_summary": _bounded_text(
+            raw.get("executive_summary"),
+            MAX_REPORT_EXECUTIVE_SUMMARY_LENGTH,
+        ),
         "section_insights": {
-            code: str(raw_insights.get(code) or "").strip() or str(fallback_insights.get(code) or "").strip()
+            code: _bounded_text(
+                raw_insights.get(code),
+                MAX_REPORT_SECTION_INSIGHT_LENGTH,
+            )
+            or _bounded_text(
+                fallback_insights.get(code),
+                MAX_REPORT_SECTION_INSIGHT_LENGTH,
+            )
             for code in section_codes
         },
         "data_notes": normalize_data_notes(raw.get("data_notes")),
@@ -360,13 +432,20 @@ def normalize_report_narrative(
 def normalize_market_report_summary(payload: dict[str, Any]) -> dict[str, Any]:
     raw = payload if isinstance(payload, dict) else {}
     return {
-        "report_markdown": str(raw.get("report_markdown") or "").strip(),
+        "report_markdown": _bounded_text(raw.get("report_markdown"), 200_000),
         "data_notes": normalize_data_notes(raw.get("data_notes")),
     }
 
 
 def _rule_based_conclusion(section: Any) -> str:
-    return str(section.get("rule_based_conclusion") or "").strip() if isinstance(section, dict) else ""
+    return (
+        _bounded_text(
+            section.get("rule_based_conclusion"),
+            MAX_REPORT_SECTION_INSIGHT_LENGTH,
+        )
+        if isinstance(section, dict)
+        else ""
+    )
 
 
 def _market_fallback_insights(context: dict[str, Any]) -> dict[str, str]:
@@ -420,16 +499,52 @@ def build_report_summary(
     for chart in charts:
         item = dict(chart)
         section_code = chart_sections.get(str(item.get("chart_id") or ""))
-        has_data = isinstance(item.get("data"), list) and bool(item["data"])
-        insight = narrative["section_insights"].get(section_code or "", "") if has_data else fallback_insights.get(section_code or "", "")
-        item["insight"] = str(insight or "").strip()
-        if section_code and not has_data:
+        chart_has_data = has_renderable_data(item)
+        insight = (
+            narrative["section_insights"].get(section_code or "", "")
+            if chart_has_data
+            else fallback_insights.get(section_code or "", "")
+        )
+        item["insight"] = _bounded_text(insight, MAX_REPORT_SECTION_INSIGHT_LENGTH)
+        if section_code and not chart_has_data:
             narrative["section_insights"][section_code] = item["insight"]
         normalized_charts.append(item)
+    if not any(has_renderable_data(chart) for chart in normalized_charts):
+        narrative["headline"] = EMPTY_REPORT_HEADLINE
+        narrative["executive_summary"] = EMPTY_REPORT_EXECUTIVE_SUMMARY
+        narrative["section_insights"] = {
+            code: _bounded_text(
+                fallback_insights.get(code),
+                MAX_REPORT_SECTION_INSIGHT_LENGTH,
+            )
+            for code in section_codes
+        }
     return {
         "report_narrative": narrative,
         "structured_report": {"charts": normalized_charts},
     }
+
+
+def ensure_report_prompt_contract(
+    prompt_content: str,
+    section_codes: tuple[str, ...],
+) -> str:
+    contract = {
+        "headline": "",
+        "executive_summary": "",
+        "section_insights": {code: "" for code in section_codes},
+        "data_notes": [],
+    }
+    suffix = (
+        f"{REPORT_PROMPT_CONTRACT_MARKER}\n"
+        "保留以上业务要求，但最终只输出下面固定结构的 JSON 对象；"
+        "不得输出 report_markdown、structured_report 或图表数据。"
+        "图表类型和数值由系统固定，输入缺失时不得推断。\n"
+        f"{json.dumps(contract, ensure_ascii=False, indent=2)}"
+    )
+    if prompt_content.rstrip().endswith(suffix):
+        return prompt_content
+    return f"{prompt_content.rstrip()}\n\n{suffix}"
 
 
 def resolve_report_prompt(
@@ -443,12 +558,13 @@ def resolve_report_prompt(
         prompt_row = get_default_prompt_template(scene, database_url=database_url)
     except ValueError:
         return default_prompt, default_version
-    prompt_content = str(prompt_row.get("prompt_content") or "")
-    prompt_version = str(prompt_row.get("prompt_version") or default_version)
-    required_fields = ("headline", "executive_summary", "section_insights", "data_notes", *section_codes)
-    if not prompt_content or any(f'"{field}"' not in prompt_content for field in required_fields):
+    prompt_content = _bounded_text(prompt_row.get("prompt_content"), 200_000)
+    prompt_version = _bounded_text(prompt_row.get("prompt_version"), 200) or default_version
+    if not prompt_content:
         return default_prompt, default_version
-    return prompt_content, prompt_version
+    if prompt_content == default_prompt.strip():
+        return prompt_content, prompt_version
+    return ensure_report_prompt_contract(prompt_content, section_codes), prompt_version
 
 
 def resolve_market_report_prompt(database_url: str = DATABASE_URL) -> tuple[str, str]:
@@ -486,24 +602,117 @@ def ensure_report_agent_table(conn: psycopg.Connection, table_sql: str) -> None:
         cur.execute(table_sql)
 
 
-def normalize_cached_report_summary(payload: Any) -> dict[str, Any]:
+def _valid_cached_chart(
+    chart: Any,
+    expected_chart_id: str,
+    expected_template_id: str,
+    expected_title: str,
+    expected_subtitle: str,
+    expected_source_label: str,
+) -> bool:
+    if not isinstance(chart, dict):
+        return False
+    if (
+        chart.get("chart_id") != expected_chart_id
+        or chart.get("template_id") != expected_template_id
+        or chart.get("title") != expected_title
+        or chart.get("subtitle") != expected_subtitle
+        or chart.get("source_label") != expected_source_label
+    ):
+        return False
+    if not all(
+        isinstance(chart.get(field), str)
+        for field in ("title", "subtitle", "insight", "source_label")
+    ):
+        return False
+    data = chart.get("data")
+    meta = chart.get("meta")
+    if not (
+        isinstance(data, list)
+        and all(isinstance(row, dict) for row in data)
+        and isinstance(meta, dict)
+    ):
+        return False
+    if normalize_report_chart_data(expected_template_id, data) != data:
+        return False
+    if has_renderable_data(chart):
+        return True
+    return (
+        data == []
+        and isinstance(meta.get("empty_reason"), str)
+        and bool(meta["empty_reason"].strip())
+    )
+
+
+def _cached_report_contract(
+    prompt_version: str,
+    narrative: Any,
+    charts: Any,
+) -> tuple[str, ...] | None:
+    if not isinstance(narrative, dict) or not isinstance(charts, list):
+        return None
+    known_contract = next(
+        (
+            contract
+            for contract in REPORT_CACHE_CONTRACTS
+            if prompt_version == contract[0]
+        ),
+        None,
+    )
+    candidates = (known_contract,) if known_contract else REPORT_CACHE_CONTRACTS
+    for _, section_codes, chart_contract in candidates:
+        if known_contract or [
+            (chart.get("chart_id"), chart.get("template_id"))
+            for chart in charts
+            if isinstance(chart, dict)
+        ] == [(expected[0], expected[1]) for expected in chart_contract]:
+            if len(charts) != len(chart_contract) or not all(
+                _valid_cached_chart(chart, *expected)
+                for chart, expected in zip(charts, chart_contract)
+            ):
+                continue
+            raw_insights = narrative.get("section_insights")
+            if not (
+                isinstance(narrative.get("headline"), str)
+                and isinstance(narrative.get("executive_summary"), str)
+                and isinstance(raw_insights, dict)
+                and set(raw_insights) == set(section_codes)
+                and all(isinstance(raw_insights.get(code), str) for code in section_codes)
+                and isinstance(narrative.get("data_notes"), list)
+                and all(isinstance(note, str) for note in narrative["data_notes"])
+            ):
+                continue
+            return section_codes
+    return None
+
+
+def normalize_cached_report_summary(
+    payload: Any,
+    prompt_version: str = "",
+) -> dict[str, Any]:
     raw = payload if isinstance(payload, dict) else {}
     raw_narrative = raw.get("report_narrative")
     raw_structured_report = raw.get("structured_report")
     raw_charts = raw_structured_report.get("charts") if isinstance(raw_structured_report, dict) else None
-    if not (isinstance(raw_narrative, dict) and isinstance(raw_structured_report, dict) and isinstance(raw_charts, list)):
+    section_codes = _cached_report_contract(prompt_version, raw_narrative, raw_charts)
+    if not section_codes:
         return normalize_market_report_summary(raw)
 
     summary: dict[str, Any] = {}
-    raw_insights = raw_narrative.get("section_insights")
-    section_codes = tuple(raw_insights) if isinstance(raw_insights, dict) else ()
     summary["report_narrative"] = normalize_report_narrative(raw_narrative, section_codes, {})
     structured_report = dict(raw_structured_report)
-    structured_report["charts"] = [dict(chart) for chart in raw_charts if isinstance(chart, dict)]
+    structured_report["charts"] = []
+    for chart in raw_charts:
+        item = dict(chart)
+        item["insight"] = _bounded_text(
+            item.get("insight"),
+            MAX_REPORT_SECTION_INSIGHT_LENGTH,
+        )
+        structured_report["charts"].append(item)
     summary["structured_report"] = structured_report
 
     if "report_markdown" in raw:
-        summary["report_markdown"] = str(raw.get("report_markdown") or "").strip()
+        summary["report_markdown"] = _bounded_text(raw.get("report_markdown"), 200_000)
     if "data_notes" in raw:
         summary["data_notes"] = normalize_data_notes(raw.get("data_notes"))
     return summary
@@ -512,11 +721,15 @@ def normalize_cached_report_summary(payload: Any) -> dict[str, Any]:
 def normalize_cached_report_row(row: dict[str, Any]) -> dict[str, Any]:
     generated_at = row.get("generated_at")
     generated_at_value = generated_at.isoformat(timespec="seconds") if isinstance(generated_at, datetime) else str(generated_at or "")
+    prompt_version = _bounded_text(row.get("prompt_version"), 200)
     return {
         "event_id": row.get("event_id"),
-        "prompt_version": row.get("prompt_version") or "",
+        "prompt_version": prompt_version,
         "generated_at": generated_at_value,
-        "summary": normalize_cached_report_summary(row.get("summary_json")),
+        "summary": normalize_cached_report_summary(
+            row.get("summary_json"),
+            prompt_version,
+        ),
         "context": row.get("context_json") or {},
         "rendered_prompt": row.get("rendered_prompt") or "",
     }

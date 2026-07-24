@@ -1,8 +1,12 @@
+import pytest
+
 from app.services.report_visuals import (
     build_event_report_charts,
     build_market_report_charts,
     build_product_report_charts,
     build_sales_report_charts,
+    has_renderable_data,
+    normalize_report_chart_data,
 )
 
 
@@ -107,6 +111,33 @@ def test_l12_excludes_unrenderable_records_from_data_and_counts():
     assert chart["meta"]["total_count"] == 2
 
 
+def test_l12_normalizes_non_string_dimensions_and_unsafe_sort_values():
+    chart = build_product_report_charts(
+        {
+            "pko": {
+                "evidence_comments": [
+                    {
+                        "comment_id": "one",
+                        "comment_text": "first",
+                        "target": {"bad": "value"},
+                        "dimension": ["bad"],
+                        "result": "优势",
+                        "interaction_cnt": "bad",
+                    }
+                ]
+            }
+        }
+    )[3]
+
+    assert chart["data"][0]["target"] == "其他对象"
+    assert chart["data"][0]["dimension"] == "未明确维度"
+    assert chart["meta"] == {
+        "displayed_count": 1,
+        "total_count": 1,
+        "unit": "条对比评论",
+    }
+
+
 def test_event_report_uses_the_four_cross_department_charts_in_fixed_order():
     charts = build_event_report_charts(
         {"volume_trend": [{"date": "2026-07-01"}]},
@@ -114,3 +145,126 @@ def test_event_report_uses_the_four_cross_department_charts_in_fixed_order():
         {"lead_quality": {"summary": {"labeled_comment_count": 1}}},
     )
     assert [item["template_id"] for item in charts] == ["F3", "L14", "F6", "L13"]
+
+
+@pytest.mark.parametrize(
+    ("template_id", "data"),
+    [
+        ("F3", []),
+        ("F4", []),
+        ("F5", [{"topic": "外观"}]),
+        ("F6", [{"aspect": "外观", "positive_rate": 70}]),
+        ("F7", [{"dimension": "空间", "total_count": 8}]),
+        ("F8", [{"platform": "抖音", "total_volume": 20}]),
+        (
+            "L12",
+            [
+                {
+                    "comment_id": "c-1",
+                    "target": "竞品A",
+                    "dimension": "空间",
+                    "result": "advantage",
+                }
+            ],
+        ),
+        (
+            "L13",
+            [
+                {"stage": "已打标评论", "count": 100},
+                {"stage": "车相关评论", "count": 80},
+                {"stage": "销售相关意图", "count": 30},
+            ],
+        ),
+        (
+            "L13",
+            [
+                {"stage": "已打标评论", "count": 100},
+                {"stage": "车相关评论", "count": 80},
+                {"stage": "销售相关意图", "count": 90},
+                {"stage": "中/强购买信号", "count": 20},
+            ],
+        ),
+        ("L14", [{"label": "正向", "rate": 70}, {"label": "负向", "rate": 20}]),
+    ],
+)
+def test_report_chart_renderability_matches_svg_input_contracts(template_id, data):
+    assert normalize_report_chart_data(template_id, data) == []
+    assert has_renderable_data({"template_id": template_id, "data": data}) is False
+
+
+@pytest.mark.parametrize(
+    ("template_id", "data"),
+    [
+        ("F3", [{"date": "2026-07-01", "total_volume": 12}]),
+        ("F4", [{"label": "强信号", "count": 4}]),
+        ("F5", [{"topic": "外观", "comment_count": 8}]),
+        ("F6", [{"aspect": "外观", "positive_rate": 70, "negative_rate": 10}]),
+        (
+            "F7",
+            [{"dimension": "空间", "advantage_count": 4, "disadvantage_count": 2}],
+        ),
+        (
+            "F8",
+            [{"platform": "抖音", "total_volume": 20, "engagement_per_content": 6}],
+        ),
+        (
+            "L12",
+            [
+                {
+                    "comment_id": "c-1",
+                    "target": "竞品A",
+                    "dimension": "空间",
+                    "result": "advantage",
+                    "comment_text": "空间更宽敞",
+                }
+            ],
+        ),
+        (
+            "L13",
+            [
+                {"stage": "已打标评论", "count": 100},
+                {"stage": "车相关评论", "count": 80},
+                {"stage": "销售相关意图", "count": 30},
+                {"stage": "中/强购买信号", "count": 20},
+            ],
+        ),
+        ("L14", [{"label": "正向", "rate": 70}, {"label": "负向", "rate": 30}]),
+    ],
+)
+def test_report_chart_renderability_accepts_complete_svg_inputs(template_id, data):
+    assert normalize_report_chart_data(template_id, data) == data
+    assert has_renderable_data({"template_id": template_id, "data": data}) is True
+
+
+def test_builders_drop_rows_that_cannot_render_and_expose_empty_reason():
+    market = build_market_report_charts(
+        {
+            "platform": {
+                "platform_efficiency": [
+                    {"platform": "抖音", "total_volume": 20},
+                ]
+            },
+            "feedback_quality": {
+                "sentiment_distribution": [
+                    {"label": "正向", "rate": 70},
+                    {"label": "负向", "rate": 20},
+                ]
+            },
+        }
+    )
+    sales = build_sales_report_charts(
+        {
+            "lead_quality": {
+                "summary": {
+                    "labeled_comment_count": 100,
+                    "vehicle_related_count": 80,
+                    "sales_intent_comment_count": 90,
+                    "mid_high_purchase_signal_count": 20,
+                }
+            }
+        }
+    )
+
+    for chart in (market[2], market[3], sales[0]):
+        assert chart["data"] == []
+        assert chart["meta"]["empty_reason"] == "暂无可用数据"

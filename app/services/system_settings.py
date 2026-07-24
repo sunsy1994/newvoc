@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 import psycopg
@@ -27,6 +28,20 @@ PRODUCT_REPORT_PROMPT_VERSION = "product_report_summary_v2"
 SALES_REPORT_PROMPT_SCENE = "sales_report_summary"
 SALES_REPORT_PROMPT_VERSION = "sales_report_summary_v2"
 DEFAULT_PROMPT_SCENES = {DEFAULT_PROMPT_SCENE, MARKET_REPORT_PROMPT_SCENE, PRODUCT_REPORT_PROMPT_SCENE, SALES_REPORT_PROMPT_SCENE}
+LEGACY_REPORT_PROMPT_HASHES = {
+    (
+        MARKET_REPORT_PROMPT_SCENE,
+        "market_report_summary_v1",
+    ): "589a3296157164b178e383a14b2842a95ae80827339c6cccd95986eabc3a965e",
+    (
+        PRODUCT_REPORT_PROMPT_SCENE,
+        "product_report_summary_v1",
+    ): "dc71fe16d3788156d94a059691af2ae81cfbc92660255c194e2b18fdf12b6dc5",
+    (
+        SALES_REPORT_PROMPT_SCENE,
+        "sales_report_summary_v1",
+    ): "4a138e49a9597c3a3f70116a2e40642da818845235e3a65a1e7f3a2645a68031",
+}
 MARKET_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 市场分析助手。请只基于给定的市场看板结构化数据生成固定字段的叙事文案。
 
 约束：
@@ -274,6 +289,40 @@ def _default_prompt_payload(scene: str) -> tuple[str, str, str]:
     return "comment user profile prompt", DEFAULT_PROMPT_VERSION, _read_default_prompt_file()
 
 
+def _prompt_seed_action(row: dict[str, Any] | None) -> str:
+    if not row:
+        return "seed"
+    key = (
+        str(row.get("prompt_scene") or ""),
+        str(row.get("prompt_version") or ""),
+    )
+    expected_hash = LEGACY_REPORT_PROMPT_HASHES.get(key)
+    content = row.get("prompt_content")
+    if not expected_hash or not isinstance(content, str):
+        return "keep"
+    digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return "upgrade" if digest == expected_hash else "keep"
+
+
+def _get_prompt_by_version(
+    conn: psycopg.Connection,
+    scene: str,
+    version: str,
+) -> dict[str, Any] | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT *
+            FROM data_asset.system_prompt_template
+            WHERE prompt_scene = %s AND prompt_version = %s
+            LIMIT 1
+            """,
+            (scene, version),
+        )
+        row = cur.fetchone()
+    return normalize_row(dict(row)) if row else None
+
+
 def _seed_default_prompt_template(conn: psycopg.Connection, scene: str = DEFAULT_PROMPT_SCENE) -> dict[str, Any]:
     prompt_name, prompt_version, prompt_content = _default_prompt_payload(scene)
     with conn.cursor(row_factory=dict_row) as cur:
@@ -282,13 +331,85 @@ def _seed_default_prompt_template(conn: psycopg.Connection, scene: str = DEFAULT
             INSERT INTO data_asset.system_prompt_template
               (prompt_name, prompt_scene, prompt_version, prompt_content, is_default, is_enabled)
             VALUES (%s, %s, %s, %s, TRUE, TRUE)
-            ON CONFLICT (prompt_scene, prompt_version) DO UPDATE
-            SET updated_time = CURRENT_TIMESTAMP
+            ON CONFLICT (prompt_scene, prompt_version) DO NOTHING
             RETURNING *
             """,
             (prompt_name, scene, prompt_version, prompt_content),
         )
-        return normalize_row(dict(cur.fetchone()))
+        row = cur.fetchone()
+    if row:
+        return normalize_row(dict(row))
+    existing = _get_prompt_by_version(conn, scene, prompt_version)
+    if existing is None:
+        raise RuntimeError(f"Failed to seed default prompt template: {scene}")
+    return existing
+
+
+def _get_enabled_default_prompt(
+    conn: psycopg.Connection,
+    scene: str,
+) -> dict[str, Any] | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT *
+            FROM data_asset.system_prompt_template
+            WHERE prompt_scene = %s AND is_default = TRUE AND is_enabled = TRUE
+            ORDER BY updated_time DESC, prompt_id DESC
+            LIMIT 1
+            """,
+            (scene,),
+        )
+        row = cur.fetchone()
+    return normalize_row(dict(row)) if row else None
+
+
+def _ensure_default_prompt_template(
+    conn: psycopg.Connection,
+    scene: str,
+) -> dict[str, Any] | None:
+    row = _get_enabled_default_prompt(conn, scene)
+    action = _prompt_seed_action(row)
+    if action == "keep":
+        return row
+    _, target_version, target_content = _default_prompt_payload(scene)
+    target = _get_prompt_by_version(conn, scene, target_version)
+    if target is not None and target.get("prompt_content") != target_content:
+        return row
+    if target is not None:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE data_asset.system_prompt_template
+                SET is_default = FALSE
+                WHERE prompt_scene = %s
+                """,
+                (scene,),
+            )
+            cur.execute(
+                """
+                UPDATE data_asset.system_prompt_template
+                SET is_default = TRUE,
+                    is_enabled = TRUE,
+                    updated_time = CURRENT_TIMESTAMP
+                WHERE prompt_scene = %s AND prompt_version = %s
+                RETURNING *
+                """,
+                (scene, target_version),
+            )
+            activated = cur.fetchone()
+        return normalize_row(dict(activated)) if activated else target
+    if action == "upgrade":
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE data_asset.system_prompt_template
+                SET is_default = FALSE
+                WHERE prompt_scene = %s
+                """,
+                (scene,),
+            )
+    return _seed_default_prompt_template(conn, scene=scene)
 
 
 def list_prompt_templates(scene: str | None = None, database_url: str = DATABASE_URL) -> dict[str, list[dict[str, Any]]]:
@@ -296,13 +417,7 @@ def list_prompt_templates(scene: str | None = None, database_url: str = DATABASE
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         scenes_to_seed = [scene] if scene in DEFAULT_PROMPT_SCENES else sorted(DEFAULT_PROMPT_SCENES) if scene is None else []
         for default_scene in scenes_to_seed:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT 1 FROM data_asset.system_prompt_template WHERE prompt_scene = %s LIMIT 1",
-                    (default_scene,),
-                )
-                if cur.fetchone() is None:
-                    _seed_default_prompt_template(conn, scene=default_scene)
+            _ensure_default_prompt_template(conn, default_scene)
         if scenes_to_seed:
             conn.commit()
 
@@ -321,24 +436,16 @@ def list_prompt_templates(scene: str | None = None, database_url: str = DATABASE
 def get_default_prompt_template(scene: str = DEFAULT_PROMPT_SCENE, database_url: str = DATABASE_URL) -> dict[str, Any]:
     init_database(database_url)
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT *
-                FROM data_asset.system_prompt_template
-                WHERE prompt_scene = %s AND is_default = TRUE AND is_enabled = TRUE
-                ORDER BY updated_time DESC, prompt_id DESC
-                LIMIT 1
-                """,
-                (scene,),
-            )
-            row = cur.fetchone()
-        if row is None and scene in DEFAULT_PROMPT_SCENES:
-            row = _seed_default_prompt_template(conn, scene=scene)
+        row = (
+            _ensure_default_prompt_template(conn, scene)
+            if scene in DEFAULT_PROMPT_SCENES
+            else _get_enabled_default_prompt(conn, scene)
+        )
+        if row is not None and scene in DEFAULT_PROMPT_SCENES:
             conn.commit()
         if row is None:
             raise ValueError(f"鏈壘鍒板惎鐢ㄧ殑榛樿鎻愮ず璇嶏細{scene}")
-        return normalize_row(dict(row))
+        return row
 
 
 def save_prompt_template(payload: dict[str, Any], database_url: str = DATABASE_URL) -> dict[str, Any]:

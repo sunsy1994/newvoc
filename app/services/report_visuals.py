@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
@@ -9,7 +10,173 @@ PKO_RESULT_BUCKETS = {
     "劣势": "disadvantage",
     "本车劣势": "disadvantage",
     "中性": "neutral",
+    "advantage": "advantage",
+    "disadvantage": "disadvantage",
+    "neutral": "neutral",
+    "unclear": "unclear",
 }
+REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"}
+SALES_FUNNEL_STAGES = ("已打标评论", "车相关评论", "销售相关意图", "中/强购买信号")
+RESULT_BUCKETS = {"advantage", "disadvantage", "neutral", "unclear"}
+LABEL_KEYS = ("label", "name", "date", "platform", "category", "dimension")
+VALUE_KEYS = ("value", "count", "total", "percentage", "percent", "rate", "total_volume")
+
+
+def _text(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _number(value: Any, *, clamp_negative: bool = True) -> float | None:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or (not clamp_negative and number < 0):
+        return None
+    return max(0.0, number) if clamp_negative else number
+
+
+def _first_text(row: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    return next((_text(row.get(key)) for key in keys if _text(row.get(key))), None)
+
+
+def _first_number(row: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+    for key in keys:
+        number = _number(row.get(key))
+        if number is not None:
+            return number
+    return None
+
+
+def _valid_f5_row(row: dict[str, Any]) -> bool:
+    if _text(row.get("topic")):
+        return _number(row.get("comment_count")) is not None
+    if _text(row.get("aspect")):
+        return (
+            _number(row.get("opportunity_score")) is not None
+            or _number(row.get("mention_rate")) is not None
+        )
+    return bool(
+        _text(row.get("label"))
+        and (_number(row.get("count")) is not None or _number(row.get("rate")) is not None)
+    )
+
+
+def _valid_f6_row(row: dict[str, Any]) -> bool:
+    if _text(row.get("aspect")):
+        return (
+            _number(row.get("positive_rate")) is not None
+            and _number(row.get("negative_rate")) is not None
+        )
+    return bool(
+        _text(row.get("platform"))
+        and _number(row.get("comment_count")) is not None
+        and _number(row.get("high_intent_comment_count")) is not None
+    )
+
+
+def _valid_f7_row(row: dict[str, Any]) -> bool:
+    return bool(
+        _text(row.get("dimension"))
+        and any(
+            _number(row.get(key)) is not None
+            for key in (
+                "advantage_count",
+                "disadvantage_count",
+                "neutral_count",
+                "unclear_count",
+            )
+        )
+    )
+
+
+def _valid_f8_row(row: dict[str, Any]) -> bool:
+    return bool(
+        _text(row.get("platform"))
+        and _number(row.get("total_volume")) is not None
+        and _number(row.get("engagement_per_content")) is not None
+    )
+
+
+def _valid_l12_row(row: dict[str, Any]) -> bool:
+    result = _text(row.get("result_bucket")) or _text(row.get("result"))
+    return bool(
+        _text(row.get("comment_id"))
+        and _text(row.get("target"))
+        and _text(row.get("dimension"))
+        and result in RESULT_BUCKETS
+        and _text(row.get("comment_text"))
+    )
+
+
+def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, Any]]:
+    rows = _rows(value)
+    if template_id == "F3":
+        return [
+            row
+            for row in rows
+            if _first_text(row, LABEL_KEYS) and _first_number(row, VALUE_KEYS) is not None
+        ]
+    if template_id == "F4":
+        normalized = [
+            row
+            for row in rows
+            if _first_text(row, LABEL_KEYS) and _first_number(row, VALUE_KEYS) is not None
+        ]
+        return normalized if sum(_first_number(row, VALUE_KEYS) or 0 for row in normalized) > 0 else []
+    if template_id == "F5":
+        return [row for row in rows if _valid_f5_row(row)]
+    if template_id == "F6":
+        return [row for row in rows if _valid_f6_row(row)]
+    if template_id == "F7":
+        return [row for row in rows if _valid_f7_row(row)]
+    if template_id == "F8":
+        return [row for row in rows if _valid_f8_row(row)]
+    if template_id == "L12":
+        return [row for row in rows if _valid_l12_row(row)]
+    if template_id == "L13":
+        if len(rows) != len(SALES_FUNNEL_STAGES):
+            return []
+        labels = tuple(_text(row.get("stage")) for row in rows)
+        counts = [_number(row.get("count"), clamp_negative=False) for row in rows]
+        if labels != SALES_FUNNEL_STAGES or any(count is None for count in counts):
+            return []
+        numeric_counts = [count for count in counts if count is not None]
+        if not numeric_counts or numeric_counts[0] <= 0:
+            return []
+        return rows if all(right <= left for left, right in zip(numeric_counts, numeric_counts[1:])) else []
+    if template_id == "L14":
+        percentages = []
+        for row in rows:
+            percentage = next(
+                (
+                    number
+                    for key in ("percentage", "percent", "rate")
+                    if (number := _number(row.get(key), clamp_negative=False)) is not None
+                ),
+                None,
+            )
+            if not _text(row.get("label")) or percentage is None:
+                continue
+            percentages.append((row, percentage))
+        total = sum(percentage for _, percentage in percentages)
+        if not percentages or abs(total - 100) > 1.01:
+            return []
+        return [row for row, _ in percentages]
+    return []
+
+
+def has_renderable_data(chart: Any) -> bool:
+    if not isinstance(chart, dict):
+        return False
+    template_id = chart.get("template_id")
+    return bool(
+        isinstance(template_id, str)
+        and template_id in REPORT_TEMPLATE_IDS
+        and normalize_report_chart_data(template_id, chart.get("data"))
+    )
 
 
 def _chart(
@@ -22,6 +189,10 @@ def _chart(
     *,
     meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    normalized_data = normalize_report_chart_data(template_id, data)
+    chart_meta = dict(meta or {})
+    if not normalized_data:
+        chart_meta.setdefault("empty_reason", "暂无可用数据")
     return {
         "chart_id": chart_id,
         "template_id": template_id,
@@ -29,8 +200,8 @@ def _chart(
         "subtitle": subtitle,
         "insight": "",
         "source_label": source_label,
-        "data": data,
-        "meta": meta or {},
+        "data": normalized_data,
+        "meta": chart_meta,
     }
 
 
@@ -45,7 +216,10 @@ def _meta(data: list[dict[str, Any]]) -> dict[str, Any]:
 def _sort_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered = sorted(rows, key=lambda row: str(row.get("comment_id") or ""))
     ordered.sort(key=lambda row: str(row.get("published_at") or ""), reverse=True)
-    ordered.sort(key=lambda row: int(row.get("interaction_cnt") or 0), reverse=True)
+    ordered.sort(
+        key=lambda row: _number(row.get("interaction_cnt"), clamp_negative=False) or 0,
+        reverse=True,
+    )
     return ordered
 
 
@@ -53,8 +227,8 @@ def _renderable_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         row
         for row in rows
-        if str(row.get("comment_id") or "").strip()
-        and str(row.get("comment_text") or "").strip()
+        if _text(row.get("comment_id"))
+        and _text(row.get("comment_text"))
     ]
 
 
@@ -62,9 +236,14 @@ def _pko_evidence(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized = []
     for row in _sort_pko_rows(rows)[:50]:
         item = dict(row)
-        item["target"] = item.get("target") or "其他对象"
-        item["dimension"] = item.get("dimension") or "未明确维度"
-        item["result"] = PKO_RESULT_BUCKETS.get(str(item.get("result") or ""), "unclear")
+        item["comment_id"] = _text(item.get("comment_id")) or ""
+        item["comment_text"] = _text(item.get("comment_text")) or ""
+        item["target"] = _text(item.get("target")) or "其他对象"
+        item["dimension"] = _text(item.get("dimension")) or "未明确维度"
+        raw_result = _text(item.get("result_bucket")) or _text(item.get("result"))
+        result = PKO_RESULT_BUCKETS.get(raw_result or "", "unclear")
+        item["result"] = result
+        item["result_bucket"] = result
         normalized.append(item)
     return normalized
 
@@ -127,11 +306,18 @@ def build_sales_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]:
         )
         if summary.get(key) is not None
     ]
+    source_efficiency = [
+        {
+            **row,
+            "comment_count": row.get("comment_count", row.get("total_comment_count")),
+        }
+        for row in _rows(lead_source.get("platform_efficiency"))
+    ]
     chart_data = [
         ("sales-lead-funnel", "L13", "线索转化漏斗", "固定转化阶段", "lead_quality.summary", funnel),
         ("sales-purchase-signals", "F4", "购买信号结构", "强、中、弱及未标注信号", "lead_quality.purchase_signal_distribution", _rows(lead_quality.get("purchase_signal_distribution"))),
         ("sales-intents", "F5", "用户意图分布", "评论数与占比", "lead_quality.intent_distribution", _rows(lead_quality.get("intent_distribution"))),
-        ("sales-source-efficiency", "F6", "渠道线索效率", "总反馈量与销售线索量", "lead_source.platform_efficiency", _rows(lead_source.get("platform_efficiency"))),
+        ("sales-source-efficiency", "F6", "渠道线索效率", "总反馈量与销售线索量", "lead_source.platform_efficiency", source_efficiency),
     ]
     return [_chart(*item, meta=_meta(item[-1])) for item in chart_data]
 

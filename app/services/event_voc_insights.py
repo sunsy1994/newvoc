@@ -1307,27 +1307,45 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
     top_explicit_target = explicit_target_distribution[0]["label"] if explicit_target_distribution else None
-    evidence_comments = normalized[:6]
-    evidence_ids = {item.get("comment_id") for item in evidence_comments if item.get("comment_id")}
-    evidence_keys = {
-        (item.get("target"), item.get("comment_text"))
-        for item in evidence_comments
-        if not item.get("comment_id")
-    }
-    for target_item in explicit_target_distribution:
-        target = target_item["label"]
-        candidate = next((item for item in normalized if item["target"] == target), None)
-        if not candidate:
-            continue
-        candidate_id = candidate.get("comment_id")
-        candidate_key = (candidate.get("target"), candidate.get("comment_text"))
-        if (candidate_id and candidate_id in evidence_ids) or (not candidate_id and candidate_key in evidence_keys):
-            continue
-        evidence_comments.append(candidate)
-        if candidate_id:
-            evidence_ids.add(candidate_id)
-        else:
-            evidence_keys.add(candidate_key)
+    renderable_evidence = [
+        item
+        for item in normalized
+        if str(item.get("comment_id") or "").strip()
+        and str(item.get("comment_text") or "").strip()
+    ]
+    legacy_text_evidence = [
+        item
+        for item in normalized
+        if not str(item.get("comment_id") or "").strip()
+        and str(item.get("comment_text") or "").strip()
+    ]
+
+    def ordered_evidence(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        ordered = sorted(
+            items,
+            key=lambda item: (
+                str(item.get("comment_id") or ""),
+                str(item.get("comment_text") or ""),
+            ),
+        )
+        ordered.sort(
+            key=lambda item: str(item.get("published_at") or ""),
+            reverse=True,
+        )
+
+        def interaction_count(item: dict[str, Any]) -> int:
+            try:
+                return int(item.get("interaction_cnt") or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        ordered.sort(key=interaction_count, reverse=True)
+        return ordered
+
+    evidence_comments = [
+        *ordered_evidence(renderable_evidence),
+        *ordered_evidence(legacy_text_evidence),
+    ][:50]
     advantage_rows = [item for item in normalized if result_bucket(item["result"]) == "advantage"]
     disadvantage_rows = [item for item in normalized if result_bucket(item["result"]) == "disadvantage"]
     advantage_dimension = distribution_from_rows(advantage_rows, "dimension")[0]["label"] if advantage_rows else None
@@ -1372,7 +1390,7 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "dimension_distribution": dimension_distribution,
         "result_distribution": result_distribution,
         "dimension_result_matrix": dimension_result_matrix[:6],
-        "evidence_comments": evidence_comments[:20],
+        "evidence_comments": evidence_comments[:50],
     }
 
 

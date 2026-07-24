@@ -205,12 +205,11 @@ PKO_RESULT_BUCKETS = {
 }
 
 
-def _pko_sort_key(row: dict[str, Any]) -> tuple[int, str, str]:
-    return (
-        -int(row.get("interaction_cnt") or 0),
-        str(row.get("published_at") or ""),
-        str(row.get("comment_id") or ""),
-    )
+def _sort_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ordered = sorted(rows, key=lambda row: str(row.get("comment_id") or ""))
+    ordered.sort(key=lambda row: str(row.get("published_at") or ""), reverse=True)
+    ordered.sort(key=lambda row: int(row.get("interaction_cnt") or 0), reverse=True)
+    return ordered
 ```
 
 Normalize missing PKO targets to `其他对象`, missing dimensions to `未明确维度`, and missing results to `unclear`. Do not synthesize a record when `evidence_comments` is empty.

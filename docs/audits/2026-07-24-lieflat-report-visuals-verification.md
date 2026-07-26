@@ -80,3 +80,27 @@ SVG 渲染契约时才写入受限长度的 LLM 短结论，图表数值与 meta
 - 至少一个缺少相关数据的真实事件空状态。
 
 在上述截图完成前，不应宣称浏览器视觉验收已完成。
+
+## 2026-07-26 Task 4 全量回归补充
+
+| 检查 | 命令 | 结果 |
+| --- | --- | --- |
+| 后端全量测试 | `python -m pytest -q -p no:cacheprovider` | exit 0；351 passed，55 warnings（12 项既有 deprecation/pydantic 告警类型）；20.44s |
+| 前端类型检查 | `npm run typecheck` （`frontend`） | exit 0 |
+| 前端 production build（受限首次） | `npm run build` （`frontend`） | exit 1；`Error: spawn EPERM` 出现在 Next.js `jest-worker` 创建编译子进程时 |
+| 前端 production build（提权重试） | `npm run build` （`frontend`） | exit 0；编译、lint/type validity、静态页面生成 30/30 均完成 |
+| 图表安全扫描 | `rg -n "echarts|chart\\.js|cdn\\.jsdelivr|dangerouslySetInnerHTML|eval\\(|Math\\.random" frontend/src/components/voc/report-visuals` | rg exit 1（没有匹配是 rg 约定的正常无结果）；无 ECharts、Chart.js、CDN、危险 HTML/eval 或随机布局依赖 |
+| diff 格式检查 | `git diff --check` | exit 0 |
+| L6/L15 聚焦回归 | `python -m pytest -q -p no:cacheprovider tests/test_report_visuals.py tests/test_product_report_agent.py tests/test_next_frontend_architecture.py -k "l6 or l15 or product_cache or product_report_chart_order or report_visual_shell_places_nonempty_insight or report_modal_uses_wide_viewport or l6_full_width"` | exit 0；21 passed，118 deselected；6.33s |
+
+聚焦测试视为可重现的非浏览器证据：L6 按维度聚类、气泡面积与计数成比例、密集气泡不碰撞且不出界，气泡有 `role="button"`、`tabindex="0"` 和可读证据文本；L15 每行恰 20 个 tick，三类分配严格合计 20，保留精确百分比。图表 shell 证明信息顺序为标题、副标题、insight、SVG；空态不渲染 insight 或 SVG。modal 测试验证 `94vw/1480px` 宽度、自然 header 与剩余空间滚动，L6 在桌面图表网格中横跨两列。
+
+### 真实数据、服务与视觉状态
+
+- 无 8000/3000 监听服务时，以只读 Python/psycopg 连接项目配置的 PostgreSQL 成功（`DB_CONNECT=ok`）。最新产品缓存是 `EVT-2026-001` / `report_run_id=3` / `2026-07-26 10:14:18`，合约为 `F5/F6/F5/L12/F7`。这是历史缓存的兼容性证据；未写入或重新生成外部数据，不应把它表述为已存在的 L15/L6 新模板报告。新生成合约、旧缓存接受与混合合约拒绝均由上述自动化测试覆盖。
+- 本次无法开启一个可用于 HTTP 验证的受控 backend：两次 `Start-Process` 启动 uvicorn（第二次包含 `-UseNewEnvironment`）均在启动前以 `Item has already been added. Key in dictionary: 'Path' Key being added: 'PATH'` 失败，未产生 PID、未监听端口、无需清理进程。未重复会挂起的 dev/Chrome 尝试。
+- 因此，本次不主张 1280px/1440px 真实浏览器视觉截图验收。production build 成功和 SSR/architecture 测试是替代证据，不是视觉通过的声明。
+
+### 独立审查
+
+独立复审已覆盖 Task 1 前基线至本次 Task 4 的实现修改：结论为 **Spec PASS / Quality APPROVED**，Critical、Important、Minor 均为 0。审查确认产品固定合约仅将 `product-sentiment` 替换为 L15、`product-pko-evidence` 替换为 L6，旧 F6/L12 缓存合约仍可完整恢复，混合合约会拒绝。本次回归未发现新的真实失败，因此无 RED/GREEN 修复。

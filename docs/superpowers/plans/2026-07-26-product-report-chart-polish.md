@@ -414,7 +414,9 @@ assert source.index("{chart.insight}") < source.index("{children}")
 assert source.index("{children}") < source.index("数据来源：{chart.source_label}")
 ```
 
-Assert the modal includes `w-[94vw]`, `max-w-[1480px]`, `max-h-[92vh]`, and an inner height based on `92vh`.
+Assert the modal includes `w-[94vw]`, `max-w-[1480px]`,
+`max-h-[92vh]`, and a column flex layout whose header keeps its natural
+height while the content uses `min-h-0 flex-1 overflow-auto`.
 
 Assert chart cards receive a full-width grid class only when `chart.template_id === "L6"`.
 
@@ -451,9 +453,9 @@ Remove the old below-chart insight paragraph. Keep the source line below the cha
 Change the modal surface and scroller:
 
 ```tsx
-<div className="max-h-[92vh] w-[94vw] max-w-[1480px] overflow-hidden ...">
+<div className="flex max-h-[92vh] w-[94vw] max-w-[1480px] flex-col overflow-hidden ...">
 ...
-<div className="max-h-[calc(92vh-92px)] overflow-auto p-5 md:p-6">
+<div className="min-h-0 flex-1 overflow-auto p-5 md:p-6">
 ```
 
 Wrap each chart:

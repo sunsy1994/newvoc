@@ -9,10 +9,12 @@ import {
   F8PlumbScatter,
 } from "./BasicsCharts";
 import {
+  L6ClusterField,
   L12TypeColonnade,
   L13HourglassStream,
   L14HundredField,
 } from "./NarrativeCharts";
+import { L15BallotTally } from "./SmallDataCharts";
 import type { ReportTemplateId, ReportVisualChart } from "./types";
 
 type ChartProps = {
@@ -26,9 +28,11 @@ const REPORT_CHARTS = {
   F6: F6PairedRungs,
   F7: F7StackedRungs,
   F8: F8PlumbScatter,
+  L6: L6ClusterField,
   L12: L12TypeColonnade,
   L13: L13HourglassStream,
   L14: L14HundredField,
+  L15: L15BallotTally,
 } satisfies Record<ReportTemplateId, ComponentType<ChartProps>>;
 
 export function isReportTemplateId(value: unknown): value is ReportTemplateId {

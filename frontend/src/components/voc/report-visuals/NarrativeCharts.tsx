@@ -12,7 +12,7 @@ type NarrativeChartProps = {
 
 type ResultBucket = "advantage" | "disadvantage" | "neutral" | "unclear";
 
-type PkoRecord = {
+export type PkoRecord = {
   comment_id: string;
   target: string;
   dimension: string;
@@ -117,6 +117,152 @@ export function mapL12Records(data: Array<Record<string, unknown>>): PkoRecord[]
       },
     ];
   });
+}
+
+export type L6Cluster = {
+  dimension: string;
+  totalCount: number;
+  targets: Array<{
+    target: string;
+    count: number;
+    records: PkoRecord[];
+  }>;
+};
+
+export function bubbleRadius(count: number, maxCount: number): number {
+  const safeMax = Math.max(1, maxCount);
+  return Math.min(30, Math.max(10, 30 * Math.sqrt(Math.max(0, count) / safeMax)));
+}
+
+function mapL6Records(data: Array<Record<string, unknown>>): PkoRecord[] {
+  return data.flatMap((row) => {
+    const comment_id = readString(row.comment_id);
+    const target = readString(row.target);
+    const dimension = readString(row.dimension);
+    const comment_text = readString(row.comment_text);
+    const bucket = readString(row.result_bucket) ?? readString(row.result);
+    if (!comment_id || !target || !dimension || !comment_text) return [];
+    return [{
+      comment_id,
+      target,
+      dimension,
+      comment_text,
+      result_bucket: RESULT_BUCKETS.has(bucket as ResultBucket)
+        ? bucket as ResultBucket
+        : "unclear",
+    }];
+  });
+}
+
+export function mapL6Clusters(data: Array<Record<string, unknown>>): L6Cluster[] {
+  const byDimension = new Map<string, Map<string, PkoRecord[]>>();
+  for (const record of mapL6Records(data)) {
+    const targets = byDimension.get(record.dimension) ?? new Map<string, PkoRecord[]>();
+    const records = targets.get(record.target) ?? [];
+    records.push(record);
+    targets.set(record.target, records);
+    byDimension.set(record.dimension, targets);
+  }
+  return [...byDimension.entries()]
+    .map(([dimension, targets]) => {
+      const targetRows = [...targets.entries()]
+        .map(([target, records]) => ({ target, count: records.length, records }))
+        .sort((left, right) => right.count - left.count || left.target.localeCompare(right.target, "zh-CN"));
+      return {
+        dimension,
+        totalCount: targetRows.reduce((sum, target) => sum + target.count, 0),
+        targets: targetRows,
+      };
+    })
+    .sort((left, right) => right.totalCount - left.totalCount || left.dimension.localeCompare(right.dimension, "zh-CN"));
+}
+
+function l6ClusterCenter(index: number, total: number): [number, number] {
+  if (total === 1) return [420, 160];
+  const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
+  return [420 + Math.cos(angle) * 178, 160 + Math.sin(angle) * 98];
+}
+
+export function L6ClusterField({ chart }: NarrativeChartProps) {
+  const clusters = mapL6Clusters(chart.data);
+  const [activeTarget, setActiveTarget] = useState<string | null>(null);
+  const maxCount = Math.max(1, ...clusters.flatMap((cluster) => cluster.targets.map((target) => target.count)));
+
+  return (
+    <ReportVisualShell chart={chart} hasData={clusters.length > 0}>
+      <svg viewBox="0 0 840 320" role="img" aria-label={`${chart.title}产品对比点簇图`}>
+        {narrativeMotionStyles()}
+        {clusters.map((cluster, clusterIndex) => {
+          const [centerX, centerY] = l6ClusterCenter(clusterIndex, clusters.length);
+          return (
+            <g key={cluster.dimension}>
+              {cluster.targets.map((target, targetIndex) => {
+                const key = `${cluster.dimension}-${target.target}`;
+                const angle = ((targetIndex * 137.508 + clusterIndex * 41) * Math.PI) / 180;
+                const distance = 54 + (targetIndex % 2) * 18;
+                const x = centerX + Math.cos(angle) * distance;
+                const y = centerY + Math.sin(angle) * distance;
+                const radius = bubbleRadius(target.count, maxCount);
+                const isActive = activeTarget === key;
+                return (
+                  <g
+                    key={key}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${cluster.dimension}与${target.target}对比${target.count}次`}
+                    onFocus={() => setActiveTarget(key)}
+                    onMouseEnter={() => setActiveTarget(key)}
+                    onKeyDown={(event) => {
+                      if (isL12ActivationKey(event.key)) {
+                        event.preventDefault();
+                        setActiveTarget(key);
+                      }
+                    }}
+                  >
+                    <title>{`${cluster.dimension} · ${target.target} · ${target.count} 次`}</title>
+                    <path
+                      d={`M ${centerX} ${centerY} Q ${(centerX + x) / 2} ${(centerY + y) / 2 - 16} ${x} ${y}`}
+                      fill="none"
+                      stroke={theme.border}
+                      strokeWidth="0.9"
+                      strokeDasharray="2 4"
+                    />
+                    <circle
+                      className="report-narrative-reveal"
+                      cx={x}
+                      cy={y}
+                      r={radius}
+                      fill={theme.secondary}
+                      opacity={activeTarget && !isActive ? 0.42 : 0.9}
+                      stroke={isActive ? theme.ink : "none"}
+                      strokeWidth="1.5"
+                    />
+                    <text x={x} y={y + 3} textAnchor="middle" fontSize="8" fontWeight="800" fill={theme.white}>
+                      {target.count}
+                    </text>
+                    <text x={x} y={y + radius + 11} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={theme.body}>
+                      {truncateLabel(target.target, 9)} · {target.count}
+                    </text>
+                  </g>
+                );
+              })}
+              <circle cx={centerX} cy={centerY} r="6.5" fill={theme.ink} />
+              <text x={centerX} y={centerY + 31} textAnchor="middle" fontSize="8" fontWeight="800" fill={theme.ink}>
+                {truncateLabel(cluster.dimension, 10)} · {cluster.totalCount}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <ul className="sr-only">
+        {clusters.flatMap((cluster) => cluster.targets.flatMap((target) => target.records.map((record) => (
+          <li key={`${cluster.dimension}-${target.target}-${record.comment_id}`}>
+            {cluster.dimension}；{target.target}；{record.comment_text}
+          </li>
+        ))))}
+      </ul>
+    </ReportVisualShell>
+  );
 }
 
 function bucketColor(bucket: ResultBucket): string {

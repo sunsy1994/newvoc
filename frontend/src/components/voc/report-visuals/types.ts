@@ -5,9 +5,11 @@ export type ReportTemplateId =
   | "F6"
   | "F7"
   | "F8"
+  | "L6"
   | "L12"
   | "L13"
-  | "L14";
+  | "L14"
+  | "L15";
 
 export type ReportVisualChart = {
   chart_id: string;

@@ -1689,7 +1689,7 @@ def test_report_chart_registry_is_closed_and_complete() -> None:
         "frontend/src/components/voc/report-visuals/ReportChartRegistry.tsx"
     ).read_text(encoding="utf-8")
 
-    for template_id in ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"]:
+    for template_id in ["F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15"]:
         assert f"{template_id}:" in source
     assert "satisfies Record<ReportTemplateId" in source
     assert "dangerouslySetInnerHTML" not in source
@@ -1742,10 +1742,12 @@ const registry = loadTsx(
       F8PlumbScatter: chartStub,
     },
     "./NarrativeCharts": {
+      L6ClusterField: chartStub,
       L12TypeColonnade: chartStub,
       L13HourglassStream: chartStub,
       L14HundredField: chartStub,
     },
+    "./SmallDataCharts": { L15BallotTally: chartStub },
   },
 );
 
@@ -2286,6 +2288,138 @@ def test_l14_allocates_exactly_one_hundred_cells_without_mutating_categories() -
     ]
     assert probe["l14CellCount"] == 100
     assert probe["l14HasRemainder"] is True
+
+
+@lru_cache(maxsize=1)
+def _run_l6_l15_chart_probe() -> dict:
+    script = r"""
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+const themeModule = {
+  reportChartTheme: {
+    primary: "var(--theme-primary)", secondary: "var(--theme-selected-text)",
+    ink: "var(--theme-ink)", body: "var(--theme-body)", muted: "var(--theme-muted)",
+    border: "var(--theme-border)", panel: "var(--theme-soft-panel)", white: "var(--theme-white)",
+  },
+};
+
+function loadTsx(relativePath, stubs) {
+  const source = fs.readFileSync(path.join(base, relativePath), "utf8");
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017,
+      jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  const localRequire = (id) => {
+    if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
+    if (id === "react") return React;
+    if (id === "react/jsx-runtime") return jsxRuntime;
+    throw new Error(`Unexpected import: ${id}`);
+  };
+  new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
+}
+
+const shell = loadTsx("src/components/voc/report-visuals/ReportVisualShell.tsx", {
+  "./chartTheme": themeModule,
+});
+const narrative = loadTsx("src/components/voc/report-visuals/NarrativeCharts.tsx", {
+  "./chartTheme": themeModule, "./ReportVisualShell": shell,
+});
+const smallData = loadTsx("src/components/voc/report-visuals/SmallDataCharts.tsx", {
+  "./chartTheme": themeModule, "./ReportVisualShell": shell,
+});
+
+const l6Data = [
+  { comment_id: "c1", comment_text: "a", dimension: "外观", target: "竞品B", result_bucket: "advantage" },
+  { comment_id: "c2", comment_text: "b", dimension: "外观", target: "竞品A", result_bucket: "neutral" },
+  { comment_id: "c3", comment_text: "c", dimension: "外观", target: "竞品B", result_bucket: "advantage" },
+  { comment_id: "c4", comment_text: "d", dimension: "空间", target: "竞品A", result_bucket: "disadvantage" },
+];
+const clusters = narrative.mapL6Clusters(l6Data);
+assert.deepEqual(clusters.map(({ dimension, totalCount }) => ({ dimension, totalCount })), [
+  { dimension: "外观", totalCount: 3 }, { dimension: "空间", totalCount: 1 },
+]);
+assert.equal(clusters[0].targets[0].target, "竞品B");
+assert.equal(clusters[0].targets[0].count, 2);
+assert.ok(narrative.bubbleRadius(4, 4) > narrative.bubbleRadius(1, 4));
+assert.ok(Math.abs((narrative.bubbleRadius(4, 4) ** 2) / (narrative.bubbleRadius(1, 4) ** 2) - 4) < 1.0);
+assert.equal(narrative.bubbleRadius(0, 4), 10);
+assert.equal(narrative.bubbleRadius(100, 4), 30);
+
+const l15Data = [
+  { aspect: "外观", positive_rate: 62.5, negative_rate: 25 },
+  { aspect: "空间", positive_rate: 10, negative_rate: 70 },
+];
+const allocation = smallData.allocateSentimentTicks(
+  { positiveRate: 62.5, neutralRate: 12.5, negativeRate: 25 }, 20,
+);
+assert.deepEqual(allocation, { positive: 12, neutral: 3, negative: 5 });
+assert.equal(allocation.positive + allocation.neutral + allocation.negative, 20);
+
+const chartBase = {
+  title: "测试图表", subtitle: "测试副标题", insight: "", source_label: "test.source", meta: {},
+};
+const l6Markup = ReactDOMServer.renderToStaticMarkup(React.createElement(
+  narrative.L6ClusterField,
+  { chart: { ...chartBase, chart_id: "l6", template_id: "L6", data: l6Data,
+    meta: { displayed_count: 4, total_count: 4, unit: "条对比评论" } } },
+));
+const l15Markup = ReactDOMServer.renderToStaticMarkup(React.createElement(
+  smallData.L15BallotTally,
+  { chart: { ...chartBase, chart_id: "l15", template_id: "L15", data: l15Data } },
+));
+
+process.stdout.write(JSON.stringify({
+  l6Markup,
+  l15Markup,
+  l15Rows: smallData.normalizeL15Rows(l15Data),
+  l15TickCount: (l15Markup.match(/data-sentiment-tick=/g) || []).length,
+  l15TickCounts: ["外观", "空间"].map((aspect) => (
+    l15Markup.match(new RegExp(`data-sentiment-tick="${aspect}-`, "g")) || []
+  ).length),
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return json.loads(completed.stdout)
+
+
+def test_l6_cluster_field_groups_pko_evidence_and_keeps_it_accessible() -> None:
+    probe = _run_l6_l15_chart_probe()
+
+    assert "外观" in probe["l6Markup"]
+    assert "竞品B" in probe["l6Markup"]
+    assert "· 2" in probe["l6Markup"]
+    assert 'role="button"' in probe["l6Markup"]
+    assert 'tabindex="0"' in probe["l6Markup"]
+    assert 'class="sr-only"' in probe["l6Markup"]
+    assert all(copy in probe["l6Markup"] for copy in ["a", "b", "c", "d"])
+
+
+def test_l15_ballot_tally_renders_twenty_ticks_per_aspect_with_exact_rates() -> None:
+    probe = _run_l6_l15_chart_probe()
+
+    assert probe["l15Rows"] == [
+        {"aspect": "外观", "positiveRate": 62.5, "neutralRate": 12.5, "negativeRate": 25},
+        {"aspect": "空间", "positiveRate": 10, "neutralRate": 20, "negativeRate": 70},
+    ]
+    assert all(rate in probe["l15Markup"] for rate in ["62.5%", "12.5%", "25%", "10%", "20%", "70%"])
+    assert probe["l15TickCount"] == 40
+    assert probe["l15TickCounts"] == [20, 20]
 
 
 def test_event_report_uses_shared_svg_registry_and_keeps_legacy_chart_fallback() -> None:

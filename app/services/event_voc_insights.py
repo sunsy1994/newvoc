@@ -1274,11 +1274,11 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ]
 
     def result_bucket(value: str) -> str:
-        if value == "本车优势":
+        if value in {"advantage", "本车优势", "优势"}:
             return "advantage"
-        if value == "本车劣势":
+        if value in {"disadvantage", "本车劣势", "劣势"}:
             return "disadvantage"
-        if value == "中性对比":
+        if value in {"neutral", "中性对比", "中性"}:
             return "neutral"
         return "unclear"
 
@@ -1324,7 +1324,9 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         }
         for source, item in zip(rows, normalized)
         if nonempty_string(source.get("target"))
+        and not source["target"].strip().startswith("未标注")
         and nonempty_string(source.get("dimension"))
+        and not source["dimension"].strip().startswith("未标注")
         and nonempty_string(item.get("comment_id"))
         and nonempty_string(item.get("comment_text"))
     ]

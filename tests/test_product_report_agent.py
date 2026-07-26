@@ -358,6 +358,113 @@ def test_product_report_story_context_builder_excludes_placeholder_pko_and_keeps
     }
 
 
+def test_raw_placeholder_pko_values_do_not_inflate_strict_total_or_break_structured_cache() -> None:
+    from app.services.event_voc_insights import build_product_pko_story
+    from app.services.report_agent import (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        PRODUCT_REPORT_CHART_SECTIONS,
+        PRODUCT_REPORT_SECTION_CODES,
+        _product_fallback_insights,
+        build_product_report_context,
+        build_report_summary,
+        normalize_cached_report_summary,
+    )
+    from app.services.report_visuals import build_product_report_charts
+
+    story = build_product_pko_story(
+        [
+            {
+                "comment_id": "raw-placeholder-target",
+                "target": "未标注对比对象",
+                "dimension": "空间",
+                "result": "本车优势",
+                "comment_text": "原始对象就是占位值",
+                "interaction_cnt": 10,
+            },
+            {
+                "comment_id": "raw-placeholder-dimension",
+                "target": "竞品A",
+                "dimension": "未标注维度",
+                "result": "本车劣势",
+                "comment_text": "原始维度就是占位值",
+                "interaction_cnt": 9,
+            },
+        ]
+    )
+    context = build_product_report_context({"product_pko_story": story})
+    charts = build_product_report_charts(context)
+    l6_chart = charts[3]
+
+    assert [row["comment_id"] for row in story["evidence_comments"]] == [
+        "raw-placeholder-target",
+        "raw-placeholder-dimension",
+    ]
+    assert story["report_evidence_comments"] == []
+    assert story["report_evidence_total_count"] == 0
+    assert l6_chart["data"] == []
+    assert l6_chart["meta"] == {
+        "displayed_count": 0,
+        "total_count": 0,
+        "unit": "条对比评论",
+        "empty_reason": "暂无可用数据",
+    }
+
+    summary = build_report_summary(
+        {},
+        charts,
+        PRODUCT_REPORT_SECTION_CODES,
+        _product_fallback_insights(context),
+        PRODUCT_REPORT_CHART_SECTIONS,
+    )
+    cached = normalize_cached_report_summary(
+        {**summary, "report_markdown": "# 不应回退"},
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+    )
+    assert cached["structured_report"]["charts"][3]["meta"] == l6_chart["meta"]
+
+
+def test_product_pko_story_preserves_all_supported_result_aliases_as_canonical_buckets() -> None:
+    from app.services.event_voc_insights import build_product_pko_story
+    from app.services.report_agent import build_product_report_context
+    from app.services.report_visuals import build_product_report_charts
+
+    aliases = [
+        ("本车优势", "advantage"),
+        ("优势", "advantage"),
+        ("advantage", "advantage"),
+        ("本车劣势", "disadvantage"),
+        ("劣势", "disadvantage"),
+        ("disadvantage", "disadvantage"),
+        ("中性对比", "neutral"),
+        ("中性", "neutral"),
+        ("neutral", "neutral"),
+        ("unclear", "unclear"),
+    ]
+    rows = [
+        {
+            "comment_id": f"alias-{index:02d}",
+            "target": "竞品A",
+            "dimension": "空间",
+            "result": alias,
+            "comment_text": f"结果别名 {alias}",
+            "interaction_cnt": 100 - index,
+        }
+        for index, (alias, _) in enumerate(aliases)
+    ]
+
+    story = build_product_pko_story(rows)
+    chart = build_product_report_charts(
+        build_product_report_context({"product_pko_story": story})
+    )[3]
+
+    assert [row["result_bucket"] for row in story["report_evidence_comments"]] == [
+        bucket for _, bucket in aliases
+    ]
+    assert [row["result_bucket"] for row in chart["data"]] == [
+        bucket for _, bucket in aliases
+    ]
+
+
 def test_l15_builder_cache_and_real_frontend_share_normalized_three_rate_contract() -> None:
     from app.services.report_agent import (
         DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,

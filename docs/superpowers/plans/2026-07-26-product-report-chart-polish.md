@@ -297,11 +297,16 @@ export type L6Cluster = {
 
 export function bubbleRadius(count: number, maxCount: number): number {
   const safeMax = Math.max(1, maxCount);
-  return 12 + Math.sqrt(Math.max(0, count) / safeMax) * 18;
+  const radius = 30 * Math.sqrt(Math.max(0, count) / safeMax);
+  return Math.max(10, Math.min(30, radius));
 }
 ```
 
 `mapL6Clusters` must group by dimension and target, sort dimensions and targets by descending counts with locale string tie-breaks, and retain records. Render product-point centers separately from target bubbles. Use deterministic cluster centers derived from index, not random coordinates.
+
+The multiplicative square-root scale is binding: outside the documented
+readability clamp, bubble area must be proportional to comparison count. Do
+not add a constant radius offset because it would distort the area ratio.
 
 Add keyboard-focusable target groups:
 

@@ -2354,11 +2354,41 @@ assert.ok(narrative.bubbleRadius(4, 4) > narrative.bubbleRadius(1, 4));
 assert.ok(Math.abs((narrative.bubbleRadius(4, 4) ** 2) / (narrative.bubbleRadius(1, 4) ** 2) - 4) < 1.0);
 assert.equal(narrative.bubbleRadius(0, 4), 10);
 assert.equal(narrative.bubbleRadius(100, 4), 30);
+const denseL6Data = [5, 8].flatMap((targetCount, clusterIndex) =>
+  Array.from({ length: targetCount }, (_, targetIndex) => ({
+    comment_id: `dense-${clusterIndex}-${targetIndex}`,
+    comment_text: `证据-${clusterIndex}-${targetIndex}`,
+    dimension: `密集维度${clusterIndex + 1}`,
+    target: `竞品${targetIndex + 1}`,
+    result_bucket: "neutral",
+  })),
+);
+const denseLayout = narrative.layoutL6Clusters(narrative.mapL6Clusters(denseL6Data));
+for (const cluster of denseLayout.clusters) {
+  for (let left = 0; left < cluster.targets.length; left += 1) {
+    for (let right = left + 1; right < cluster.targets.length; right += 1) {
+      const a = cluster.targets[left];
+      const b = cluster.targets[right];
+      assert.ok(
+        Math.hypot(a.x - b.x, a.y - b.y) >= a.radius + b.radius + narrative.L6_LABEL_SAFE_GAP,
+      );
+    }
+  }
+  for (const target of cluster.targets) {
+    assert.ok(target.x - target.radius >= 0 && target.x + target.radius <= denseLayout.width);
+    assert.ok(target.y - target.radius >= 0 && target.y + target.radius <= denseLayout.height);
+    assert.ok(target.labelX >= 0 && target.labelX <= denseLayout.width);
+    assert.ok(target.labelY >= 0 && target.labelY <= denseLayout.height);
+  }
+  assert.ok(cluster.centerLabelX >= 0 && cluster.centerLabelX <= denseLayout.width);
+  assert.ok(cluster.centerLabelY >= 0 && cluster.centerLabelY <= denseLayout.height);
+}
 
 const l15Data = [
   { aspect: "外观", positive_rate: 62.5, negative_rate: 25 },
   { aspect: "空间", positive_rate: 10, negative_rate: 70 },
 ];
+const l15PrecisionData = [{ aspect: "精度", positive_rate: 33.33, negative_rate: 33.33 }];
 const allocation = smallData.allocateSentimentTicks(
   { positiveRate: 62.5, neutralRate: 12.5, negativeRate: 25 }, 20,
 );
@@ -2377,10 +2407,15 @@ const l15Markup = ReactDOMServer.renderToStaticMarkup(React.createElement(
   smallData.L15BallotTally,
   { chart: { ...chartBase, chart_id: "l15", template_id: "L15", data: l15Data } },
 ));
+const l15PrecisionMarkup = ReactDOMServer.renderToStaticMarkup(React.createElement(
+  smallData.L15BallotTally,
+  { chart: { ...chartBase, chart_id: "l15-precision", template_id: "L15", data: l15PrecisionData } },
+));
 
 process.stdout.write(JSON.stringify({
   l6Markup,
   l15Markup,
+  l15PrecisionMarkup,
   l15Rows: smallData.normalizeL15Rows(l15Data),
   l15TickCount: (l15Markup.match(/data-sentiment-tick=/g) || []).length,
   l15TickCounts: ["外观", "空间"].map((aspect) => (
@@ -2420,6 +2455,7 @@ def test_l15_ballot_tally_renders_twenty_ticks_per_aspect_with_exact_rates() -> 
     assert all(rate in probe["l15Markup"] for rate in ["62.5%", "12.5%", "25%", "10%", "20%", "70%"])
     assert probe["l15TickCount"] == 40
     assert probe["l15TickCounts"] == [20, 20]
+    assert all(rate in probe["l15PrecisionMarkup"] for rate in ["33.33%", "33.34%"])
 
 
 def test_event_report_uses_shared_svg_registry_and_keeps_legacy_chart_fallback() -> None:

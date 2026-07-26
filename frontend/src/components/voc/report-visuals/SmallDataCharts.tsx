@@ -29,7 +29,8 @@ function readRate(value: unknown): number | undefined {
 }
 
 function formatRate(rate: number): string {
-  return `${Number.isInteger(rate) ? rate : rate.toFixed(1)}%`;
+  const rounded = Math.round(rate * 100) / 100;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(2).replace(/0$/, "")}%`;
 }
 
 export function normalizeL15Rows(data: Array<Record<string, unknown>>): L15Row[] {

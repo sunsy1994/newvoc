@@ -177,32 +177,93 @@ export function mapL6Clusters(data: Array<Record<string, unknown>>): L6Cluster[]
     .sort((left, right) => right.totalCount - left.totalCount || left.dimension.localeCompare(right.dimension, "zh-CN"));
 }
 
-function l6ClusterCenter(index: number, total: number): [number, number] {
-  if (total === 1) return [420, 160];
-  const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
-  return [420 + Math.cos(angle) * 178, 160 + Math.sin(angle) * 98];
+export const L6_LABEL_SAFE_GAP = 12;
+
+type L6TargetLayout = L6Cluster["targets"][number] & {
+  x: number;
+  y: number;
+  radius: number;
+  labelX: number;
+  labelY: number;
+};
+
+type L6ClusterLayout = Omit<L6Cluster, "targets"> & {
+  centerX: number;
+  centerY: number;
+  centerLabelX: number;
+  centerLabelY: number;
+  targets: L6TargetLayout[];
+};
+
+export type L6Layout = {
+  width: number;
+  height: number;
+  clusters: L6ClusterLayout[];
+};
+
+export function layoutL6Clusters(clusters: L6Cluster[]): L6Layout {
+  const maxCount = Math.max(1, ...clusters.flatMap((cluster) => cluster.targets.map((target) => target.count)));
+  const density = clusters.map((cluster) => {
+    const maxRadius = Math.max(10, ...cluster.targets.map((target) => bubbleRadius(target.count, maxCount)));
+    const count = Math.max(1, cluster.targets.length);
+    const minimumRing = count > 1
+      ? (maxRadius * 2 + L6_LABEL_SAFE_GAP) / (2 * Math.sin(Math.PI / count))
+      : 0;
+    return { maxRadius, ringRadius: Math.max(72, minimumRing + 2) };
+  });
+  const maxRadius = Math.max(10, ...density.map((item) => item.maxRadius));
+  const maxRing = Math.max(72, ...density.map((item) => item.ringRadius));
+  const columns = clusters.length > 1 ? 2 : 1;
+  const rows = Math.ceil(clusters.length / columns);
+  const labelHalfWidth = 42;
+  const cellWidth = 2 * (maxRing + maxRadius + labelHalfWidth) + 24;
+  const cellHeight = 2 * (maxRing + maxRadius) + 34;
+  const width = Math.max(840, columns * cellWidth + 32);
+  const height = Math.max(320, rows * cellHeight + 40);
+  const startX = (width - columns * cellWidth) / 2;
+
+  return {
+    width,
+    height,
+    clusters: clusters.map((cluster, clusterIndex) => {
+      const column = clusterIndex % columns;
+      const row = Math.floor(clusterIndex / columns);
+      const centerX = startX + column * cellWidth + cellWidth / 2;
+      const centerY = 20 + row * cellHeight + maxRing + maxRadius + 6;
+      const ringRadius = density[clusterIndex].ringRadius;
+      return {
+        ...cluster,
+        centerX,
+        centerY,
+        centerLabelX: centerX,
+        centerLabelY: centerY + 31,
+        targets: cluster.targets.map((target, targetIndex) => {
+          const angle = -Math.PI / 2 + (targetIndex / cluster.targets.length) * Math.PI * 2;
+          const radius = bubbleRadius(target.count, maxCount);
+          const x = centerX + Math.cos(angle) * ringRadius;
+          const y = centerY + Math.sin(angle) * ringRadius;
+          return { ...target, x, y, radius, labelX: x, labelY: y + radius + 11 };
+        }),
+      };
+    }),
+  };
 }
 
 export function L6ClusterField({ chart }: NarrativeChartProps) {
   const clusters = mapL6Clusters(chart.data);
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
-  const maxCount = Math.max(1, ...clusters.flatMap((cluster) => cluster.targets.map((target) => target.count)));
+  const layout = layoutL6Clusters(clusters);
 
   return (
     <ReportVisualShell chart={chart} hasData={clusters.length > 0}>
-      <svg viewBox="0 0 840 320" role="img" aria-label={`${chart.title}产品对比点簇图`}>
+      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label={`${chart.title}产品对比点簇图`}>
         {narrativeMotionStyles()}
-        {clusters.map((cluster, clusterIndex) => {
-          const [centerX, centerY] = l6ClusterCenter(clusterIndex, clusters.length);
+        {layout.clusters.map((cluster) => {
+          const { centerX, centerY } = cluster;
           return (
             <g key={cluster.dimension}>
-              {cluster.targets.map((target, targetIndex) => {
+              {cluster.targets.map((target) => {
                 const key = `${cluster.dimension}-${target.target}`;
-                const angle = ((targetIndex * 137.508 + clusterIndex * 41) * Math.PI) / 180;
-                const distance = 54 + (targetIndex % 2) * 18;
-                const x = centerX + Math.cos(angle) * distance;
-                const y = centerY + Math.sin(angle) * distance;
-                const radius = bubbleRadius(target.count, maxCount);
                 const isActive = activeTarget === key;
                 return (
                   <g
@@ -221,7 +282,7 @@ export function L6ClusterField({ chart }: NarrativeChartProps) {
                   >
                     <title>{`${cluster.dimension} · ${target.target} · ${target.count} 次`}</title>
                     <path
-                      d={`M ${centerX} ${centerY} Q ${(centerX + x) / 2} ${(centerY + y) / 2 - 16} ${x} ${y}`}
+                      d={`M ${centerX} ${centerY} Q ${(centerX + target.x) / 2} ${(centerY + target.y) / 2 - 16} ${target.x} ${target.y}`}
                       fill="none"
                       stroke={theme.border}
                       strokeWidth="0.9"
@@ -229,25 +290,25 @@ export function L6ClusterField({ chart }: NarrativeChartProps) {
                     />
                     <circle
                       className="report-narrative-reveal"
-                      cx={x}
-                      cy={y}
-                      r={radius}
+                      cx={target.x}
+                      cy={target.y}
+                      r={target.radius}
                       fill={theme.secondary}
                       opacity={activeTarget && !isActive ? 0.42 : 0.9}
                       stroke={isActive ? theme.ink : "none"}
                       strokeWidth="1.5"
                     />
-                    <text x={x} y={y + 3} textAnchor="middle" fontSize="8" fontWeight="800" fill={theme.white}>
+                    <text x={target.x} y={target.y + 3} textAnchor="middle" fontSize="8" fontWeight="800" fill={theme.white}>
                       {target.count}
                     </text>
-                    <text x={x} y={y + radius + 11} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={theme.body}>
+                    <text x={target.labelX} y={target.labelY} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={theme.body}>
                       {truncateLabel(target.target, 9)} · {target.count}
                     </text>
                   </g>
                 );
               })}
               <circle cx={centerX} cy={centerY} r="6.5" fill={theme.ink} />
-              <text x={centerX} y={centerY + 31} textAnchor="middle" fontSize="8" fontWeight="800" fill={theme.ink}>
+              <text x={cluster.centerLabelX} y={cluster.centerLabelY} textAnchor="middle" fontSize="8" fontWeight="800" fill={theme.ink}>
                 {truncateLabel(cluster.dimension, 10)} · {cluster.totalCount}
               </text>
             </g>

@@ -1317,6 +1317,17 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if nonempty_string(item.get("comment_id"))
         and nonempty_string(item.get("comment_text"))
     ]
+    report_evidence = [
+        {
+            **item,
+            "result_bucket": result_bucket(item["result"]),
+        }
+        for source, item in zip(rows, normalized)
+        if nonempty_string(source.get("target"))
+        and nonempty_string(source.get("dimension"))
+        and nonempty_string(item.get("comment_id"))
+        and nonempty_string(item.get("comment_text"))
+    ]
     legacy_text_evidence = [
         item
         for item in normalized
@@ -1356,6 +1367,7 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         *ordered_evidence(renderable_evidence),
         *ordered_evidence(legacy_text_evidence),
     ][:50]
+    ordered_report_evidence = ordered_evidence(report_evidence)
     advantage_rows = [item for item in normalized if result_bucket(item["result"]) == "advantage"]
     disadvantage_rows = [item for item in normalized if result_bucket(item["result"]) == "disadvantage"]
     advantage_dimension = distribution_from_rows(advantage_rows, "dimension")[0]["label"] if advantage_rows else None
@@ -1402,6 +1414,8 @@ def build_product_pko_story(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "dimension_result_matrix": dimension_result_matrix[:6],
         "evidence_total_count": len(renderable_evidence),
         "evidence_comments": evidence_comments[:50],
+        "report_evidence_total_count": len(ordered_report_evidence),
+        "report_evidence_comments": ordered_report_evidence[:50],
     }
 
 

@@ -40,11 +40,16 @@ def normalize_sentiment_rates(positive: Any, negative: Any) -> dict[str, float] 
     selected_total = positive_value + negative_value
     if selected_total > 100.0:
         scale = 100.0 / selected_total
-        positive_value *= scale
-        negative_value *= scale
+        positive_value = round(positive_value * scale, 2)
+        negative_value = round(100.0 - positive_value, 2)
+        neutral_value = 0.0
+    else:
+        positive_value = round(positive_value, 2)
+        negative_value = round(negative_value, 2)
+        neutral_value = round(max(0.0, 100.0 - positive_value - negative_value), 2)
     return {
         "positive_rate": positive_value,
-        "neutral_rate": max(0.0, 100.0 - positive_value - negative_value),
+        "neutral_rate": neutral_value,
         "negative_rate": negative_value,
     }
 
@@ -127,15 +132,21 @@ def _valid_l6_row(row: dict[str, Any]) -> bool:
         _text(row.get("comment_id"))
         and _text(row.get("comment_text"))
         and _text(row.get("dimension"))
+        and not _text(row.get("dimension")).startswith("未标注")
         and _text(row.get("target"))
+        and not _text(row.get("target")).startswith("未标注")
     )
 
 
-def _valid_l15_row(row: dict[str, Any]) -> bool:
-    return bool(
-        _text(row.get("aspect"))
-        and normalize_sentiment_rates(row.get("positive_rate"), row.get("negative_rate"))
-    )
+def _result_bucket(value: Any) -> str:
+    normalized = _text(value)
+    if normalized in {"advantage", "本车优势", "优势"}:
+        return "advantage"
+    if normalized in {"disadvantage", "本车劣势", "劣势"}:
+        return "disadvantage"
+    if normalized in {"neutral", "中性对比", "中性"}:
+        return "neutral"
+    return "unclear"
 
 
 def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, Any]]:
@@ -164,7 +175,18 @@ def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, 
     if template_id == "L12":
         return [row for row in rows if _valid_l12_row(row)]
     if template_id == "L6":
-        return [row for row in rows if _valid_l6_row(row)]
+        return [
+            {
+                **row,
+                "result_bucket": _result_bucket(
+                    row.get("result_bucket")
+                    if _text(row.get("result_bucket"))
+                    else row.get("result")
+                ),
+            }
+            for row in rows
+            if _valid_l6_row(row)
+        ]
     if template_id == "L13":
         if len(rows) != len(SALES_FUNNEL_STAGES):
             return []
@@ -195,7 +217,15 @@ def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, 
             return []
         return [row for row, _ in percentages]
     if template_id == "L15":
-        return [row for row in rows if _valid_l15_row(row)]
+        normalized_rows = []
+        for row in rows:
+            rates = normalize_sentiment_rates(
+                row.get("positive_rate"),
+                row.get("negative_rate"),
+            )
+            if _text(row.get("aspect")) and rates:
+                normalized_rows.append({**row, **rates})
+        return normalized_rows
     return []
 
 

@@ -101,6 +101,43 @@ SVG 渲染契约时才写入受限长度的 LLM 短结论，图表数值与 meta
 - 本次无法开启一个可用于 HTTP 验证的受控 backend：两次 `Start-Process` 启动 uvicorn（第二次包含 `-UseNewEnvironment`）均在启动前以 `Item has already been added. Key in dictionary: 'Path' Key being added: 'PATH'` 失败，未产生 PID、未监听端口、无需清理进程。未重复会挂起的 dev/Chrome 尝试。
 - 因此，本次不主张 1280px/1440px 真实浏览器视觉截图验收。production build 成功和 SSR/architecture 测试是替代证据，不是视觉通过的声明。
 
-### 独立审查
+### 复审结论更正
 
-独立复审已覆盖 Task 1 前基线至本次 Task 4 的实现修改：结论为 **Spec PASS / Quality APPROVED**，Critical、Important、Minor 均为 0。审查确认产品固定合约仅将 `product-sentiment` 替换为 L15、`product-pko-evidence` 替换为 L6，旧 F6/L12 缓存合约仍可完整恢复，混合合约会拒绝。本次回归未发现新的真实失败，因此无 RED/GREEN 修复。
+此前“whole-branch 独立复审为 Spec PASS / Quality APPROVED，Critical、Important、
+Minor 均为 0”的表述已被后续最终审查推翻，不再作为有效验收结论。最终审查实际发现
+1 个 Critical 与 5 个 Important：新产品前端入口不可达、PKO 占位证据污染、
+L15 前后端契约不一致、L6 缺少可见代表评论详情、50 个长标签重叠，以及 L6/L15
+缺少显式响应式尺寸。上述 finding 均已新增可执行回归并按 RED/GREEN 修复；本记录
+不再提前宣称整个分支获得独立批准。
+
+## 2026-07-26 最终审查修复验证
+
+| 检查 | 命令 | 结果 |
+| --- | --- | --- |
+| 新 finding focused | `python -m pytest tests/test_next_frontend_architecture.py -q -p no:cacheprovider -k "current_product_contract or l6_cluster_field or l6_dense_fifty or l15_ballot_tally"` | RED：4 failed；GREEN：4 passed，78 deselected |
+| 后端链路 focused | `python -m pytest tests/test_report_visuals.py tests/test_product_report_agent.py -q -p no:cacheprovider -k "l15_requires or normalizes_sentiment or story_context_builder_excludes or l15_builder_cache"` | RED：4 failed；GREEN：4 passed，57 deselected |
+| 绑定四文件回归 | `python -m pytest tests/test_report_visuals.py tests/test_product_report_agent.py tests/test_event_market_dashboard.py tests/test_next_frontend_architecture.py -q -p no:cacheprovider` | exit 0；160 passed，6 warnings |
+| 后端全量 | `python -m pytest -q -p no:cacheprovider` | exit 0；355 passed，55 个既有 warning |
+| 前端类型检查 | `npm run typecheck`（`frontend`） | exit 0 |
+| 前端 production build | `npm run build`（`frontend`） | exit 0；30/30 页面生成 |
+| 安全扫描 | `rg -n "echarts\|chart\\.js\|cdn\\.jsdelivr\|dangerouslySetInnerHTML\|eval\\(\|Math\\.random" frontend/src/components/voc/report-visuals` | rg exit 1；无匹配 |
+| diff 格式 | `git diff --check` | exit 0 |
+
+新产品完整 `F5/L15/F5/L6/F7` payload 现在由真实
+`ReportAiSummaryCard` 边界解析为 structured presentation，并通过真实 L15/L6
+组件 SSR；旧 `F5/F6/F5/L12/F7` 仍接受，混合契约仍回退 Markdown。生产
+story→context→builder 链只把原始非空 `dimension + target` 送入 L6，同时原看板
+仍保留“未标注”占位展示；50 条截取前的严格真实总数单独保存。
+
+L15 builder 和缓存只保存归一化后三率：`80/40 → 66.67/0/33.33`，
+`150/20 → 83.33/0/16.67`。真实前端 normalizer/SSR 读取同一三率契约，缺失和
+非有限输入不会进入图表。L6 的初始详情、键盘 focus 与鼠标 hover 共用可见详情面板，
+气泡通过 `aria-describedby` 关联该面板。
+
+单 cluster 50 个九字标签加计数的近似 bbox 已逐对验证不相交且不越出 viewBox；
+布局确定、无随机、保留中心/卫星、Q 曲线和虚线语法。L6/L15 SVG 均显式使用
+`h-auto w-full`，L6 仍在部门图表网格跨两列；最大密集用例在 1480px 宽度下的
+最小 SVG 文字缩放值不低于 5.5 CSS px。
+
+真实 1280/1440 浏览器截图仍受前述 Windows 受控浏览器限制，未在本轮重新宣称为
+视觉通过；production build 与真实 React SSR 是自动化替代证据，不等价于浏览器截图。

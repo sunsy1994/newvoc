@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+
 
 def sample_product_dashboard() -> dict:
     return {
@@ -145,7 +148,16 @@ def _product_cache_payload(*, sentiment_template: str, evidence_template: str) -
                     else "正向与负向反馈率",
                     "insight": "情感判断",
                     "source_label": "product_focus.aspects",
-                    "data": [{"aspect": "外观", "positive_rate": 70, "negative_rate": 20}],
+                    "data": [
+                        {
+                            "aspect": "外观",
+                            "positive_rate": 70,
+                            "neutral_rate": 10,
+                            "negative_rate": 20,
+                        }
+                    ]
+                    if sentiment_is_new
+                    else [{"aspect": "外观", "positive_rate": 70, "negative_rate": 20}],
                     "meta": {},
                 },
                 {
@@ -256,6 +268,205 @@ def test_product_pko_real_report_path_keeps_up_to_fifty_renderable_records() -> 
         "total_count": 60,
         "unit": "条对比评论",
     }
+
+
+def test_product_report_story_context_builder_excludes_placeholder_pko_and_keeps_real_rows() -> None:
+    from app.services.event_voc_insights import build_product_pko_story
+    from app.services.report_agent import build_product_report_context
+    from app.services.report_visuals import build_product_report_charts
+
+    placeholder_rows = [
+        {
+            "comment_id": "missing-target",
+            "target": "",
+            "dimension": "外观",
+            "result": "本车优势",
+            "comment_text": "有维度但没有真实对象",
+            "interaction_cnt": 99,
+        },
+        {
+            "comment_id": "missing-dimension",
+            "target": "竞品A",
+            "dimension": None,
+            "result": "本车劣势",
+            "comment_text": "有对象但没有真实维度",
+            "interaction_cnt": 98,
+        },
+    ]
+    placeholder_story = build_product_pko_story(placeholder_rows)
+    placeholder_chart = build_product_report_charts(
+        build_product_report_context({"product_pko_story": placeholder_story})
+    )[3]
+
+    assert {row["target"] for row in placeholder_story["evidence_comments"]} == {
+        "未标注对比对象",
+        "竞品A",
+    }
+    assert placeholder_chart["data"] == []
+    assert placeholder_chart["meta"] == {
+        "displayed_count": 0,
+        "total_count": 0,
+        "unit": "条对比评论",
+        "empty_reason": "暂无可用数据",
+    }
+
+    real_rows = [
+        {
+            "comment_id": "advantage",
+            "target": "竞品A",
+            "dimension": "外观",
+            "result": "本车优势",
+            "comment_text": "外观更协调",
+            "interaction_cnt": 10,
+        },
+        {
+            "comment_id": "disadvantage",
+            "target": "竞品B",
+            "dimension": "空间",
+            "result": "本车劣势",
+            "comment_text": "后排空间偏小",
+            "interaction_cnt": 9,
+        },
+        {
+            "comment_id": "neutral",
+            "target": "竞品C",
+            "dimension": "价格",
+            "result": "中性对比",
+            "comment_text": "价格接近",
+            "interaction_cnt": 8,
+        },
+    ]
+    mixed_story = build_product_pko_story([*placeholder_rows, *real_rows])
+    mixed_chart = build_product_report_charts(
+        build_product_report_context({"product_pko_story": mixed_story})
+    )[3]
+
+    assert [row["comment_id"] for row in mixed_chart["data"]] == [
+        "advantage",
+        "disadvantage",
+        "neutral",
+    ]
+    assert [row["result_bucket"] for row in mixed_chart["data"]] == [
+        "advantage",
+        "disadvantage",
+        "neutral",
+    ]
+    assert mixed_chart["meta"] == {
+        "displayed_count": 3,
+        "total_count": 3,
+        "unit": "条对比评论",
+    }
+
+
+def test_l15_builder_cache_and_real_frontend_share_normalized_three_rate_contract() -> None:
+    from app.services.report_agent import (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        normalize_cached_report_summary,
+    )
+    from app.services.report_visuals import build_product_report_charts
+
+    charts = build_product_report_charts(
+        {
+            "product_focus": {
+                "aspects": [
+                    {"aspect": "外观", "mention_rate": 40, "positive_rate": 80, "negative_rate": 40},
+                    {"aspect": "空间", "mention_rate": 30, "positive_rate": 150, "negative_rate": 20},
+                    {"aspect": "缺失", "mention_rate": 20, "positive_rate": 50},
+                    {"aspect": "异常", "mention_rate": 10, "positive_rate": float("nan"), "negative_rate": 10},
+                ]
+            }
+        }
+    )
+    l15_chart = charts[1]
+
+    assert l15_chart["data"] == [
+        {
+            "aspect": "外观",
+            "mention_rate": 40,
+            "positive_rate": 66.67,
+            "neutral_rate": 0.0,
+            "negative_rate": 33.33,
+        },
+        {
+            "aspect": "空间",
+            "mention_rate": 30,
+            "positive_rate": 83.33,
+            "neutral_rate": 0.0,
+            "negative_rate": 16.67,
+        },
+    ]
+
+    payload = _product_cache_payload(sentiment_template="L15", evidence_template="L6")
+    payload["structured_report"]["charts"][1] = l15_chart
+    cached = normalize_cached_report_summary(
+        payload,
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+    )
+    cached_l15_data = cached["structured_report"]["charts"][1]["data"]
+    assert cached_l15_data == l15_chart["data"]
+
+    frontend_script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+const theme = { reportChartTheme: {
+  primary: "primary", secondary: "secondary", ink: "ink", body: "body",
+  muted: "muted", border: "border", panel: "panel", white: "white",
+} };
+function load(relativePath, stubs) {
+  const output = ts.transpileModule(
+    fs.readFileSync(path.join(base, relativePath), "utf8"),
+    { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017,
+      jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
+    } },
+  ).outputText;
+  const loaded = { exports: {} };
+  new Function("require", "module", "exports", output)(
+    (id) => id === "react" ? React : id === "react/jsx-runtime" ? jsxRuntime : stubs[id],
+    loaded,
+    loaded.exports,
+  );
+  return loaded.exports;
+}
+const shell = load("src/components/voc/report-visuals/ReportVisualShell.tsx", {
+  "./chartTheme": theme,
+});
+const chartModule = load("src/components/voc/report-visuals/SmallDataCharts.tsx", {
+  "./chartTheme": theme,
+  "./ReportVisualShell": shell,
+});
+const data = JSON.parse(process.argv[1]);
+const rows = chartModule.normalizeL15Rows(data);
+const markup = ReactDOMServer.renderToStaticMarkup(React.createElement(
+  chartModule.L15BallotTally,
+  { chart: {
+    chart_id: "product-sentiment", template_id: "L15", title: "产品点正负反馈",
+    subtitle: "三率", insight: "一致", source_label: "product_focus.aspects",
+    data, meta: {},
+  } },
+));
+process.stdout.write(JSON.stringify({ rows, markup }));
+"""
+    completed = subprocess.run(
+        ["node", "-e", frontend_script, json.dumps(cached_l15_data, ensure_ascii=False)],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert completed.returncode == 0, completed.stderr
+    frontend = json.loads(completed.stdout)
+    assert frontend["rows"] == [
+        {"aspect": "外观", "positiveRate": 66.67, "neutralRate": 0, "negativeRate": 33.33},
+        {"aspect": "空间", "positiveRate": 83.33, "neutralRate": 0, "negativeRate": 16.67},
+    ]
+    assert all(rate in frontend["markup"] for rate in ["66.67%", "33.33%", "83.33%", "16.67%"])
+    assert "<svg" in frontend["markup"]
 
 
 def test_product_pko_story_caps_after_removing_unrenderable_records() -> None:

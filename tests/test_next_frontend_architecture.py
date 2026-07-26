@@ -1706,6 +1706,13 @@ const ts = require(path.join(base, "node_modules", "typescript"));
 const React = require(path.join(base, "node_modules", "react"));
 const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
 const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+const themeModule = {
+  reportChartTheme: {
+    primary: "var(--theme-primary)", secondary: "var(--theme-selected-text)",
+    ink: "var(--theme-ink)", body: "var(--theme-body)", muted: "var(--theme-muted)",
+    border: "var(--theme-border)", panel: "var(--theme-soft-panel)", white: "var(--theme-white)",
+  },
+};
 
 function loadTsx(relativePath, stubs) {
   const source = fs.readFileSync(path.join(base, relativePath), "utf8");
@@ -1730,6 +1737,17 @@ function loadTsx(relativePath, stubs) {
 
 const chartStub = ({ chart }) =>
   React.createElement("svg", { "data-chart": chart.template_id });
+const shell = loadTsx("src/components/voc/report-visuals/ReportVisualShell.tsx", {
+  "./chartTheme": themeModule,
+});
+const narrative = loadTsx("src/components/voc/report-visuals/NarrativeCharts.tsx", {
+  "./chartTheme": themeModule,
+  "./ReportVisualShell": shell,
+});
+const smallData = loadTsx("src/components/voc/report-visuals/SmallDataCharts.tsx", {
+  "./chartTheme": themeModule,
+  "./ReportVisualShell": shell,
+});
 const registry = loadTsx(
   "src/components/voc/report-visuals/ReportChartRegistry.tsx",
   {
@@ -1741,13 +1759,8 @@ const registry = loadTsx(
       F7StackedRungs: chartStub,
       F8PlumbScatter: chartStub,
     },
-    "./NarrativeCharts": {
-      L6ClusterField: chartStub,
-      L12TypeColonnade: chartStub,
-      L13HourglassStream: chartStub,
-      L14HundredField: chartStub,
-    },
-    "./SmallDataCharts": { L15BallotTally: chartStub },
+    "./NarrativeCharts": narrative,
+    "./SmallDataCharts": smallData,
   },
 );
 
@@ -1780,9 +1793,8 @@ const reportCard = loadTsx(
       HoverBorderGradient: ({ children }) => React.createElement("button", null, children),
     },
     "@/components/voc/report-visuals/ReportChartRegistry": {
-      ReportChartRegistry: () => null,
-      isReportTemplateId: (value) =>
-        ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"].includes(value),
+      ReportChartRegistry: registry.ReportChartRegistry,
+      isReportTemplateId: registry.isReportTemplateId,
     },
     "@/config/navigation": { apiBaseUrl: "" },
   },
@@ -1918,6 +1930,37 @@ const completeProductV2 = {
 const unsafeL12MetaV2 = JSON.parse(JSON.stringify(completeProductV2));
 unsafeL12MetaV2.structured_report.charts[3].meta.displayed_count = { unsafe: true };
 unsafeL12MetaV2.report_markdown = "# L12 Meta 异常时保留 Markdown";
+const completeCurrentProductV2 = JSON.parse(JSON.stringify(completeProductV2));
+completeCurrentProductV2.report_markdown = "# 新产品契约不应回退";
+completeCurrentProductV2.structured_report.charts[1].template_id = "L15";
+completeCurrentProductV2.structured_report.charts[1].data = [{
+  aspect: "外观", positive_rate: 66.67, neutral_rate: 0, negative_rate: 33.33,
+}];
+completeCurrentProductV2.structured_report.charts[1].meta = {};
+completeCurrentProductV2.structured_report.charts[3].template_id = "L6";
+completeCurrentProductV2.structured_report.charts[3].data = [{
+  comment_id: "pko-001", comment_text: "外观比竞品更协调", dimension: "外观",
+  target: "竞品A", result_bucket: "advantage",
+}];
+completeCurrentProductV2.structured_report.charts[3].meta = {
+  displayed_count: 1, total_count: 1, unit: "条对比评论",
+};
+const mixedCurrentProductV2 = JSON.parse(JSON.stringify(completeCurrentProductV2));
+mixedCurrentProductV2.structured_report.charts[3].template_id = "L12";
+mixedCurrentProductV2.report_markdown = "# 混合产品契约回退";
+const currentProductPresentation = resolvePresentation(completeCurrentProductV2);
+const currentProductMarkup = currentProductPresentation.kind === "department"
+  ? ReactDOMServer.renderToStaticMarkup(React.createElement(
+      React.Fragment,
+      null,
+      currentProductPresentation.structuredReport.charts
+        .filter((chart) => chart.template_id === "L6" || chart.template_id === "L15")
+        .map((chart) => React.createElement(registry.ReportChartRegistry, {
+          key: chart.chart_id,
+          chart,
+        })),
+    ))
+  : "";
 
 process.stdout.write(JSON.stringify({
   unknownRegistry: renderRegistry({
@@ -1964,6 +2007,9 @@ process.stdout.write(JSON.stringify({
     typeof resolvePresentation === "function"
       ? resolvePresentation(unsafeL12MetaV2)
       : null,
+  currentProductPresentation,
+  currentProductMarkup,
+  mixedCurrentProductPresentation: resolvePresentation(mixedCurrentProductV2),
 }));
 """
     completed = subprocess.run(
@@ -2010,6 +2056,23 @@ def test_report_card_keeps_markdown_when_v2_fields_are_incomplete() -> None:
     assert probe["unsafeL12MetaPresentation"] == {
         "kind": "markdown",
         "reportMarkdown": "# L12 Meta 异常时保留 Markdown",
+    }
+
+
+def test_report_card_accepts_current_product_contract_and_real_ssr_renders_l6_l15() -> None:
+    probe = _run_report_card_boundary_probe()
+
+    assert probe["currentProductPresentation"]["kind"] == "department"
+    assert [
+        chart["template_id"]
+        for chart in probe["currentProductPresentation"]["structuredReport"]["charts"]
+    ] == ["F5", "L15", "F5", "L6", "F7"]
+    assert "情感计票图" in probe["currentProductMarkup"]
+    assert "产品对比点簇图" in probe["currentProductMarkup"]
+    assert "外观比竞品更协调" in probe["currentProductMarkup"]
+    assert probe["mixedCurrentProductPresentation"] == {
+        "kind": "markdown",
+        "reportMarkdown": "# 混合产品契约回退",
     }
 
 
@@ -2383,12 +2446,39 @@ for (const cluster of denseLayout.clusters) {
   assert.ok(cluster.centerLabelX >= 0 && cluster.centerLabelX <= denseLayout.width);
   assert.ok(cluster.centerLabelY >= 0 && cluster.centerLabelY <= denseLayout.height);
 }
+const denseLongLabelData = Array.from({ length: 50 }, (_, index) => ({
+  comment_id: `long-${String(index).padStart(2, "0")}`,
+  comment_text: `长标签代表评论-${index}`,
+  dimension: "单一密集维度",
+  target: `九字长标签${String(index).padStart(4, "0")}`,
+  result_bucket: "neutral",
+}));
+const denseLongLayout = narrative.layoutL6Clusters(narrative.mapL6Clusters(denseLongLabelData));
+const denseLongBoxes = denseLongLayout.clusters[0].targets
+  .map((target) => target.labelBox)
+  .filter(Boolean);
+const boxesIntersect = (a, b) =>
+  a.x < b.x + b.width && a.x + a.width > b.x
+  && a.y < b.y + b.height && a.y + a.height > b.y;
+const denseLongLabelsNonOverlapping =
+  denseLongBoxes.length === 50
+  && denseLongBoxes.every((box) =>
+    box.x >= 0 && box.y >= 0
+    && box.x + box.width <= denseLongLayout.width
+    && box.y + box.height <= denseLongLayout.height)
+  && denseLongBoxes.every((box, left) =>
+    denseLongBoxes.slice(left + 1).every((other) => !boxesIntersect(box, other)));
+const deterministicDenseLongLayout =
+  JSON.stringify(denseLongLayout)
+  === JSON.stringify(narrative.layoutL6Clusters(narrative.mapL6Clusters(denseLongLabelData)));
 
 const l15Data = [
-  { aspect: "外观", positive_rate: 62.5, negative_rate: 25 },
-  { aspect: "空间", positive_rate: 10, negative_rate: 70 },
+  { aspect: "外观", positive_rate: 62.5, neutral_rate: 12.5, negative_rate: 25 },
+  { aspect: "空间", positive_rate: 10, neutral_rate: 20, negative_rate: 70 },
 ];
-const l15PrecisionData = [{ aspect: "精度", positive_rate: 33.33, negative_rate: 33.33 }];
+const l15PrecisionData = [{
+  aspect: "精度", positive_rate: 33.33, neutral_rate: 33.34, negative_rate: 33.33,
+}];
 const allocation = smallData.allocateSentimentTicks(
   { positiveRate: 62.5, neutralRate: 12.5, negativeRate: 25 }, 20,
 );
@@ -2421,6 +2511,18 @@ process.stdout.write(JSON.stringify({
   l15TickCounts: ["外观", "空间"].map((aspect) => (
     l15Markup.match(new RegExp(`data-sentiment-tick="${aspect}-`, "g")) || []
   ).length),
+  initialL6Detail: typeof narrative.resolveL6ActiveDetail === "function"
+    ? narrative.resolveL6ActiveDetail(clusters)
+    : null,
+  secondL6Detail: typeof narrative.resolveL6ActiveDetail === "function"
+    ? narrative.resolveL6ActiveDetail(clusters, "外观-竞品A")
+    : null,
+  denseLongLabelsNonOverlapping,
+  deterministicDenseLongLayout,
+  denseLongLayoutWidth: denseLongLayout.width,
+  l6ScaledMinimumFontAt1480: typeof narrative.L6_MIN_FONT_SIZE === "number"
+    ? narrative.L6_MIN_FONT_SIZE * 1480 / denseLongLayout.width
+    : 0,
 }));
 """
     completed = subprocess.run(
@@ -2441,8 +2543,38 @@ def test_l6_cluster_field_groups_pko_evidence_and_keeps_it_accessible() -> None:
     assert "· 2" in probe["l6Markup"]
     assert 'role="button"' in probe["l6Markup"]
     assert 'tabindex="0"' in probe["l6Markup"]
-    assert 'class="sr-only"' in probe["l6Markup"]
     assert all(copy in probe["l6Markup"] for copy in ["a", "b", "c", "d"])
+    assert 'data-l6-active-detail="true"' in probe["l6Markup"]
+    assert "代表评论" in probe["l6Markup"]
+    described_by_ids = [
+        match.group(1)
+        for match in re.finditer(r'aria-describedby="([^"]+)"', probe["l6Markup"])
+    ]
+    assert described_by_ids
+    assert all(f'id="{description_id}"' in probe["l6Markup"] for description_id in described_by_ids)
+    assert probe["initialL6Detail"] == {
+        "key": "外观-竞品B",
+        "dimension": "外观",
+        "target": "竞品B",
+        "count": 2,
+        "comment_text": "a",
+    }
+    assert probe["secondL6Detail"] == {
+        "key": "外观-竞品A",
+        "dimension": "外观",
+        "target": "竞品A",
+        "count": 1,
+        "comment_text": "b",
+    }
+
+
+def test_l6_dense_fifty_long_labels_have_pairwise_safe_bboxes_and_readable_scale() -> None:
+    probe = _run_l6_l15_chart_probe()
+
+    assert probe["denseLongLabelsNonOverlapping"] is True
+    assert probe["deterministicDenseLongLayout"] is True
+    assert probe["denseLongLayoutWidth"] <= 2152
+    assert probe["l6ScaledMinimumFontAt1480"] >= 5.5
 
 
 def test_l15_ballot_tally_renders_twenty_ticks_per_aspect_with_exact_rates() -> None:
@@ -2456,6 +2588,8 @@ def test_l15_ballot_tally_renders_twenty_ticks_per_aspect_with_exact_rates() -> 
     assert probe["l15TickCount"] == 40
     assert probe["l15TickCounts"] == [20, 20]
     assert all(rate in probe["l15PrecisionMarkup"] for rate in ["33.33%", "33.34%"])
+    assert 'class="h-auto w-full"' in probe["l15Markup"]
+    assert 'class="h-auto w-full"' in probe["l6Markup"]
 
 
 def test_event_report_uses_shared_svg_registry_and_keeps_legacy_chart_fallback() -> None:

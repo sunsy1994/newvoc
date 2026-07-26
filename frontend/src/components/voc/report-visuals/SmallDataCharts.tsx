@@ -37,11 +37,18 @@ export function normalizeL15Rows(data: Array<Record<string, unknown>>): L15Row[]
   return data.flatMap((row) => {
     const aspect = readString(row.aspect);
     const positiveRate = readRate(row.positive_rate);
+    const neutralRate = readRate(row.neutral_rate);
     const negativeRate = readRate(row.negative_rate);
-    if (!aspect || positiveRate === undefined || negativeRate === undefined || positiveRate + negativeRate > 100) {
+    if (
+      !aspect
+      || positiveRate === undefined
+      || neutralRate === undefined
+      || negativeRate === undefined
+      || Math.abs(positiveRate + neutralRate + negativeRate - 100) > 0.01
+    ) {
       return [];
     }
-    return [{ aspect, positiveRate, neutralRate: 100 - positiveRate - negativeRate, negativeRate }];
+    return [{ aspect, positiveRate, neutralRate, negativeRate }];
   });
 }
 
@@ -85,7 +92,7 @@ export function L15BallotTally({ chart }: SmallDataChartProps) {
 
   return (
     <ReportVisualShell chart={chart} hasData={rows.length > 0}>
-      <svg viewBox={`0 0 400 ${height}`} role="img" aria-label={`${chart.title}情感计票图`}>
+      <svg className="h-auto w-full" viewBox={`0 0 400 ${height}`} role="img" aria-label={`${chart.title}情感计票图`}>
         <g aria-label="图例：正向、中性、负向">
           {(["positive", "neutral", "negative"] as const).map((state, index) => (
             <g key={state} transform={`translate(${132 + index * 74} 16)`}>

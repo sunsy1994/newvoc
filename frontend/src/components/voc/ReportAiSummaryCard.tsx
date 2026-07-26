@@ -69,6 +69,22 @@ const DEPARTMENT_REPORT_CONTRACTS = [
     ],
   },
   {
+    sectionCodes: [
+      "product_focus",
+      "product_sentiment",
+      "product_opportunity",
+      "product_pko_relationships",
+      "product_pko_results",
+    ],
+    charts: [
+      ["product-focus", "F5"],
+      ["product-sentiment", "L15"],
+      ["product-opportunity", "F5"],
+      ["product-pko-evidence", "L6"],
+      ["product-pko-matrix", "F7"],
+    ],
+  },
+  {
     sectionCodes: ["sales_funnel", "sales_signals", "sales_intents", "sales_sources"],
     charts: [
       ["sales-lead-funnel", "L13"],
@@ -98,7 +114,7 @@ function isSafeChartMeta(
 ): boolean {
   if (!isReportTemplateId(templateId) || !isRecord(value)) return false;
   const keys = Object.keys(value);
-  if (templateId === "L12") {
+  if (templateId === "L6" || templateId === "L12") {
     const displayedCount = value.displayed_count;
     const totalCount = value.total_count;
     const expectedKeys = dataLength

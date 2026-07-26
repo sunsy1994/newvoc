@@ -79,7 +79,14 @@ def test_l15_requires_named_aspect_and_two_finite_rates():
         {"aspect": "价格", "positive_rate": float("inf"), "negative_rate": 30},
     ]
 
-    assert normalize_report_chart_data("L15", rows) == [rows[0]]
+    assert normalize_report_chart_data("L15", rows) == [
+        {
+            "aspect": "外观",
+            "positive_rate": 70.0,
+            "neutral_rate": 10.0,
+            "negative_rate": 20.0,
+        }
+    ]
 
 
 def test_l15_normalizes_sentiment_rates_deterministically():
@@ -91,9 +98,14 @@ def test_l15_normalizes_sentiment_rates_deterministically():
         "negative_rate": 20.0,
     }
     assert report_visuals.normalize_sentiment_rates(80, 40) == {
-        "positive_rate": pytest.approx(66.6667, rel=1e-4),
+        "positive_rate": 66.67,
         "neutral_rate": 0.0,
-        "negative_rate": pytest.approx(33.3333, rel=1e-4),
+        "negative_rate": 33.33,
+    }
+    assert report_visuals.normalize_sentiment_rates(150, 20) == {
+        "positive_rate": 83.33,
+        "neutral_rate": 0.0,
+        "negative_rate": 16.67,
     }
 
 
@@ -333,7 +345,17 @@ def test_report_chart_renderability_matches_svg_input_contracts(template_id, dat
                 }
             ],
         ),
-        ("L15", [{"aspect": "外观", "positive_rate": 70, "negative_rate": 20}]),
+        (
+            "L15",
+            [
+                {
+                    "aspect": "外观",
+                    "positive_rate": 70.0,
+                    "neutral_rate": 10.0,
+                    "negative_rate": 20.0,
+                }
+            ],
+        ),
         (
             "L13",
             [

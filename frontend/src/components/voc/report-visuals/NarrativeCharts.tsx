@@ -177,7 +177,58 @@ export function mapL6Clusters(data: Array<Record<string, unknown>>): L6Cluster[]
     .sort((left, right) => right.totalCount - left.totalCount || left.dimension.localeCompare(right.dimension, "zh-CN"));
 }
 
+export type L6ActiveDetail = {
+  key: string;
+  dimension: string;
+  target: string;
+  count: number;
+  comment_text: string;
+};
+
+function l6TargetKey(dimension: string, target: string): string {
+  return `${dimension}-${target}`;
+}
+
+export function resolveL6ActiveDetail(
+  clusters: L6Cluster[],
+  activeKey?: string | null,
+): L6ActiveDetail | null {
+  const targets = clusters.flatMap((cluster) =>
+    cluster.targets.map((target) => ({ cluster, target })));
+  const selected = targets.find(
+    ({ cluster, target }) => l6TargetKey(cluster.dimension, target.target) === activeKey,
+  ) ?? targets[0];
+  const record = selected?.target.records[0];
+  return selected && record
+    ? {
+        key: l6TargetKey(selected.cluster.dimension, selected.target.target),
+        dimension: selected.cluster.dimension,
+        target: selected.target.target,
+        count: selected.target.count,
+        comment_text: record.comment_text,
+      }
+    : null;
+}
+
 export const L6_LABEL_SAFE_GAP = 12;
+export const L6_MIN_FONT_SIZE = 8;
+const L6_LABEL_HEIGHT = 10;
+const L6_MAX_VIEWBOX_WIDTH = 2120;
+
+type L6LabelBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function l6TargetLabel(target: string, count: number): string {
+  return `${truncateLabel(target, 9)} · ${count}`;
+}
+
+function l6LabelWidth(label: string): number {
+  return Math.max(48, Array.from(label).length * L6_MIN_FONT_SIZE);
+}
 
 type L6TargetLayout = L6Cluster["targets"][number] & {
   x: number;
@@ -185,6 +236,7 @@ type L6TargetLayout = L6Cluster["targets"][number] & {
   radius: number;
   labelX: number;
   labelY: number;
+  labelBox: L6LabelBox;
 };
 
 type L6ClusterLayout = Omit<L6Cluster, "targets"> & {
@@ -192,6 +244,7 @@ type L6ClusterLayout = Omit<L6Cluster, "targets"> & {
   centerY: number;
   centerLabelX: number;
   centerLabelY: number;
+  centerLabelBox: L6LabelBox;
   targets: L6TargetLayout[];
 };
 
@@ -205,20 +258,32 @@ export function layoutL6Clusters(clusters: L6Cluster[]): L6Layout {
   const maxCount = Math.max(1, ...clusters.flatMap((cluster) => cluster.targets.map((target) => target.count)));
   const density = clusters.map((cluster) => {
     const maxRadius = Math.max(10, ...cluster.targets.map((target) => bubbleRadius(target.count, maxCount)));
+    const maxLabelWidth = Math.max(
+      48,
+      ...cluster.targets.map((target) => l6LabelWidth(l6TargetLabel(target.target, target.count))),
+    );
     const count = Math.max(1, cluster.targets.length);
+    const slotWidth = Math.max(maxRadius * 2 + L6_LABEL_SAFE_GAP, maxLabelWidth + L6_LABEL_SAFE_GAP);
     const minimumRing = count > 1
-      ? (maxRadius * 2 + L6_LABEL_SAFE_GAP) / (2 * Math.sin(Math.PI / count))
+      ? slotWidth / (2 * Math.sin(Math.PI / count))
       : 0;
-    return { maxRadius, ringRadius: Math.max(72, minimumRing + 2) };
+    return {
+      maxLabelWidth,
+      maxRadius,
+      ringRadius: Math.max(72, minimumRing + 2),
+    };
   });
   const maxRadius = Math.max(10, ...density.map((item) => item.maxRadius));
   const maxRing = Math.max(72, ...density.map((item) => item.ringRadius));
-  const columns = clusters.length > 1 ? 2 : 1;
+  const maxLabelWidth = Math.max(48, ...density.map((item) => item.maxLabelWidth));
+  const cellWidth = 2 * (maxRing + maxRadius + maxLabelWidth / 2) + 16;
+  const preferredColumns = clusters.length > 1 ? 2 : 1;
+  const columns = preferredColumns * cellWidth + 16 <= L6_MAX_VIEWBOX_WIDTH
+    ? preferredColumns
+    : 1;
   const rows = Math.ceil(clusters.length / columns);
-  const labelHalfWidth = 42;
-  const cellWidth = 2 * (maxRing + maxRadius + labelHalfWidth) + 24;
-  const cellHeight = 2 * (maxRing + maxRadius) + 34;
-  const width = Math.max(840, columns * cellWidth + 32);
+  const cellHeight = 2 * (maxRing + maxRadius) + L6_LABEL_HEIGHT + 34;
+  const width = Math.max(840, columns * cellWidth + 16);
   const height = Math.max(320, rows * cellHeight + 40);
   const startX = (width - columns * cellWidth) / 2;
 
@@ -231,18 +296,43 @@ export function layoutL6Clusters(clusters: L6Cluster[]): L6Layout {
       const centerX = startX + column * cellWidth + cellWidth / 2;
       const centerY = 20 + row * cellHeight + maxRing + maxRadius + 6;
       const ringRadius = density[clusterIndex].ringRadius;
+      const centerLabelY = centerY + 31;
+      const centerLabelWidth = l6LabelWidth(
+        `${truncateLabel(cluster.dimension, 10)} · ${cluster.totalCount}`,
+      );
       return {
         ...cluster,
         centerX,
         centerY,
         centerLabelX: centerX,
-        centerLabelY: centerY + 31,
+        centerLabelY,
+        centerLabelBox: {
+          x: centerX - centerLabelWidth / 2,
+          y: centerLabelY - L6_MIN_FONT_SIZE,
+          width: centerLabelWidth,
+          height: L6_LABEL_HEIGHT,
+        },
         targets: cluster.targets.map((target, targetIndex) => {
           const angle = -Math.PI / 2 + (targetIndex / cluster.targets.length) * Math.PI * 2;
           const radius = bubbleRadius(target.count, maxCount);
           const x = centerX + Math.cos(angle) * ringRadius;
           const y = centerY + Math.sin(angle) * ringRadius;
-          return { ...target, x, y, radius, labelX: x, labelY: y + radius + 11 };
+          const labelY = y + radius + 12;
+          const labelWidth = l6LabelWidth(l6TargetLabel(target.target, target.count));
+          return {
+            ...target,
+            x,
+            y,
+            radius,
+            labelX: x,
+            labelY,
+            labelBox: {
+              x: x - labelWidth / 2,
+              y: labelY - L6_MIN_FONT_SIZE,
+              width: labelWidth,
+              height: L6_LABEL_HEIGHT,
+            },
+          };
         }),
       };
     }),
@@ -251,26 +341,30 @@ export function layoutL6Clusters(clusters: L6Cluster[]): L6Layout {
 
 export function L6ClusterField({ chart }: NarrativeChartProps) {
   const clusters = mapL6Clusters(chart.data);
-  const [activeTarget, setActiveTarget] = useState<string | null>(null);
+  const initialDetail = resolveL6ActiveDetail(clusters);
+  const [activeTarget, setActiveTarget] = useState<string | null>(initialDetail?.key ?? null);
+  const detailId = `${useId()}-l6-detail`;
+  const activeDetail = resolveL6ActiveDetail(clusters, activeTarget);
   const layout = layoutL6Clusters(clusters);
 
   return (
     <ReportVisualShell chart={chart} hasData={clusters.length > 0}>
-      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label={`${chart.title}产品对比点簇图`}>
+      <svg className="h-auto w-full" viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label={`${chart.title}产品对比点簇图`}>
         {narrativeMotionStyles()}
         {layout.clusters.map((cluster) => {
           const { centerX, centerY } = cluster;
           return (
             <g key={cluster.dimension}>
               {cluster.targets.map((target) => {
-                const key = `${cluster.dimension}-${target.target}`;
-                const isActive = activeTarget === key;
+                const key = l6TargetKey(cluster.dimension, target.target);
+                const isActive = activeDetail?.key === key;
                 return (
                   <g
                     key={key}
                     role="button"
                     tabIndex={0}
                     aria-label={`${cluster.dimension}与${target.target}对比${target.count}次`}
+                    aria-describedby={detailId}
                     onFocus={() => setActiveTarget(key)}
                     onMouseEnter={() => setActiveTarget(key)}
                     onKeyDown={(event) => {
@@ -294,15 +388,15 @@ export function L6ClusterField({ chart }: NarrativeChartProps) {
                       cy={target.y}
                       r={target.radius}
                       fill={theme.secondary}
-                      opacity={activeTarget && !isActive ? 0.42 : 0.9}
+                      opacity={activeDetail && !isActive ? 0.42 : 0.9}
                       stroke={isActive ? theme.ink : "none"}
                       strokeWidth="1.5"
                     />
                     <text x={target.x} y={target.y + 3} textAnchor="middle" fontSize="8" fontWeight="800" fill={theme.white}>
                       {target.count}
                     </text>
-                    <text x={target.labelX} y={target.labelY} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={theme.body}>
-                      {truncateLabel(target.target, 9)} · {target.count}
+                    <text x={target.labelX} y={target.labelY} textAnchor="middle" fontSize={L6_MIN_FONT_SIZE} fontWeight="700" fill={theme.body}>
+                      {l6TargetLabel(target.target, target.count)}
                     </text>
                   </g>
                 );
@@ -315,6 +409,22 @@ export function L6ClusterField({ chart }: NarrativeChartProps) {
           );
         })}
       </svg>
+      {activeDetail ? (
+        <div
+          id={detailId}
+          data-l6-active-detail="true"
+          aria-live="polite"
+          className="mt-4 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4"
+        >
+          <p className="text-xs font-semibold text-[var(--theme-primary)]">当前对比详情</p>
+          <p className="mt-1 text-sm font-semibold text-[var(--theme-ink)]">
+            {activeDetail.dimension} · {activeDetail.target} · {activeDetail.count} 次
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[var(--theme-body)]">
+            代表评论：{activeDetail.comment_text}
+          </p>
+        </div>
+      ) : null}
       <ul className="sr-only">
         {clusters.flatMap((cluster) => cluster.targets.flatMap((target) => target.records.map((record) => (
           <li key={`${cluster.dimension}-${target.target}-${record.comment_id}`}>

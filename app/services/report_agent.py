@@ -289,15 +289,33 @@ def build_product_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
     opportunity_story = dashboard.get("product_opportunity_story") or {}
     pko_story = dashboard.get("product_pko_story") or {}
     evidence_comments = []
-    pko_evidence = [
+    strict_story_evidence = pko_story.get("report_evidence_comments")
+    evidence_source = (
+        strict_story_evidence
+        if isinstance(strict_story_evidence, list)
+        else pko_story.get("evidence_comments") or []
+    )
+    reportable_pko_evidence = [
         item
-        for item in (pko_story.get("evidence_comments") or [])
+        for item in evidence_source
         if isinstance(item, dict)
         and isinstance(item.get("comment_id"), str)
         and bool(item["comment_id"].strip())
         and isinstance(item.get("comment_text"), str)
         and bool(item["comment_text"].strip())
-    ][:50]
+        and isinstance(item.get("dimension"), str)
+        and bool(item["dimension"].strip())
+        and not item["dimension"].strip().startswith("未标注")
+        and isinstance(item.get("target"), str)
+        and bool(item["target"].strip())
+        and not item["target"].strip().startswith("未标注")
+    ]
+    pko_evidence = reportable_pko_evidence[:50]
+    pko_evidence_total_count = (
+        pko_story.get("report_evidence_total_count")
+        if isinstance(strict_story_evidence, list)
+        else len(reportable_pko_evidence)
+    )
 
     for item in pko_evidence:
         evidence_comments.append(item)
@@ -327,7 +345,7 @@ def build_product_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
             "dimension_distribution": (pko_story.get("dimension_distribution") or [])[:8],
             "result_distribution": pko_story.get("result_distribution") or [],
             "dimension_result_matrix": (pko_story.get("dimension_result_matrix") or [])[:8],
-            "evidence_total_count": pko_story.get("evidence_total_count"),
+            "evidence_total_count": pko_evidence_total_count,
             "evidence_comments": pko_evidence,
         },
         "evidence_comments": evidence_comments[:50],

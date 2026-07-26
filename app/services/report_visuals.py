@@ -4,18 +4,7 @@ import math
 from typing import Any
 
 
-PKO_RESULT_BUCKETS = {
-    "优势": "advantage",
-    "本车优势": "advantage",
-    "劣势": "disadvantage",
-    "本车劣势": "disadvantage",
-    "中性": "neutral",
-    "advantage": "advantage",
-    "disadvantage": "disadvantage",
-    "neutral": "neutral",
-    "unclear": "unclear",
-}
-REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"}
+REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15"}
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 SALES_FUNNEL_STAGES = ("已打标评论", "车相关评论", "销售相关意图", "中/强购买信号")
 RESULT_BUCKETS = {"advantage", "disadvantage", "neutral", "unclear"}
@@ -37,6 +26,27 @@ def _number(value: Any, *, clamp_negative: bool = True) -> float | None:
     if not math.isfinite(number) or (not clamp_negative and number < 0):
         return None
     return max(0.0, number) if clamp_negative else number
+
+
+def _finite_non_negative(value: Any) -> bool:
+    return _number(value, clamp_negative=False) is not None
+
+
+def normalize_sentiment_rates(positive: Any, negative: Any) -> dict[str, float] | None:
+    if not _finite_non_negative(positive) or not _finite_non_negative(negative):
+        return None
+    positive_value = min(float(positive), 100.0)
+    negative_value = min(float(negative), 100.0)
+    selected_total = positive_value + negative_value
+    if selected_total > 100.0:
+        scale = 100.0 / selected_total
+        positive_value *= scale
+        negative_value *= scale
+    return {
+        "positive_rate": positive_value,
+        "neutral_rate": max(0.0, 100.0 - positive_value - negative_value),
+        "negative_rate": negative_value,
+    }
 
 
 def _first_text(row: dict[str, Any], keys: tuple[str, ...]) -> str | None:
@@ -112,6 +122,22 @@ def _valid_l12_row(row: dict[str, Any]) -> bool:
     )
 
 
+def _valid_l6_row(row: dict[str, Any]) -> bool:
+    return bool(
+        _text(row.get("comment_id"))
+        and _text(row.get("comment_text"))
+        and _text(row.get("dimension"))
+        and _text(row.get("target"))
+    )
+
+
+def _valid_l15_row(row: dict[str, Any]) -> bool:
+    return bool(
+        _text(row.get("aspect"))
+        and normalize_sentiment_rates(row.get("positive_rate"), row.get("negative_rate"))
+    )
+
+
 def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, Any]]:
     rows = _rows(value)
     if template_id == "F3":
@@ -137,6 +163,8 @@ def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, 
         return [row for row in rows if _valid_f8_row(row)]
     if template_id == "L12":
         return [row for row in rows if _valid_l12_row(row)]
+    if template_id == "L6":
+        return [row for row in rows if _valid_l6_row(row)]
     if template_id == "L13":
         if len(rows) != len(SALES_FUNNEL_STAGES):
             return []
@@ -166,6 +194,8 @@ def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, 
         if not percentages or abs(total - 100) > 1.01:
             return []
         return [row for row, _ in percentages]
+    if template_id == "L15":
+        return [row for row in rows if _valid_l15_row(row)]
     return []
 
 
@@ -190,7 +220,7 @@ def normalize_report_chart_meta(
     if not isinstance(value, dict):
         return None
     meta = dict(value)
-    if template_id == "L12":
+    if template_id in {"L6", "L12"}:
         expected_keys = {"displayed_count", "total_count", "unit"}
         if not data:
             expected_keys.add("empty_reason")
@@ -268,31 +298,6 @@ def _sort_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return ordered
 
 
-def _renderable_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        row
-        for row in rows
-        if _text(row.get("comment_id"))
-        and _text(row.get("comment_text"))
-    ]
-
-
-def _pko_evidence(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    normalized = []
-    for row in _sort_pko_rows(rows)[:50]:
-        item = dict(row)
-        item["comment_id"] = _text(item.get("comment_id")) or ""
-        item["comment_text"] = _text(item.get("comment_text")) or ""
-        item["target"] = _text(item.get("target")) or "其他对象"
-        item["dimension"] = _text(item.get("dimension")) or "未明确维度"
-        raw_result = _text(item.get("result_bucket")) or _text(item.get("result"))
-        result = PKO_RESULT_BUCKETS.get(raw_result or "", "unclear")
-        item["result"] = result
-        item["result_bucket"] = result
-        normalized.append(item)
-    return normalized
-
-
 def build_market_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]:
     hot_topics = context.get("hot_topics") or {}
     platform = context.get("platform") or {}
@@ -320,8 +325,10 @@ def build_product_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]
         )
         for row in _rows(rows)
     ]
-    evidence_rows = _renderable_pko_rows(_rows(pko.get("evidence_comments")))
-    evidence = _pko_evidence(evidence_rows)
+    evidence_rows = normalize_report_chart_data(
+        "L6", _sort_pko_rows(_rows(pko.get("evidence_comments")))
+    )
+    evidence = evidence_rows[:50]
     raw_total_count = pko.get("evidence_total_count")
     total_count = (
         raw_total_count
@@ -335,9 +342,9 @@ def build_product_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]
         evidence_meta["empty_reason"] = "暂无可用数据"
     chart_data = [
         ("product-focus", "F5", "产品关注点", "按提及占比展示", "product_focus.aspects", aspects),
-        ("product-sentiment", "F6", "产品点正负反馈", "正向与负向反馈率", "product_focus.aspects", aspects),
+        ("product-sentiment", "L15", "产品点正负反馈", "一格代表固定百分点 · 正向 / 中性 / 负向", "product_focus.aspects", aspects),
         ("product-opportunity", "F5", "机会、风险与转化", "系统计算的机会分", "product_opportunity", opportunity_rows),
-        ("product-pko-evidence", "L12", "PKO 车系与对比维度", "每条线对应一条真实评论", "pko.evidence_comments", evidence),
+        ("product-pko-evidence", "L6", "用户反馈构成", "中心为产品点 · 气泡面积代表真实对比次数", "pko.evidence_comments", evidence),
         ("product-pko-matrix", "F7", "PKO 维度结果明细", "优势、劣势与中性结果", "pko.dimension_result_matrix", _rows(pko.get("dimension_result_matrix"))),
     ]
     charts = [_chart(*item, meta=_meta(item[-1])) for item in chart_data]
@@ -379,6 +386,15 @@ def build_event_report_charts(
     market: dict[str, Any], product: dict[str, Any], sales: dict[str, Any]
 ) -> list[dict[str, Any]]:
     market_charts = build_market_report_charts(market)
-    product_charts = build_product_report_charts(product)
+    product_focus = product.get("product_focus") or {}
+    event_product_sentiment = _chart(
+        "product-sentiment",
+        "F6",
+        "产品点正负反馈",
+        "正向与负向反馈率",
+        "product_focus.aspects",
+        _rows(product_focus.get("aspects")),
+        meta=_meta(_rows(product_focus.get("aspects"))),
+    )
     sales_charts = build_sales_report_charts(sales)
-    return [market_charts[0], market_charts[3], product_charts[1], sales_charts[0]]
+    return [market_charts[0], market_charts[3], event_product_sentiment, sales_charts[0]]

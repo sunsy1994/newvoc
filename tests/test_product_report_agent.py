@@ -107,6 +107,123 @@ def test_build_product_report_context_keeps_product_story_sections() -> None:
     assert context["evidence_comments"][0]["comment_text"] == "和ID.4比，价格没优势。"
 
 
+def _product_cache_payload(*, sentiment_template: str, evidence_template: str) -> dict:
+    sentiment_is_new = sentiment_template == "L15"
+    evidence_is_new = evidence_template == "L6"
+    return {
+        "report_markdown": "# 历史产品报告",
+        "report_narrative": {
+            "headline": "历史标题",
+            "executive_summary": "历史摘要",
+            "section_insights": {
+                "product_focus": "关注判断",
+                "product_sentiment": "情感判断",
+                "product_opportunity": "机会判断",
+                "product_pko_relationships": "对比关系判断",
+                "product_pko_results": "对比结果判断",
+            },
+            "data_notes": [],
+        },
+        "structured_report": {
+            "charts": [
+                {
+                    "chart_id": "product-focus",
+                    "template_id": "F5",
+                    "title": "产品关注点",
+                    "subtitle": "按提及占比展示",
+                    "insight": "关注判断",
+                    "source_label": "product_focus.aspects",
+                    "data": [{"aspect": "外观", "mention_rate": 40}],
+                    "meta": {},
+                },
+                {
+                    "chart_id": "product-sentiment",
+                    "template_id": sentiment_template,
+                    "title": "产品点正负反馈",
+                    "subtitle": "一格代表固定百分点 · 正向 / 中性 / 负向"
+                    if sentiment_is_new
+                    else "正向与负向反馈率",
+                    "insight": "情感判断",
+                    "source_label": "product_focus.aspects",
+                    "data": [{"aspect": "外观", "positive_rate": 70, "negative_rate": 20}],
+                    "meta": {},
+                },
+                {
+                    "chart_id": "product-opportunity",
+                    "template_id": "F5",
+                    "title": "机会、风险与转化",
+                    "subtitle": "系统计算的机会分",
+                    "insight": "机会判断",
+                    "source_label": "product_opportunity",
+                    "data": [{"aspect": "外观", "opportunity_score": 30}],
+                    "meta": {},
+                },
+                {
+                    "chart_id": "product-pko-evidence",
+                    "template_id": evidence_template,
+                    "title": "用户反馈构成" if evidence_is_new else "PKO 车系与对比维度",
+                    "subtitle": "中心为产品点 · 气泡面积代表真实对比次数"
+                    if evidence_is_new
+                    else "每条线对应一条真实评论",
+                    "insight": "对比关系判断",
+                    "source_label": "pko.evidence_comments",
+                    "data": [
+                        {
+                            "comment_id": "pko-001",
+                            "comment_text": "外观比竞品更协调",
+                            "dimension": "外观",
+                            "target": "竞品A",
+                            "result_bucket": "advantage",
+                        }
+                    ],
+                    "meta": {"displayed_count": 1, "total_count": 1, "unit": "条对比评论"},
+                },
+                {
+                    "chart_id": "product-pko-matrix",
+                    "template_id": "F7",
+                    "title": "PKO 维度结果明细",
+                    "subtitle": "优势、劣势与中性结果",
+                    "insight": "对比结果判断",
+                    "source_label": "pko.dimension_result_matrix",
+                    "data": [{"dimension": "外观", "advantage_count": 1}],
+                    "meta": {},
+                },
+            ]
+        },
+    }
+
+
+def test_product_cache_accepts_new_and_legacy_visual_contracts() -> None:
+    from app.services.report_agent import (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        normalize_cached_report_summary,
+    )
+
+    new_payload = _product_cache_payload(sentiment_template="L15", evidence_template="L6")
+    legacy_payload = _product_cache_payload(sentiment_template="F6", evidence_template="L12")
+
+    assert normalize_cached_report_summary(
+        new_payload, DEFAULT_PRODUCT_REPORT_PROMPT_VERSION
+    )["structured_report"]["charts"] == new_payload["structured_report"]["charts"]
+    assert normalize_cached_report_summary(
+        legacy_payload, DEFAULT_PRODUCT_REPORT_PROMPT_VERSION
+    )["structured_report"]["charts"] == legacy_payload["structured_report"]["charts"]
+
+
+def test_product_cache_rejects_mixed_visual_contract() -> None:
+    from app.services.report_agent import (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        normalize_cached_report_summary,
+    )
+
+    payload = _product_cache_payload(sentiment_template="L15", evidence_template="L12")
+
+    assert normalize_cached_report_summary(payload, DEFAULT_PRODUCT_REPORT_PROMPT_VERSION) == {
+        "report_markdown": "# 历史产品报告",
+        "data_notes": [],
+    }
+
+
 def test_product_pko_real_report_path_keeps_up_to_fifty_renderable_records() -> None:
     from app.services.event_voc_insights import build_product_pko_story
     from app.services.report_agent import build_product_report_context
@@ -324,7 +441,7 @@ def test_run_product_report_agent_returns_fixed_narrative_and_builder_charts(mon
         "data_notes": ["产品数据说明"],
     }
     charts = result["summary"]["structured_report"]["charts"]
-    assert [chart["template_id"] for chart in charts] == ["F5", "F6", "F5", "L12", "F7"]
+    assert [chart["template_id"] for chart in charts] == ["F5", "L15", "F5", "L6", "F7"]
     assert [chart["insight"] for chart in charts] == ["关注判断", "用户讨论集中在外观与价格。", "机会判断", "对比关系判断", "对比结果判断"]
     assert charts[0]["data"] == result["context"]["product_focus"]["aspects"]
     assert charts[3]["data"][0]["comment_id"] == "pko_001"

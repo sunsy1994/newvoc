@@ -83,11 +83,18 @@ MARKET_REPORT_CHART_CONTRACT = (
     ("market-platform-efficiency", "F8", "平台传播效率", "规模与反馈效率", "platform.platform_efficiency"),
     ("market-feedback-sentiment", "L14", "用户反馈构成", "情感分布", "feedback_quality.sentiment_distribution"),
 )
-PRODUCT_REPORT_CHART_CONTRACT = (
+LEGACY_PRODUCT_REPORT_CHART_CONTRACT = (
     ("product-focus", "F5", "产品关注点", "按提及占比展示", "product_focus.aspects"),
     ("product-sentiment", "F6", "产品点正负反馈", "正向与负向反馈率", "product_focus.aspects"),
     ("product-opportunity", "F5", "机会、风险与转化", "系统计算的机会分", "product_opportunity"),
     ("product-pko-evidence", "L12", "PKO 车系与对比维度", "每条线对应一条真实评论", "pko.evidence_comments"),
+    ("product-pko-matrix", "F7", "PKO 维度结果明细", "优势、劣势与中性结果", "pko.dimension_result_matrix"),
+)
+PRODUCT_REPORT_CHART_CONTRACT = (
+    ("product-focus", "F5", "产品关注点", "按提及占比展示", "product_focus.aspects"),
+    ("product-sentiment", "L15", "产品点正负反馈", "一格代表固定百分点 · 正向 / 中性 / 负向", "product_focus.aspects"),
+    ("product-opportunity", "F5", "机会、风险与转化", "系统计算的机会分", "product_opportunity"),
+    ("product-pko-evidence", "L6", "用户反馈构成", "中心为产品点 · 气泡面积代表真实对比次数", "pko.evidence_comments"),
     ("product-pko-matrix", "F7", "PKO 维度结果明细", "优势、劣势与中性结果", "pko.dimension_result_matrix"),
 )
 SALES_REPORT_CHART_CONTRACT = (
@@ -106,6 +113,11 @@ REPORT_CACHE_CONTRACTS = (
         DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
         PRODUCT_REPORT_SECTION_CODES,
         PRODUCT_REPORT_CHART_CONTRACT,
+    ),
+    (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        PRODUCT_REPORT_SECTION_CODES,
+        LEGACY_PRODUCT_REPORT_CHART_CONTRACT,
     ),
     (
         DEFAULT_SALES_REPORT_PROMPT_VERSION,
@@ -658,17 +670,12 @@ def _cached_report_contract(
 ) -> tuple[str, ...] | None:
     if not isinstance(narrative, dict) or not isinstance(charts, list):
         return None
-    known_contract = next(
-        (
-            contract
-            for contract in REPORT_CACHE_CONTRACTS
-            if prompt_version == contract[0]
-        ),
-        None,
+    matching_contracts = tuple(
+        contract for contract in REPORT_CACHE_CONTRACTS if prompt_version == contract[0]
     )
-    candidates = (known_contract,) if known_contract else REPORT_CACHE_CONTRACTS
+    candidates = matching_contracts or REPORT_CACHE_CONTRACTS
     for _, section_codes, chart_contract in candidates:
-        if known_contract or [
+        if [
             (chart.get("chart_id"), chart.get("template_id"))
             for chart in charts
             if isinstance(chart, dict)

@@ -24,6 +24,8 @@ def test_market_report_chart_order_is_fixed():
 
 
 def test_product_report_chart_order_is_fixed():
+    from app.services.report_visuals import REPORT_TEMPLATE_IDS
+
     charts = build_product_report_charts(
         {
             "product_focus": {"aspects": []},
@@ -31,7 +33,68 @@ def test_product_report_chart_order_is_fixed():
             "pko": {"evidence_comments": [], "dimension_result_matrix": []},
         }
     )
-    assert [item["template_id"] for item in charts] == ["F5", "F6", "F5", "L12", "F7"]
+    assert [(item["chart_id"], item["template_id"]) for item in charts] == [
+        ("product-focus", "F5"),
+        ("product-sentiment", "L15"),
+        ("product-opportunity", "F5"),
+        ("product-pko-evidence", "L6"),
+        ("product-pko-matrix", "F7"),
+    ]
+    assert {"L6", "L15", "F6", "L12"} <= REPORT_TEMPLATE_IDS
+
+
+def test_l6_keeps_only_real_dimension_target_evidence_rows():
+    rows = [
+        {
+            "comment_id": "c1",
+            "comment_text": "外观比竞品更协调",
+            "dimension": "外观",
+            "target": "竞品A",
+            "result_bucket": "advantage",
+        },
+        {
+            "comment_id": "c2",
+            "comment_text": "空间对比",
+            "dimension": "",
+            "target": "竞品B",
+            "result_bucket": "neutral",
+        },
+        {
+            "comment_id": "c3",
+            "comment_text": "缺少车系",
+            "dimension": "空间",
+            "target": None,
+            "result_bucket": "neutral",
+        },
+    ]
+
+    assert normalize_report_chart_data("L6", rows) == [rows[0]]
+
+
+def test_l15_requires_named_aspect_and_two_finite_rates():
+    rows = [
+        {"aspect": "外观", "positive_rate": 70, "negative_rate": 20},
+        {"aspect": "空间", "positive_rate": 55, "negative_rate": None},
+        {"aspect": "", "positive_rate": 40, "negative_rate": 30},
+        {"aspect": "价格", "positive_rate": float("inf"), "negative_rate": 30},
+    ]
+
+    assert normalize_report_chart_data("L15", rows) == [rows[0]]
+
+
+def test_l15_normalizes_sentiment_rates_deterministically():
+    from app.services import report_visuals
+
+    assert report_visuals.normalize_sentiment_rates(70, 20) == {
+        "positive_rate": 70.0,
+        "neutral_rate": 10.0,
+        "negative_rate": 20.0,
+    }
+    assert report_visuals.normalize_sentiment_rates(80, 40) == {
+        "positive_rate": pytest.approx(66.6667, rel=1e-4),
+        "neutral_rate": 0.0,
+        "negative_rate": pytest.approx(33.3333, rel=1e-4),
+    }
 
 
 def test_sales_report_chart_order_is_fixed():
@@ -61,7 +124,7 @@ def test_sales_funnel_uses_the_real_mid_high_purchase_signal_field():
     assert [row["count"] for row in chart["data"]] == [120, 100, 40, 12]
 
 
-def test_l12_keeps_real_records_and_caps_at_fifty():
+def test_l6_keeps_real_records_and_caps_at_fifty():
     rows = [
         {
             "comment_id": f"c-{index:03d}",
@@ -86,7 +149,7 @@ def test_l12_keeps_real_records_and_caps_at_fifty():
     assert chart["data"][0]["comment_id"] == "c-000"
 
 
-def test_l12_uses_comment_id_as_stable_tie_breaker():
+def test_l6_uses_comment_id_as_stable_tie_breaker():
     rows = [
         {
             "comment_id": comment_id,
@@ -115,7 +178,7 @@ def test_missing_data_stays_empty():
     assert all(chart["meta"]["empty_reason"] for chart in charts)
 
 
-def test_l12_excludes_unrenderable_records_from_data_and_counts():
+def test_l6_excludes_incomplete_evidence_from_data_and_counts():
     chart = build_product_report_charts(
         {
             "pko": {
@@ -130,12 +193,16 @@ def test_l12_excludes_unrenderable_records_from_data_and_counts():
         }
     )[3]
 
-    assert [row["comment_id"] for row in chart["data"]] == ["one", "two"]
-    assert chart["meta"]["displayed_count"] == 2
-    assert chart["meta"]["total_count"] == 2
+    assert chart["data"] == []
+    assert chart["meta"] == {
+        "displayed_count": 0,
+        "total_count": 0,
+        "unit": "条对比评论",
+        "empty_reason": "暂无可用数据",
+    }
 
 
-def test_l12_normalizes_non_string_dimensions_and_unsafe_sort_values():
+def test_l6_rejects_non_string_dimensions_and_targets():
     chart = build_product_report_charts(
         {
             "pko": {
@@ -153,12 +220,12 @@ def test_l12_normalizes_non_string_dimensions_and_unsafe_sort_values():
         }
     )[3]
 
-    assert chart["data"][0]["target"] == "其他对象"
-    assert chart["data"][0]["dimension"] == "未明确维度"
+    assert chart["data"] == []
     assert chart["meta"] == {
-        "displayed_count": 1,
-        "total_count": 1,
+        "displayed_count": 0,
+        "total_count": 0,
         "unit": "条对比评论",
+        "empty_reason": "暂无可用数据",
     }
 
 
@@ -188,6 +255,17 @@ def test_event_report_uses_the_four_cross_department_charts_in_fixed_order():
                     "target": "竞品A",
                     "dimension": "空间",
                     "result": "advantage",
+                }
+            ],
+        ),
+        (
+            "L6",
+            [
+                {
+                    "comment_id": "c-1",
+                    "target": "竞品A",
+                    "dimension": "空间",
+                    "result_bucket": "advantage",
                 }
             ],
         ),
@@ -244,6 +322,19 @@ def test_report_chart_renderability_matches_svg_input_contracts(template_id, dat
             ],
         ),
         (
+            "L6",
+            [
+                {
+                    "comment_id": "c-1",
+                    "target": "竞品A",
+                    "dimension": "空间",
+                    "result_bucket": "advantage",
+                    "comment_text": "空间更宽敞",
+                }
+            ],
+        ),
+        ("L15", [{"aspect": "外观", "positive_rate": 70, "negative_rate": 20}]),
+        (
             "L13",
             [
                 {"stage": "已打标评论", "count": 100},
@@ -296,7 +387,7 @@ def test_builders_drop_rows_that_cannot_render_and_expose_empty_reason():
 
 @pytest.mark.parametrize(
     "template_id",
-    ["F3", "F4", "F5", "F6", "F7", "F8", "L13", "L14"],
+    ["F3", "F4", "F5", "F6", "F7", "F8", "L13", "L14", "L15"],
 )
 def test_non_l12_cache_meta_allows_only_fixed_safe_shapes(template_id):
     assert normalize_report_chart_meta(template_id, [{}], {}) == {}
@@ -322,7 +413,8 @@ def test_cache_meta_rejects_unknown_template():
     assert normalize_report_chart_meta("UNKNOWN", [], {}) is None
 
 
-def test_l12_cache_meta_keeps_real_total_larger_than_displayed_data():
+@pytest.mark.parametrize("template_id", ["L6", "L12"])
+def test_l6_and_l12_cache_meta_keep_real_total_larger_than_displayed_data(template_id):
     data = [
         {
             "comment_id": f"c-{index:03d}",
@@ -335,9 +427,9 @@ def test_l12_cache_meta_keeps_real_total_larger_than_displayed_data():
     ]
     meta = {"displayed_count": 50, "total_count": 60, "unit": "条对比评论"}
 
-    assert normalize_report_chart_meta("L12", data, meta) == meta
+    assert normalize_report_chart_meta(template_id, data, meta) == meta
     assert normalize_report_chart_meta(
-        "L12",
+        template_id,
         data,
         {"displayed_count": 50, "total_count": 49, "unit": "条对比评论"},
     ) is None

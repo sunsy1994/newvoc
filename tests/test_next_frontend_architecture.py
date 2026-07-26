@@ -2515,13 +2515,15 @@ process.stdout.write(ReactDOMServer.renderToStaticMarkup(React.createElement(loa
     assert "<svg" not in completed.stdout
 
 
-def test_report_modal_uses_wide_viewport_surface() -> None:
+def test_report_modal_uses_wide_viewport_flex_scroller_for_multiline_header() -> None:
     source = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
 
     assert "w-[94vw]" in source
     assert "max-w-[1480px]" in source
-    assert "max-h-[92vh]" in source
-    assert "max-h-[calc(92vh-92px)]" in source
+    assert 'className="flex max-h-[92vh] w-[94vw] max-w-[1480px] flex-col overflow-hidden' in source
+    assert '<header className="shrink-0 flex items-start justify-between' in source
+    assert 'className="min-h-0 flex-1 overflow-auto p-5 md:p-6"' in source
+    assert "max-h-[calc(92vh-92px)]" not in source
 
 
 def test_l6_full_width_in_department_report_chart_grid() -> None:

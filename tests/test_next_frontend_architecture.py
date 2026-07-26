@@ -2467,6 +2467,70 @@ def test_event_report_uses_shared_svg_registry_and_keeps_legacy_chart_fallback()
     assert "report.charts.map(renderStructuredReportChart)" in source
 
 
+def test_report_visual_shell_places_nonempty_insight_before_chart_and_omits_empty_state_insight() -> None:
+    source = Path("frontend/src/components/voc/report-visuals/ReportVisualShell.tsx").read_text(encoding="utf-8")
+
+    assert source.index("{chart.subtitle}") < source.index("{chart.insight}")
+    assert source.index("{chart.insight}") < source.index("{children}")
+    assert source.index("{children}") < source.index("数据来源：{chart.source_label}")
+
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+const source = fs.readFileSync(path.join(base, "src/components/voc/report-visuals/ReportVisualShell.tsx"), "utf8");
+const output = ts.transpileModule(source, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+}).outputText;
+const loaded = { exports: {} };
+const localRequire = (id) => {
+  if (id === "react") return React;
+  if (id === "react/jsx-runtime") return jsxRuntime;
+  if (id === "./chartTheme") return { reportChartTheme: { ink: "ink", muted: "muted", body: "body", border: "border", white: "white", panel: "panel" } };
+  throw new Error(`Unexpected import: ${id}`);
+};
+new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+process.stdout.write(ReactDOMServer.renderToStaticMarkup(React.createElement(loaded.exports.ReportVisualShell, {
+  chart: { title: "空图", subtitle: "无数据", insight: "不应显示的模型解读", source_label: "test", data: [] },
+  hasData: false,
+  children: React.createElement("svg"),
+})));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        cwd=Path.cwd(),
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "不应显示的模型解读" not in completed.stdout
+    assert "暂无可用于此图表的数据" in completed.stdout
+    assert "<svg" not in completed.stdout
+
+
+def test_report_modal_uses_wide_viewport_surface() -> None:
+    source = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert "w-[94vw]" in source
+    assert "max-w-[1480px]" in source
+    assert "max-h-[92vh]" in source
+    assert "max-h-[calc(92vh-92px)]" in source
+
+
+def test_l6_full_width_in_department_report_chart_grid() -> None:
+    source = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert 'className={chart.template_id === "L6" ? "xl:col-span-2" : undefined}' in source
+    assert "grid gap-4 xl:grid-cols-2" in source
+
+
 def test_event_report_view_toggle_exposes_pressed_state() -> None:
     source = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
 

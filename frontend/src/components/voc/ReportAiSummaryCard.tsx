@@ -661,7 +661,9 @@ function DepartmentReportView({
       {reportViewMode === "charts" ? (
         <div className="grid gap-4 xl:grid-cols-2">
           {structuredReport.charts.map((chart) => (
-            <ReportChartRegistry chart={chart} key={chart.chart_id} />
+            <div key={chart.chart_id} className={chart.template_id === "L6" ? "xl:col-span-2" : undefined}>
+              <ReportChartRegistry chart={chart} />
+            </div>
           ))}
         </div>
       ) : null}
@@ -839,7 +841,7 @@ export function ReportAiSummaryCard({
 
       {isOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/18 p-4 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[var(--theme-border)] bg-[var(--theme-white)] shadow-[0_24px_80px_rgba(26,32,44,0.2)]">
+          <div className="max-h-[92vh] w-[94vw] max-w-[1480px] overflow-hidden rounded-[28px] border border-[var(--theme-border)] bg-[var(--theme-white)] shadow-[0_24px_80px_rgba(26,32,44,0.2)]">
             <header className="flex items-start justify-between gap-4 border-b border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-selected-bg),var(--theme-card))] p-5">
               <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,var(--theme-primary),var(--theme-selected-text))] text-white shadow-[0_12px_26px_rgba(26,32,44,0.12)]">
@@ -861,7 +863,7 @@ export function ReportAiSummaryCard({
               </button>
             </header>
 
-            <div className="max-h-[calc(88vh-92px)] overflow-auto p-5">
+            <div className="max-h-[calc(92vh-92px)] overflow-auto p-5 md:p-6">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs text-[var(--theme-muted)]">
                   {payload?.prompt_version ? <span>Prompt：{payload.prompt_version}</span> : <span>{loadingMode === "latest" ? "正在读取历史总结" : `暂无${departmentName}历史总结`}</span>}

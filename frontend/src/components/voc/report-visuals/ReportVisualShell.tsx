@@ -32,6 +32,11 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
         <p className="mt-1 text-sm" style={{ color: reportChartTheme.muted }}>
           {chart.subtitle}
         </p>
+        {hasData && chart.insight ? (
+          <p className="mt-3 text-sm leading-6" style={{ color: reportChartTheme.body }}>
+            {chart.insight}
+          </p>
+        ) : null}
       </header>
 
       {!hasData ? (
@@ -49,9 +54,6 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
         <div className="mt-4">{children}</div>
       )}
 
-      <p className="mt-3 text-sm leading-6" style={{ color: reportChartTheme.body }}>
-        {chart.insight}
-      </p>
       <p className="mt-2 text-xs" style={{ color: reportChartTheme.muted }}>
         数据来源：{chart.source_label}
       </p>

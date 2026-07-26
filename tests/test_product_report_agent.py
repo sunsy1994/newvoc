@@ -270,6 +270,59 @@ def test_product_pko_real_report_path_keeps_up_to_fifty_renderable_records() -> 
     }
 
 
+def test_legacy_product_pko_context_uses_only_safe_unpolluted_authoritative_total() -> None:
+    from app.services.report_agent import build_product_report_context
+    from app.services.report_visuals import MAX_SAFE_INTEGER, build_product_report_charts
+
+    retained = [
+        {
+            "comment_id": f"legacy-{index:03d}",
+            "target": "竞品A",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": f"历史真实评论 {index}",
+            "interaction_cnt": 100 - index,
+        }
+        for index in range(50)
+    ]
+
+    def l6_meta(evidence_comments, evidence_total_count):
+        context = build_product_report_context(
+            {
+                "product_pko_story": {
+                    "evidence_comments": evidence_comments,
+                    "evidence_total_count": evidence_total_count,
+                }
+            }
+        )
+        return context["pko"]["evidence_total_count"], build_product_report_charts(context)[3]["meta"]
+
+    assert l6_meta(retained, 60) == (
+        60,
+        {"displayed_count": 50, "total_count": 60, "unit": "条对比评论"},
+    )
+    for invalid_total in (True, 49, MAX_SAFE_INTEGER + 1):
+        assert l6_meta(retained, invalid_total) == (
+            50,
+            {"displayed_count": 50, "total_count": 50, "unit": "条对比评论"},
+        )
+
+    polluted = [
+        *retained,
+        {
+            "comment_id": "legacy-placeholder",
+            "target": "未标注对比对象",
+            "dimension": "空间",
+            "result": "本车优势",
+            "comment_text": "旧数据占位行",
+        },
+    ]
+    assert l6_meta(polluted, 60) == (
+        50,
+        {"displayed_count": 50, "total_count": 50, "unit": "条对比评论"},
+    )
+
+
 def test_product_report_story_context_builder_excludes_placeholder_pko_and_keeps_real_rows() -> None:
     from app.services.event_voc_insights import build_product_pko_story
     from app.services.report_agent import build_product_report_context

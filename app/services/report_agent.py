@@ -13,6 +13,7 @@ from app.config import DATABASE_URL
 from app.services.comment_user_ai_profile import call_openai_compatible_json
 from app.services.event_voc_insights import get_voc_event_market_dashboard, get_voc_event_product_dashboard, get_voc_event_sales_dashboard
 from app.services.report_visuals import (
+    MAX_SAFE_INTEGER,
     build_market_report_charts,
     build_product_report_charts,
     build_sales_report_charts,
@@ -311,11 +312,24 @@ def build_product_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
         and not item["target"].strip().startswith("未标注")
     ]
     pko_evidence = reportable_pko_evidence[:50]
-    pko_evidence_total_count = (
-        pko_story.get("report_evidence_total_count")
-        if isinstance(strict_story_evidence, list)
-        else len(reportable_pko_evidence)
-    )
+    if isinstance(strict_story_evidence, list):
+        pko_evidence_total_count = pko_story.get("report_evidence_total_count")
+    else:
+        legacy_total = pko_story.get("evidence_total_count")
+        unpolluted_legacy_evidence = (
+            isinstance(evidence_source, list)
+            and len(evidence_source) == len(reportable_pko_evidence)
+        )
+        pko_evidence_total_count = (
+            legacy_total
+            if (
+                isinstance(legacy_total, int)
+                and not isinstance(legacy_total, bool)
+                and len(reportable_pko_evidence) <= legacy_total <= MAX_SAFE_INTEGER
+                and unpolluted_legacy_evidence
+            )
+            else len(reportable_pko_evidence)
+        )
 
     for item in pko_evidence:
         evidence_comments.append(item)

@@ -891,7 +891,18 @@ class FakeReportCursor:
             )
         elif "LEFT JOIN data_asset.competitor_work_insight" in normalized:
             assert "LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id" in normalized
-            assert "ORDER BY total_engagement DESC, published_at DESC, work_id ASC" in normalized
+            order_clause = normalized.split("ORDER BY", 1)[1]
+            order_terms = [
+                "total_engagement DESC",
+                "coalesce(w.interaction_like_cnt, 0) DESC",
+                "coalesce(w.comment_cnt, 0) DESC",
+                "w.published_at DESC NULLS LAST",
+                "coalesce(w.work_id::text, '') ASC",
+                "coalesce(w.title, '') ASC",
+                "coalesce(w.author_name, '') ASC",
+            ]
+            positions = [order_clause.index(term) for term in order_terms]
+            assert positions == sorted(positions)
             is_full_scope = "full_scope_records" in normalized
             if not is_full_scope:
                 assert "LIMIT 3" in normalized, "Top works SQL must include LIMIT 3"
@@ -912,7 +923,15 @@ class FakeReportCursor:
                 assert field in normalized
             ranked = sorted(
                 scoped,
-                key=lambda work: (-self._engagement(work), -work["published_at"].timestamp(), work["work_id"]),
+                key=lambda work: (
+                    -self._engagement(work),
+                    -int(work.get("interaction_like_cnt") or 0),
+                    -int(work.get("comment_cnt") or 0),
+                    -work["published_at"].timestamp(),
+                    str(work.get("work_id") or ""),
+                    str(work.get("title") or ""),
+                    str(work.get("author_name") or ""),
+                ),
             )
             if not is_full_scope:
                 ranked = ranked[:3]
@@ -958,7 +977,7 @@ def test_fake_cursor_rejects_top_query_without_limit() -> None:
         FROM data_asset.competitor_work w
         LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id
         WHERE {competitor_tools.SCOPE_SQL}
-        ORDER BY total_engagement DESC, published_at DESC, work_id ASC
+        ORDER BY {competitor_tools.TOP_WORK_ORDER_SQL}
     """
 
     with pytest.raises(AssertionError, match="LIMIT 3"):
@@ -1021,13 +1040,13 @@ def test_dataset_filters_before_top3_and_returns_grounded_aggregates(monkeypatch
         "total_engagement": 140,
         "average_engagement": 35,
     }
-    assert [row["work_id"] for row in dataset["top_works"]] == ["w-001", "w-002", "w-003"]
+    assert [row["work_id"] for row in dataset["top_works"]] == ["w-001", "w-003", "w-002"]
     assert dataset["top_works"][0]["total_engagement"] == 50
     assert dataset["top_works"][0]["insight_markdown"] == "按作品 ID 命中的解读"
     assert dataset["top_works"][1]["insight_markdown"] == "无"
     assert dataset["top_works"][0]["title"] == "原始标题-w-001"
     assert dataset["top_works"][0]["video_url"] == "https://example.test/w-001"
-    assert [row["work_id"] for row in dataset["records"]] == ["w-001", "w-002", "w-003", "w-004"]
+    assert [row["work_id"] for row in dataset["records"]] == ["w-001", "w-003", "w-002", "w-004"]
     assert dataset["records"][0]["insight_markdown"] == "按作品 ID 命中的解读"
     assert dataset["records"][1]["insight_markdown"] == "无"
     assert dataset["daily_trend"][0]["publish_date"] == "2026-07-10"
@@ -1088,3 +1107,66 @@ def test_dataset_returns_top_n_when_fewer_than_three_works(monkeypatch) -> None:
     assert [row["work_id"] for row in dataset["top_works"]] == ["only-work"]
     assert dataset["top_works"][0]["insight_markdown"] == "无"
     assert any("仅有 1 条作品" in note for note in dataset["data_notes"])
+
+
+def test_collector_llm_top3_matches_renderer_top3_for_equal_totals(monkeypatch) -> None:
+    works = [
+        _work(
+            "w-newest",
+            published_at="2026-07-15T10:00:00",
+            likes=1,
+            comments=1,
+            favorites=8,
+        ),
+        _work(
+            "w-high",
+            published_at="2026-07-10T10:00:00",
+            likes=8,
+            comments=1,
+            favorites=1,
+        ),
+        _work(
+            "w-mid",
+            published_at="2026-07-11T10:00:00",
+            likes=6,
+            comments=3,
+            favorites=1,
+        ),
+        _work(
+            "w-low",
+            published_at="2026-07-12T10:00:00",
+            likes=4,
+            comments=5,
+            favorites=1,
+        ),
+    ]
+    connection = FakeReportConnection(works, {})
+    monkeypatch.setattr(competitor_tools.psycopg, "connect", lambda *_args, **_kwargs: connection)
+    dataset = collect_competitor_report_dataset(
+        "比亚迪",
+        "2026-07-01",
+        "2026-07-31",
+        database_url="fake-db",
+    )
+    top_ids = [work["work_id"] for work in dataset["top_works"]]
+    summary = {
+        "executive_summary": ["同分排序结论一", "同分排序结论二", "同分排序结论三"],
+        "top_work_findings": [
+            {"work_id": work_id, "why_it_matters": f"FINDING-{work_id}"}
+            for work_id in top_ids
+        ],
+        "account_summary": "账号结论",
+        "rhythm_summary": "走势结论",
+        "dealer_summary": "经销商结论",
+    }
+
+    rendered = competitor_renderer.render_competitor_report_html(dataset, summary)
+    rendered_ids = re.findall(
+        r'<article class="hot-card" data-work-id="([^"]+)"',
+        rendered,
+    )
+
+    assert top_ids == ["w-high", "w-mid", "w-low"]
+    assert rendered_ids == top_ids
+    for work_id in top_ids:
+        assert f"FINDING-{work_id}" in rendered

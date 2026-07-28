@@ -501,3 +501,21 @@ def test_compatibility_summary_is_visible_in_matching_mckinsey_modules() -> None
         assert marker in rendered
     assert "aria-hidden" not in rendered
     assert "sr-only" not in rendered
+
+
+def test_top_work_selection_reason_is_styled_inside_hot_body() -> None:
+    rendered = competitor_renderer.render_competitor_report_html(
+        _sample_report_dataset(),
+        _sample_llm_summary(),
+    )
+
+    card = re.search(
+        r'<article class="hot-card" data-work-id="w-001">(.*?)</article>',
+        rendered,
+        flags=re.DOTALL,
+    )
+    assert card is not None
+    card_html = card.group(1)
+    selection_position = card_html.index('<p class="selection-reason">')
+    assert selection_position < card_html.rfind('</div>')
+    assert re.search(r'\.selection-reason\s*\{[^}]+\}', rendered)

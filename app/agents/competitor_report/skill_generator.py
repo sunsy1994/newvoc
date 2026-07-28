@@ -843,6 +843,13 @@ def build_html(
         ):
             video_insight_matched = True
             insight_html = render_video_insight_block(row_video_insight, mode='compact')
+        selection_reason = str(row.get('入选判断') or '').strip()
+        selection_reason_html = (
+            '<p class="selection-reason"><strong>入选判断：</strong>'
+            f'{safe_html(selection_reason)}</p>'
+            if selection_reason
+            else ''
+        )
 
         top_cards.append(f"""
         <article class="hot-card" data-work-id="{safe_html(work_id)}">
@@ -863,6 +870,7 @@ def build_html(
             <p><strong>评论情绪：</strong>正向 {sentiment_ratio['正向']}% / 中性 {sentiment_ratio['中性']}% / 负向 {sentiment_ratio['负向']}%</p>
             <ul class="comment-list">{comment_sample_html}</ul>
             {insight_html}
+            {selection_reason_html}
           </div>
         </article>
         """)
@@ -943,6 +951,8 @@ def build_html(
     .metric-strip {{ display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 8px 0; }}
     .metric-strip span {{ background: {style['metric_bg']}; border: 1px solid {style['border']}; padding: 4px 8px; font-size: 12px; }}
     .metric-strip .strong {{ color: {style['brand']}; font-weight: 600; }}
+    .selection-reason {{ margin-top: 12px !important; padding: 10px 12px; border-left: 3px solid {style['brand']}; background: {style['panel_bg']}; }}
+    .selection-reason strong {{ color: {style['brand']}; }}
     .comment-list {{ margin: 6px 0 0; padding-left: 16px; }}
     .video-insight {{ background: {style['panel_bg']}; border: 1px solid {style['border']}; padding: 20px; }}
     .video-insight-compact {{ margin-top: 14px; padding: 14px; background: {style['insight_bg']}; }}
@@ -1200,6 +1210,7 @@ def _record_row(record: dict[str, Any], brand_name: str) -> dict[str, Any]:
         '话题标签': str(record.get('topic_tags') or ''),
         '视频链接': _http_url(record.get('video_url')),
         '封面图路径': str(record.get('cover_path') or ''),
+        '入选判断': str(record.get('selection_reason') or ''),
         '互动点赞数': parse_metric(record.get('interaction_like_cnt')),
         '评论数': parse_metric(record.get('comment_cnt')),
         '收藏数': parse_metric(record.get('favorite_cnt')),
@@ -1264,6 +1275,7 @@ def generate_html_from_records(
             columns=[
                 '作品ID', '标题', '作者', '品牌', '账号类型', '是否官方号',
                 '发布时间', '话题标签', '视频链接', '封面图路径',
+                '入选判断',
                 '互动点赞数', '评论数', '收藏数', '分享数',
             ]
         )

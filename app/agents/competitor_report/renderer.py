@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from html import escape
 from typing import Any
 
@@ -34,25 +33,6 @@ def _inject_visible_summary(html: str, dataset: dict[str, Any], summary: dict[st
         content = ''.join(f'<div class="insight">{_summary_text(item)}</div>' for item in executive)
         html = html.replace('<div class="insight-list">', f'<div class="insight-list">{content}', 1)
 
-    findings = summary.get('top_work_findings')
-    if isinstance(findings, list):
-        for finding in findings:
-            if not isinstance(finding, dict) or not finding.get('work_id'):
-                continue
-            work_id = escape(str(finding['work_id']), quote=True)
-            reason = _summary_text(finding.get('why_it_matters') or '无')
-            pattern = rf'(<article class="hot-card" data-work-id="{re.escape(work_id)}".*?)(</article>)'
-            html = re.sub(
-                pattern,
-                lambda match: (
-                    f'{match.group(1)}<p class="selection-reason">'
-                    f'<strong>入选判断：</strong>{reason}</p>{match.group(2)}'
-                ),
-                html,
-                count=1,
-                flags=re.DOTALL,
-            )
-
     module_summaries = (
         ('账号互动贡献', summary.get('account_summary')),
         ('发布时间与互动走势', summary.get('rhythm_summary')),
@@ -80,12 +60,24 @@ def _inject_visible_summary(html: str, dataset: dict[str, Any], summary: dict[st
 
 def render_competitor_report_html(dataset: dict, summary: dict) -> str:
     records = _full_scope_records(dataset)
+    findings = {
+        str(item.get('work_id')): str(item.get('why_it_matters') or '无')
+        for item in summary.get('top_work_findings') or []
+        if isinstance(item, dict) and item.get('work_id')
+    }
+    render_records = [
+        {
+            **record,
+            'selection_reason': findings.get(str(record.get('work_id') or ''), ''),
+        }
+        for record in records
+    ]
     video_insights = {
         str(record.get('work_id') or ''): str(record.get('insight_markdown') or '')
-        for record in records
+        for record in render_records
     }
     html = generate_html_from_records(
-        records,
+        render_records,
         brand_name=str(dataset.get('brand_name') or '未标注品牌'),
         output_name=(
             f"{dataset.get('start_date') or '未知日期'} 至 "

@@ -12,6 +12,17 @@ from app.services.asset_library import normalize_row
 
 TOTAL_ENGAGEMENT_SQL = "coalesce(interaction_like_cnt,0)+coalesce(comment_cnt,0)+coalesce(favorite_cnt,0)+coalesce(share_cnt,0)"
 SCOPE_SQL = "w.brand_name = %s AND w.published_at >= %s AND w.published_at < %s"
+# Keep this order aligned with skill_generator._rank_top_works so the LLM and
+# rendered report select the same Top3 from full-scope records.
+TOP_WORK_ORDER_SQL = """
+total_engagement DESC,
+coalesce(w.interaction_like_cnt, 0) DESC,
+coalesce(w.comment_cnt, 0) DESC,
+w.published_at DESC NULLS LAST,
+coalesce(w.work_id::text, '') ASC,
+coalesce(w.title, '') ASC,
+coalesce(w.author_name, '') ASC
+""".strip()
 
 
 def _rows(cursor: psycopg.Cursor) -> list[dict[str, Any]]:
@@ -108,7 +119,7 @@ def collect_competitor_report_dataset(
                 FROM data_asset.competitor_work w
                 LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id
                 WHERE {SCOPE_SQL}
-                ORDER BY total_engagement DESC, published_at DESC, work_id ASC
+                ORDER BY {TOP_WORK_ORDER_SQL}
                 """,
                 params,
             )
@@ -124,7 +135,7 @@ def collect_competitor_report_dataset(
                 FROM data_asset.competitor_work w
                 LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id
                 WHERE {SCOPE_SQL}
-                ORDER BY total_engagement DESC, published_at DESC, work_id ASC
+                ORDER BY {TOP_WORK_ORDER_SQL}
                 LIMIT 3
                 """,
                 params,

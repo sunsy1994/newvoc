@@ -86,3 +86,30 @@ ECharts canvas 的运行时检查。
 替换成了 `?`；报告模板中的固定中文、章节和图表均正常。这是一次性验收数据构造方式
 造成的显示噪声，不涉及数据库/API 生产路径；生产中文安全性与时间范围由完整 HTTP
 闭环测试覆盖。视觉验收确认本地 ECharts 在资产 iframe 的安全边界内能够实际运行。
+
+随后又使用 UTF-8 Python 文件重新生成项目报告，并把最终 Skill 的
+`assets/default_long_report_style.html` 作为视觉真源，在同一个 in-app browser、
+同一个实际 `1280 × 720` viewport 下逐项对照。两侧结果一致：
+
+- 页面 `max-width` 均为 `1200px`；
+- H1 均为 `40px / 700 / rgb(26, 26, 46)`；
+- 9 个 H2 章节的名称与顺序完全一致；
+- 两侧均为 3 张 Top3 卡片；
+- 两侧 `authorChart`、`trendChart`、`topicChart`、`sankeyChart` 均产生 canvas；
+- 两侧均无横向溢出；
+- 首屏线条、标题、说明、四 KPI 卡片、核心发现色块的尺寸、间距和排版一致。
+
+两份报告的指标数值不同是输入数据不同所致，不属于模板偏差。项目报告额外保留了经过
+安全转义的业务摘要、缺失态和入选判断，但没有改变最终 Skill 的章节顺序与 McKinsey
+视觉骨架。
+
+## 最终交付复验
+
+最终审查修复 prompt 体积、封面字段、评论关键词与 Top3 血缘口径后重新执行：
+
+- `python -m pytest tests/test_competitor_report_agent.py tests/test_data_lineage.py -q -p no:cacheprovider`
+  → `127 passed`；
+- `python -m pytest -q -p no:cacheprovider` → `548 passed`，60 个既有依赖告警；
+- `npm run typecheck` → exit 0；
+- `npm run build` → exit 0，30 个页面；
+- `git diff --check` → exit 0。

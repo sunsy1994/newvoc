@@ -370,14 +370,14 @@ def list_competitor_works(
             cur.execute(f"SELECT count(*) FROM data_asset.competitor_work w{where_sql}", params)
             total = cur.fetchone()["count"]
             cur.execute(
-                "SELECT work_id, title, author_name, brand_name, account_type, is_official, home_like_cnt, "
-                "interaction_like_cnt, comment_cnt, favorite_cnt, share_cnt, published_at, is_pinned, video_url, "
-                "cover_url, topic_tags, first_seen_at, last_seen_at, "
+                "SELECT w.work_id, w.title, w.author_name, w.brand_name, w.account_type, w.is_official, w.home_like_cnt, "
+                "w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt, w.published_at, w.is_pinned, w.video_url, "
+                "w.cover_url, w.topic_tags, w.first_seen_at, w.last_seen_at, "
                 "length(trim(coalesce(i.insight_markdown, ''))) > 0 AS has_insight, i.updated_at AS insight_updated_at "
                 "FROM data_asset.competitor_work w "
                 "LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id "
                 f"{where_sql} "
-                "ORDER BY published_at DESC NULLS LAST, interaction_like_cnt DESC NULLS LAST LIMIT %s OFFSET %s",
+                "ORDER BY w.published_at DESC NULLS LAST, w.interaction_like_cnt DESC NULLS LAST LIMIT %s OFFSET %s",
                 [*params, limit, offset],
             )
             rows = [normalize_row(dict(row)) for row in cur.fetchall()]

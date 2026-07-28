@@ -145,6 +145,7 @@ def test_list_competitor_works_without_filters_separates_join_and_order_by(monke
 
     query = next(query for query, _params in connection.calls if "AS has_insight" in query)
     assert "ON i.work_id = w.work_id ORDER BY" in " ".join(query.split())
+    assert query.lstrip().startswith("SELECT w.work_id, w.title, w.author_name")
     assert payload["rows"][0]["has_insight"] is True
 
 

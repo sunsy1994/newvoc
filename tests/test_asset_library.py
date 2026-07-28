@@ -3,20 +3,13 @@ from decimal import Decimal
 from typing import Any
 
 import app.services.asset_library as asset_library
-from app.agents.competitor_report.skill_generator import generate_html_from_records
 from app.services.asset_library import ASSET_DEFINITIONS, SELECT_SQL, build_like_pattern, list_assets, normalize_row
 
 
 class FakeReportCursor:
-    def __init__(
-        self,
-        calls: list[tuple[str, Any]],
-        rows: list[dict[str, Any]],
-        competitor_html: str = "<!doctype html><html><body>竞品报告</body></html>",
-    ) -> None:
+    def __init__(self, calls: list[tuple[str, Any]], rows: list[dict[str, Any]]) -> None:
         self.calls = calls
         self.rows = rows
-        self.competitor_html = competitor_html
         self.result: list[dict[str, Any]] = []
 
     def __enter__(self) -> "FakeReportCursor":
@@ -50,7 +43,7 @@ class FakeReportCursor:
                     "subject_name": "比亚迪",
                     "generated_at": datetime(2026, 7, 18, 11, 0),
                     "view_kind": "html",
-                    "html": self.competitor_html,
+                    "html": "<!doctype html><html><body>竞品报告</body></html>",
                 }
             ]
 
@@ -62,14 +55,9 @@ class FakeReportCursor:
 
 
 class FakeReportConnection:
-    def __init__(
-        self,
-        rows: list[dict[str, Any]] | None = None,
-        competitor_html: str = "<!doctype html><html><body>竞品报告</body></html>",
-    ) -> None:
+    def __init__(self, rows: list[dict[str, Any]] | None = None) -> None:
         self.calls: list[tuple[str, Any]] = []
         self.rows = rows or []
-        self.competitor_html = competitor_html
 
     def __enter__(self) -> "FakeReportConnection":
         return self
@@ -78,7 +66,7 @@ class FakeReportConnection:
         return None
 
     def cursor(self, **_kwargs: Any) -> FakeReportCursor:
-        return FakeReportCursor(self.calls, self.rows, self.competitor_html)
+        return FakeReportCursor(self.calls, self.rows)
 
 
 def test_asset_definitions_expose_only_business_columns() -> None:
@@ -202,27 +190,7 @@ def test_report_asset_definition_has_no_legacy_prompt_or_context_projection() ->
 
 
 def test_report_asset_detail_returns_only_the_required_event_or_html_view(monkeypatch) -> None:
-    report_html = generate_html_from_records(
-        [
-            {
-                "work_id": "w-1",
-                "title": "新车上市",
-                "author_name": "品牌官方账号",
-                "account_type": "官方",
-                "is_official": True,
-                "published_at": "2026-05-26T10:00:00+08:00",
-                "topic_tags": "#上市",
-                "interaction_like_cnt": 10,
-                "comment_cnt": 2,
-                "favorite_cnt": 3,
-                "share_cnt": 4,
-            }
-        ],
-        brand_name="上汽大众",
-        output_name="上汽大众_2026-05-25_2026-05-31_竞品动态报告",
-        video_insights_by_work_id={},
-    )
-    connection = FakeReportConnection(competitor_html=report_html)
+    connection = FakeReportConnection()
     monkeypatch.setattr(asset_library.psycopg, "connect", lambda *_args, **_kwargs: connection)
 
     event_report = asset_library.get_report_asset("event_report", 7, database_url="fake-db")
@@ -242,17 +210,8 @@ def test_report_asset_detail_returns_only_the_required_event_or_html_view(monkey
         "subject_name": "比亚迪",
         "generated_at": "2026-07-18T11:00:00+08:00",
         "view_kind": "html",
-        "html": report_html,
+        "html": "<!doctype html><html><body>竞品报告</body></html>",
     }
-    for fragment in (
-        "McKinsey Consulting",
-        "Top3 热门作品",
-        'id="authorChart"',
-        'id="trendChart"',
-        'id="topicChart"',
-        'id="sankeyChart"',
-    ):
-        assert fragment in competitor_report["html"]
     assert all("rendered_prompt" not in payload and "context" not in payload for payload in (event_report, competitor_report))
 
 

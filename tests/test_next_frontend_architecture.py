@@ -342,7 +342,7 @@ def test_asset_pages_use_real_api_component_and_exports() -> None:
     assert "StructuredReportView" in asset_component
 
 
-def test_report_assets_fetch_typed_detail_and_render_html_in_a_scriptless_iframe() -> None:
+def test_report_assets_fetch_typed_detail_and_render_html_in_an_origin_isolated_script_iframe() -> None:
     component = Path("frontend/src/components/assets/AssetLibraryPage.tsx").read_text(encoding="utf-8")
     types = Path("frontend/src/types/assets.ts").read_text(encoding="utf-8")
 
@@ -357,8 +357,21 @@ def test_report_assets_fetch_typed_detail_and_render_html_in_a_scriptless_iframe
     assert 'searchParams.get("report_run_id")' in component
     assert "StructuredReportView" in component
     assert "srcDoc={openReport.html}" in component
-    assert 'sandbox=""' in component
-    assert "allow-scripts" not in component
+    sandbox = re.search(r'<iframe\b.*?\bsandbox="([^"]*)"', component, flags=re.DOTALL)
+    assert sandbox is not None
+    sandbox_tokens = sandbox.group(1).split()
+    assert sandbox_tokens == ["allow-scripts"]
+    assert set(sandbox_tokens).isdisjoint(
+        {
+            "allow-same-origin",
+            "allow-forms",
+            "allow-popups",
+            "allow-popups-to-escape-sandbox",
+            "allow-top-navigation",
+            "allow-top-navigation-by-user-activation",
+            "allow-downloads",
+        }
+    )
     assert "dangerouslySetInnerHTML" not in component
 
 

@@ -263,7 +263,7 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
               <iframe
                 title={`${openReport.subject_name}竞品报告`}
                 srcDoc={openReport.html}
-                sandbox=""
+                sandbox="allow-scripts"
                 referrerPolicy="no-referrer"
                 className="h-[calc(88vh-86px)] w-full border-0 bg-white"
               />

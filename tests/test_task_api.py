@@ -1149,12 +1149,78 @@ def test_unified_agent_api_accepts_competitor_report_without_event_id(tmp_path: 
     }
 
 
-def test_unified_agent_api_returns_and_stores_named_month_last_week_scope(tmp_path: Path, monkeypatch) -> None:
+def test_competitor_report_closes_ai_save_asset_service_and_http_route_loop(tmp_path: Path, monkeypatch) -> None:
     import app.agents.competitor_report.graph as competitor_graph
+    import app.agents.competitor_report.storage as competitor_storage
 
     client = make_client(tmp_path)
-    saved: list[dict] = []
+    database: dict[int, dict] = {}
+    executed_queries: list[str] = []
     llm_calls = 0
+
+    class InMemoryCursor:
+        def __init__(self) -> None:
+            self.row: dict | None = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+        def execute(self, query: str, params=None) -> None:
+            normalized_query = " ".join(query.split())
+            executed_queries.append(normalized_query)
+            if normalized_query.startswith("INSERT INTO data_asset.competitor_report_agent_run"):
+                report_run_id = 42
+                self.row = {
+                    "report_run_id": report_run_id,
+                    "brand_name": params[0],
+                    "start_date": params[1],
+                    "end_date": params[2],
+                    "generated_at": params[3],
+                    "status": params[4],
+                    "error_message": params[5],
+                    "prompt_version": params[6],
+                    "html": params[7],
+                    "summary_json": {},
+                    "context_json": {},
+                    "rendered_prompt": params[10],
+                }
+                database[report_run_id] = dict(self.row)
+                return
+            if "FROM data_asset.competitor_report_agent_run r" in normalized_query and "r.html" in normalized_query:
+                stored = database.get(params[0])
+                self.row = (
+                    {
+                        "report_type": "competitor_report",
+                        "report_run_id": stored["report_run_id"],
+                        "subject_name": stored["brand_name"],
+                        "generated_at": stored["generated_at"],
+                        "view_kind": "html",
+                        "html": stored["html"],
+                    }
+                    if stored is not None and stored["status"] == "completed"
+                    else None
+                )
+                return
+            raise AssertionError(f"unexpected SQL in integration test: {normalized_query}")
+
+        def fetchone(self):
+            return self.row
+
+    class InMemoryConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+        def cursor(self, **_kwargs):
+            return InMemoryCursor()
+
+        def commit(self) -> None:
+            return None
 
     def fake_llm(_prompt: str, **_kwargs) -> dict:
         nonlocal llm_calls
@@ -1191,38 +1257,61 @@ def test_unified_agent_api_returns_and_stores_named_month_last_week_scope(tmp_pa
             "daily_trend": [],
             "account_contribution": [],
             "topic_distribution": [],
-            "records": [{"work_id": "w-1"}],
-            "top_works": [{"work_id": "w-1"}],
+            "records": [
+                {
+                    "work_id": "w-1",
+                    "title": "新车上市",
+                    "author_name": "品牌官方账号",
+                    "account_type": "官方",
+                    "is_official": True,
+                    "published_at": "2026-05-26T10:00:00+08:00",
+                    "topic_tags": "#上市",
+                    "interaction_like_cnt": 10,
+                    "comment_cnt": 2,
+                    "favorite_cnt": 3,
+                    "share_cnt": 4,
+                }
+            ],
+            "top_works": [{"work_id": "w-1", "insight_markdown": "无"}],
             "data_notes": [],
         },
     )
-    monkeypatch.setattr(
-        competitor_graph,
-        "render_competitor_report_html",
-        lambda *args, **kwargs: "<!doctype html><html><body>McKinsey Consulting</body></html>",
-    )
-    monkeypatch.setattr(
-        competitor_graph,
-        "save_competitor_report_agent_result",
-        lambda payload: saved.append(payload) or {"report_run_id": 42},
-    )
+    monkeypatch.setattr(competitor_storage.psycopg, "connect", lambda *_args, **_kwargs: InMemoryConnection())
 
-    response = client.post(
+    generated_response = client.post(
         "/api/agents/run",
         json={
             "capability": "competitor_report",
-            "message": "生成5月最后一周的竞品动态报告",
+            "message": "生成2026年5月最后一周的竞品动态报告",
             "history": [],
         },
     )
+    assert generated_response.status_code == 200
+    generated = generated_response.json()
+    report_run_id = generated["report_asset"]["report_run_id"]
+    asset_response = client.get(f"/api/assets/reports/competitor_report/{report_run_id}")
+    assert asset_response.status_code == 200
+    asset = asset_response.json()
 
-    assert response.status_code == 200
-    assert response.json()["time_scope"] == {
+    assert generated["time_scope"] == {
         "start_date": "2026-05-25",
         "end_date": "2026-05-31",
     }
-    assert response.json()["report_asset"] == {
+    assert "2026-05-25 至 2026-05-31" in generated["answer"]
+    assert generated["report_asset"] == {
         "report_run_id": 42,
         "report_type": "competitor_report",
     }
-    assert (saved[0]["start_date"], saved[0]["end_date"]) == ("2026-05-25", "2026-05-31")
+    assert (database[42]["start_date"], database[42]["end_date"]) == ("2026-05-25", "2026-05-31")
+    assert asset["report_run_id"] == report_run_id
+    assert asset["view_kind"] == "html"
+    assert "2026-05-25 至 2026-05-31" in asset["html"]
+    for chart_id in ("authorChart", "trendChart", "topicChart", "sankeyChart"):
+        assert f'id="{chart_id}"' in asset["html"]
+        assert f"echarts.init(document.getElementById('{chart_id}'))" in asset["html"]
+    assert "McKinsey Consulting" in asset["html"]
+    assert "Top3 热门作品" in asset["html"]
+    assert "账号互动贡献" in asset["html"]
+    assert "重点经销商承接效果" in asset["html"]
+    assert any(query.startswith("INSERT INTO data_asset.competitor_report_agent_run") for query in executed_queries)
+    assert any("WHERE r.report_run_id = %s AND r.status = 'completed'" in query for query in executed_queries)

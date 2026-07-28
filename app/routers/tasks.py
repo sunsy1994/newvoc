@@ -29,11 +29,13 @@ from app.services.data_lineage import (
 )
 from app.agents.core import AgentCapability, AgentCapabilityUnavailableError, dispatch_agent
 from app.services.agent_error_log import AgentErrorLog
-from app.services.asset_library import list_assets
+from app.services.asset_library import get_report_asset, list_assets
 from app.services.competitor_library import (
+    get_competitor_work_insight,
     get_competitor_options,
     list_competitor_accounts,
     list_competitor_works,
+    save_competitor_work_insight,
 )
 from app.services.etl_flow import build_flow_nodes
 from app.services.etl_runner import EtlRunner
@@ -117,6 +119,11 @@ class ScriptSaveRequest(BaseModel):
 
 class ScriptTestRunRequest(BaseModel):
     batch_id: str
+
+
+class CompetitorWorkInsightSaveRequest(BaseModel):
+    insight_markdown: str = ""
+    updated_by: str | None = None
 
 
 class CommentUserAiProfileRunRequest(BaseModel):
@@ -449,6 +456,17 @@ def execute_agent_request(
                 error_reason=error_reason,
                 history=history,
             )
+        if capability == "competitor_report":
+            return {
+                "status": "failed",
+                "retryable": True,
+                "answer": "竞品动态报告生成失败，请重试。",
+                "report_type": "competitor_report",
+                "brand_name": "",
+                "time_scope": {},
+                "scope_notice": [],
+                "report_asset": None,
+            }
         return {
             "status": "answered",
             "answer": "当前没有数据支撑，暂时无法反馈当前问题。这个问题已记录到系统管理的异常问题记录中，后续可用于补充数据或能力。",
@@ -487,7 +505,7 @@ def run_agent_api(payload: AgentRunRequest, request: Request) -> dict:
     return execute_agent_request(
         payload.capability,
         payload.message,
-        payload.event_id,
+        None if payload.capability == "competitor_report" else payload.event_id,
         payload.history,
         get_agent_error_log(request),
     )
@@ -699,6 +717,49 @@ def get_competitor_works(
             limit=limit,
             offset=offset,
         )
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.get("/api/assets/reports/{report_type}/{report_run_id}")
+def get_report_asset_api(report_type: str, report_run_id: int) -> dict:
+    if report_type not in {"event_report", "competitor_report"} or report_run_id <= 0:
+        raise HTTPException(status_code=404, detail="Report not found")
+    try:
+        report = get_report_asset(report_type, report_run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+
+@router.get("/api/competitors/works/{work_id}/insight")
+def get_competitor_work_insight_api(work_id: str) -> dict:
+    try:
+        return get_competitor_work_insight(work_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.put("/api/competitors/works/{work_id}/insight")
+def save_competitor_work_insight_api(work_id: str, payload: CompetitorWorkInsightSaveRequest) -> dict:
+    try:
+        return save_competitor_work_insight(work_id, payload.insight_markdown, payload.updated_by)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
+
+
+@router.delete("/api/competitors/works/{work_id}/insight")
+def clear_competitor_work_insight_api(work_id: str) -> dict:
+    try:
+        return save_competitor_work_insight(work_id, "")
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail=f"PostgreSQL connection/query failed: {exc}")
 

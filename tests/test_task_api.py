@@ -165,6 +165,51 @@ def test_asset_api_returns_business_assets(tmp_path: Path, monkeypatch) -> None:
     assert response.json()["rows"][0]["event_name"] == "上市事件"
 
 
+def test_report_asset_detail_api_returns_event_and_competitor_views(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+
+    def fake_get_report_asset(report_type: str, report_run_id: int):
+        if report_type == "event_report":
+            return {
+                "report_type": report_type,
+                "report_run_id": report_run_id,
+                "subject_name": "IDT6 上市事件",
+                "generated_at": "2026-07-18T10:00:00",
+                "view_kind": "structured",
+                "structured_report": {"title": "事件报告", "charts": []},
+            }
+        if report_run_id == 8:
+            return {
+                "report_type": report_type,
+                "report_run_id": report_run_id,
+                "subject_name": "比亚迪",
+                "generated_at": "2026-07-18T11:00:00",
+                "view_kind": "html",
+                "html": "<!doctype html><html><body>竞品报告</body></html>",
+            }
+        return None
+
+    monkeypatch.setattr("app.routers.tasks.get_report_asset", fake_get_report_asset)
+
+    event_response = client.get("/api/assets/reports/event_report/7")
+    competitor_response = client.get("/api/assets/reports/competitor_report/8")
+
+    assert event_response.status_code == 200
+    assert event_response.json()["structured_report"]["title"] == "事件报告"
+    assert competitor_response.status_code == 200
+    assert competitor_response.json()["html"].startswith("<!doctype html>")
+    assert "rendered_prompt" not in competitor_response.json()
+    assert client.get("/api/assets/reports/competitor_report/99").status_code == 404
+
+
+def test_report_asset_detail_api_validates_type_and_integer_id(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+
+    assert client.get("/api/assets/reports/unknown/1").status_code == 404
+    assert client.get("/api/assets/reports/event_report/not-an-integer").status_code == 422
+    assert client.get("/api/assets/reports/event_report/0").status_code == 404
+
+
 def test_voc_event_api_returns_event_market_overview(tmp_path: Path, monkeypatch) -> None:
     client = make_client(tmp_path)
 
@@ -430,6 +475,50 @@ def test_competitor_work_api_passes_published_date_filters(tmp_path: Path, monke
     assert captured["account_type"] == "经销商"
     assert captured["start_date"] == "2026-05-01"
     assert captured["end_date"] == "2026-05-31"
+
+
+def test_competitor_work_insight_api_crud_and_missing_work(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    saved: dict[str, object] = {}
+
+    def fake_get(work_id: str) -> dict[str, object]:
+        if work_id == "missing":
+            raise ValueError("Competitor work not found")
+        return saved.get(work_id, {"work_id": work_id, "insight_markdown": "", "updated_by": None})  # type: ignore[return-value]
+
+    def fake_save(work_id: str, insight_markdown: str, updated_by: str | None = None) -> dict[str, object]:
+        if work_id == "missing":
+            raise ValueError("Competitor work not found")
+        saved[work_id] = {
+            "work_id": work_id,
+            "insight_markdown": insight_markdown,
+            "updated_by": updated_by,
+        }
+        return saved[work_id]  # type: ignore[return-value]
+
+    monkeypatch.setattr("app.routers.tasks.get_competitor_work_insight", fake_get)
+    monkeypatch.setattr("app.routers.tasks.save_competitor_work_insight", fake_save)
+
+    assert client.get("/api/competitors/works/work_001/insight").json()["insight_markdown"] == ""
+    assert client.get("/api/competitors/works/missing/insight").status_code == 404
+
+    markdown = "  解读内容  \n"
+    put_response = client.put(
+        "/api/competitors/works/work_001/insight",
+        json={"insight_markdown": markdown, "updated_by": "tester"},
+    )
+    assert put_response.status_code == 200
+    assert put_response.json()["insight_markdown"] == markdown
+    assert put_response.json()["updated_by"] == "tester"
+    assert client.get("/api/competitors/works/work_001/insight").json()["insight_markdown"] == markdown
+
+    delete_response = client.delete("/api/competitors/works/work_001/insight")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["insight_markdown"] == ""
+    assert client.put(
+        "/api/competitors/works/missing/insight",
+        json={"insight_markdown": "内容"},
+    ).status_code == 404
 
 
 def test_asset_export_returns_excel_file(tmp_path: Path, monkeypatch) -> None:
@@ -1023,3 +1112,38 @@ def test_voc_event_market_dashboard_api_returns_region_and_topic_sections(tmp_pa
     payload = response.json()
     assert payload["regional_response_story"]["summary"]["data_scope"] == "comment_location_only"
     assert payload["topic_spread_story"]["summary"]["top_topic"] == "SmartCabin"
+
+
+def test_unified_agent_api_accepts_competitor_report_without_event_id(tmp_path: Path, monkeypatch) -> None:
+    client = make_client(tmp_path)
+    captured = {}
+
+    def fake_dispatch(capability: str, message: str, **kwargs) -> dict:
+        captured.update(capability=capability, message=message, **kwargs)
+        return {
+            "status": "generated",
+            "answer": "已生成比亚迪竞品动态报告，统计范围为2026-07-01 至 2026-07-18。",
+            "brand_name": "比亚迪",
+            "time_scope": {"start_date": "2026-07-01", "end_date": "2026-07-18"},
+            "report_asset": {"report_run_id": 42},
+        }
+
+    monkeypatch.setattr("app.routers.tasks.dispatch_agent", fake_dispatch)
+
+    response = client.post(
+        "/api/agents/run",
+        json={
+            "capability": "competitor_report",
+            "message": "生成比亚迪最近两周竞品动态报告",
+            "history": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["report_asset"]["report_run_id"] == 42
+    assert captured == {
+        "capability": "competitor_report",
+        "message": "生成比亚迪最近两周竞品动态报告",
+        "event_id": None,
+        "history": [],
+    }

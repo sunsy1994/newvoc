@@ -3,6 +3,13 @@ export type CompetitorColumn = {
   label: string;
 };
 
+export type CompetitorWorkInsight = {
+  work_id: string;
+  insight_markdown: string;
+  updated_at?: string | null;
+  updated_by?: string | null;
+};
+
 export type CompetitorListPayload = {
   asset: string;
   label: string;

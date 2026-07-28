@@ -734,6 +734,13 @@ CREATE INDEX IF NOT EXISTS idx_competitor_work_brand_type ON data_asset.competit
 CREATE INDEX IF NOT EXISTS idx_competitor_work_author ON data_asset.competitor_work(author_name);
 CREATE INDEX IF NOT EXISTS idx_competitor_work_published_at ON data_asset.competitor_work(published_at);
 
+CREATE TABLE IF NOT EXISTS data_asset.competitor_work_insight (
+  work_id          TEXT PRIMARY KEY REFERENCES data_asset.competitor_work(work_id),
+  insight_markdown TEXT NOT NULL DEFAULT '',
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by       TEXT
+);
+
 -- =========================================================
 -- PROFILE：用户画像维护
 -- 说明：承接线下AI/Excel打标结果。底表存事实，画像表存判断。
@@ -906,6 +913,77 @@ COMMENT ON COLUMN data_asset.system_prompt_template.is_enabled IS '是否启用�
 
 CREATE INDEX IF NOT EXISTS idx_system_ai_config_default ON data_asset.system_ai_config(is_default, is_enabled);
 CREATE INDEX IF NOT EXISTS idx_system_prompt_template_scene ON data_asset.system_prompt_template(prompt_scene, is_default, is_enabled);
+
+CREATE TABLE IF NOT EXISTS data_asset.event_report_agent_run (
+  report_run_id   BIGSERIAL PRIMARY KEY,
+  event_id        TEXT NOT NULL,
+  prompt_version  TEXT NOT NULL,
+  generated_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  summary_json    JSONB NOT NULL,
+  context_json    JSONB NOT NULL,
+  rendered_prompt TEXT NOT NULL
+);
+
+DO $migration$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'data_asset'
+      AND table_name = 'event_report_agent_run'
+      AND column_name = 'generated_at'
+      AND data_type = 'timestamp without time zone'
+  ) THEN
+    ALTER TABLE data_asset.event_report_agent_run
+      ALTER COLUMN generated_at TYPE TIMESTAMPTZ
+      USING generated_at AT TIME ZONE 'Asia/Shanghai';
+  END IF;
+END
+$migration$;
+
+CREATE INDEX IF NOT EXISTS idx_event_report_agent_run_event_time
+  ON data_asset.event_report_agent_run(event_id, generated_at DESC, report_run_id DESC);
+
+CREATE TABLE IF NOT EXISTS data_asset.competitor_report_agent_run (
+  report_run_id   BIGSERIAL PRIMARY KEY,
+  brand_name      TEXT NOT NULL,
+  start_date      DATE NOT NULL,
+  end_date        DATE NOT NULL,
+  generated_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status          TEXT NOT NULL DEFAULT 'completed',
+  error_message   TEXT,
+  prompt_version  TEXT NOT NULL,
+  html            TEXT NOT NULL,
+  summary_json    JSONB NOT NULL,
+  context_json    JSONB NOT NULL,
+  rendered_prompt TEXT NOT NULL
+);
+
+ALTER TABLE data_asset.competitor_report_agent_run
+  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'completed';
+ALTER TABLE data_asset.competitor_report_agent_run
+  ADD COLUMN IF NOT EXISTS error_message TEXT;
+
+DO $migration$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'data_asset'
+      AND table_name = 'competitor_report_agent_run'
+      AND column_name = 'generated_at'
+      AND data_type = 'timestamp without time zone'
+  ) THEN
+    ALTER TABLE data_asset.competitor_report_agent_run
+      ALTER COLUMN generated_at TYPE TIMESTAMPTZ
+      USING generated_at AT TIME ZONE 'Asia/Shanghai';
+  END IF;
+END
+$migration$;
+
+CREATE INDEX IF NOT EXISTS idx_competitor_report_agent_run_scope_time
+  ON data_asset.competitor_report_agent_run
+  (brand_name, start_date, end_date, generated_at DESC, report_run_id DESC);
 
 CREATE TABLE IF NOT EXISTS data_asset.market_report_agent_run (
   report_run_id  BIGSERIAL PRIMARY KEY,

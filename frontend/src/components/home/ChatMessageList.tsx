@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { StructuredReportView } from "@/components/voc/ReportAiSummaryCard";
 import { InsightResultCard } from "@/components/home/InsightResultCard";
-import type { InsightResult, ReportAgentPayload } from "@/types/vocMarket";
+import type { CompetitorReportAsset, InsightResult, ReportAgentPayload } from "@/types/vocMarket";
 
 export type ChatMessage = {
   id: string;
@@ -14,17 +14,21 @@ export type ChatMessage = {
   suggestions?: string[];
   isError?: boolean;
   reportPayload?: ReportAgentPayload;
+  reportAsset?: CompetitorReportAsset;
   insightPayload?: InsightResult;
+  retryQuestion?: string;
+  retryCapability?: string;
 };
 
 type ChatMessageListProps = {
   messages: ChatMessage[];
   isLoading: boolean;
   onSuggestionClick: (question: string) => void;
+  onRetry: (question: string, capability: string) => void;
   className?: string;
 };
 
-export function ChatMessageList({ messages, isLoading, onSuggestionClick, className = "" }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isLoading, onSuggestionClick, onRetry, className = "" }: ChatMessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const [openReport, setOpenReport] = useState<ReportAgentPayload | null>(null);
@@ -94,6 +98,25 @@ export function ChatMessageList({ messages, isLoading, onSuggestionClick, classN
                 <FileSearch className="h-4 w-4" />
                 查看报告
               </button>
+            ) : null}
+            {message.role === "assistant" && message.retryQuestion && message.retryCapability ? (
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => onRetry(message.retryQuestion ?? "", message.retryCapability ?? "")}
+                className="mt-3 inline-flex items-center rounded-xl border border-[var(--theme-negative)] bg-white px-3 py-2 text-xs font-semibold text-[var(--theme-negative)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                重试生成
+              </button>
+            ) : null}
+            {message.role === "assistant" && message.reportAsset?.report_run_id != null ? (
+              <a
+                href={`/assets/reports?report_type=competitor_report&report_run_id=${encodeURIComponent(String(message.reportAsset.report_run_id))}`}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[var(--sys-border)] bg-[var(--theme-soft-panel)] px-3 py-2 text-xs font-semibold text-[var(--sys-icon-fill)] transition hover:border-[var(--sys-icon-fill)] hover:bg-white"
+              >
+                <FileSearch className="h-4 w-4" />
+                查看竞品报告
+              </a>
             ) : null}
           </div>
         </div>

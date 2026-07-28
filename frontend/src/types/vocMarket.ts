@@ -415,6 +415,10 @@ export type DepartmentReportAgentPayload = Omit<ReportAgentPayload, "summary"> &
   summary: DepartmentReportSummary;
 };
 
+export type CompetitorReportAsset = {
+  report_run_id: string;
+};
+
 export type InsightStatus = "completed" | "partial" | "insufficient_data" | "needs_clarification";
 
 export type InsightScenario = {

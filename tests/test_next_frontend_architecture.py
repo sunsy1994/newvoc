@@ -228,6 +228,94 @@ def test_competitor_pages_use_real_api_component_and_filters() -> None:
     assert "end_date" in competitor_component
 
 
+def test_competitor_work_insight_editor_is_limited_to_works_mode() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+
+    assert "/competitors/works/${encodeURIComponent(workId)}/insight" in component
+    assert "维护解读" in component
+    assert "已维护" in component
+    assert "未维护" in component
+    assert "<textarea" in component
+    assert "保存解读" in component
+    assert "清空解读" in component
+    action_start = component.index("onClick={() => openInsight(row)}")
+    action_guard_start = component.rfind('{config.mode === "works" ? (', 0, action_start)
+    action_guard_end = component.index(") : null}", action_start)
+    assert action_guard_start != -1
+    assert action_start < action_guard_end
+    assert '{config.mode === "works" && selectedWork ? (' in component
+    assert 'role="dialog"' in component
+    assert 'aria-label="作品解读 Markdown"' in component
+    assert 'role="alert"' in component
+    assert "onKeyDown={trapInsightFocus}" in component
+    assert "insightTextareaRef.current?.focus()" in component
+    assert "insightTriggerRefs.current[workId]?.focus()" in component
+
+
+def test_competitor_work_insight_get_ignores_stale_responses_after_switch_or_close() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+    open_start = component.index("async function openInsight")
+    open_end = component.index("async function saveInsight", open_start)
+    open_insight = component[open_start:open_end]
+    close_start = component.index("function closeInsight")
+    close_end = component.index("function trapInsightFocus", close_start)
+    close_insight = component[close_start:close_end]
+
+    assert "const insightRequestSequenceRef = useRef(0)" in component
+    assert 'const selectedInsightWorkIdRef = useRef("")' in component
+    assert "const requestSequence = ++insightRequestSequenceRef.current" in open_insight
+    assert "selectedInsightWorkIdRef.current = workId" in open_insight
+    assert "requestSequence === insightRequestSequenceRef.current" in open_insight
+    assert "selectedInsightWorkIdRef.current === workId" in open_insight
+    assert open_insight.count("isCurrentRequest()") >= 3
+    assert "insightRequestSequenceRef.current += 1" in close_insight
+    assert 'selectedInsightWorkIdRef.current = ""' in close_insight
+
+
+def test_competitor_work_insight_save_ignores_completion_after_switch_or_close() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+    save_start = component.index("async function saveInsight")
+    save_end = component.index("function closeInsight", save_start)
+    save_insight = component[save_start:save_end]
+
+    assert "const requestSequence = ++insightRequestSequenceRef.current" in save_insight
+    assert "selectedInsightWorkIdRef.current === workId" in save_insight
+    assert save_insight.count("isCurrentRequest()") >= 3
+
+
+def test_competitor_work_insight_close_and_reopen_reset_saving_state_safely() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+    open_start = component.index("async function openInsight")
+    open_end = component.index("async function saveInsight", open_start)
+    open_insight = component[open_start:open_end]
+    close_start = component.index("function closeInsight")
+    close_end = component.index("function trapInsightFocus", close_start)
+    close_insight = component[close_start:close_end]
+
+    assert "setIsInsightSaving(false)" in open_insight
+    assert "setIsInsightSaving(false)" in close_insight
+    assert close_insight.index("insightRequestSequenceRef.current += 1") < close_insight.index("setIsInsightSaving(false)")
+
+
+def test_retryable_agent_failure_has_explicit_retry_action_without_readding_user_message() -> None:
+    home = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    messages = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
+
+    assert "retryQuestion" in home
+    assert "retryCapability" in home
+    assert "appendUserMessage: false" in home
+    assert "onRetry" in messages
+    assert "重试生成" in messages
+
+
+def test_competitor_work_insight_urls_encode_work_id_path_segments() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+
+    encoded_path = "/competitors/works/${encodeURIComponent(workId)}/insight"
+    assert component.count(encoded_path) == 3
+    assert "/competitors/works/${workId}/insight" not in component
+
+
 def test_asset_pages_use_real_api_component_and_exports() -> None:
     root = Path("frontend")
     asset_component = (root / "src/components/assets/AssetLibraryPage.tsx").read_text(encoding="utf-8")
@@ -252,6 +340,26 @@ def test_asset_pages_use_real_api_component_and_exports() -> None:
     assert "报告资产" in (root / "src/app/assets/reports/page.tsx").read_text(encoding="utf-8")
     assert "查看" in asset_component
     assert "StructuredReportView" in asset_component
+
+
+def test_report_assets_fetch_typed_detail_and_render_html_in_a_scriptless_iframe() -> None:
+    component = Path("frontend/src/components/assets/AssetLibraryPage.tsx").read_text(encoding="utf-8")
+    types = Path("frontend/src/types/assets.ts").read_text(encoding="utf-8")
+
+    assert "ReportAssetDetail" in types
+    assert 'view_kind: "structured"' in types
+    assert 'view_kind: "html"' in types
+    assert "structured_report: StructuredReport" in types
+    assert "html: string" in types
+    assert "`/assets/reports/${reportType}/${reportRunId}`" in component
+    assert "window.location.search" in component
+    assert 'searchParams.get("report_type")' in component
+    assert 'searchParams.get("report_run_id")' in component
+    assert "StructuredReportView" in component
+    assert "srcDoc={openReport.html}" in component
+    assert 'sandbox=""' in component
+    assert "allow-scripts" not in component
+    assert "dangerouslySetInnerHTML" not in component
 
 
 def test_frontend_lists_use_shared_pagination_component() -> None:
@@ -1374,11 +1482,14 @@ def test_auto_voc_home_routes_qa_report_and_insight_to_unified_agent() -> None:
     data_question_route = Path("frontend/src/app/api/agents/data-question/run/route.ts").read_text(encoding="utf-8")
 
     assert "/agents/run" in component
-    assert 'capability: activeSkillId' in component
+    assert 'const capability: RetryCapability = activeSkillId === "report" ? reportCapability : activeSkillId' in component
+    assert "capability," in component
     assert 'activeSkillId === "qa"' in component
     assert 'activeSkillId === "report"' in component
     assert 'activeSkillId === "insight"' in component
-    assert "activeSkillId === \"report\" ? events[0]?.event_id ?? null : null" in component
+    assert '...(capability === "report"' in component
+    assert '? { event_id: events[0]?.event_id ?? null }' in component
+    assert 'event_id: activeSkillId === "report"' not in component
     assert "问答事件" not in component
     assert "selectedEventId" not in component
     assert "event_id: null" in component
@@ -1388,6 +1499,48 @@ def test_auto_voc_home_routes_qa_report_and_insight_to_unified_agent() -> None:
     assert "maxDuration = 120" in qa_route
     assert "proxyAutovocPost" in data_question_route
     assert "maxDuration = 120" in data_question_route
+
+
+def test_auto_voc_report_workspace_has_two_explicit_report_types() -> None:
+    component = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    top_level_capabilities = component.split("const aiCapabilities", 1)[1].split("const aiSkillToneClasses", 1)[0]
+
+    assert 'type ReportCapability = "report" | "competitor_report"' in component
+    assert 'title: "事件报告"' in component
+    assert 'title: "竞品动态报告"' in component
+    assert 'useState<ReportCapability>("report")' in component
+    assert 'id: "competitor_report"' not in top_level_capabilities
+    assert 'report: []' in component
+    assert 'activeSkillId === "report" ? []' in component
+
+
+def test_auto_voc_competitor_report_request_and_asset_action_contract() -> None:
+    home = Path("frontend/src/components/home/AutoVocHomePage.tsx").read_text(encoding="utf-8")
+    messages = Path("frontend/src/components/home/ChatMessageList.tsx").read_text(encoding="utf-8")
+    types = Path("frontend/src/types/vocMarket.ts").read_text(encoding="utf-8")
+
+    assert 'const capability: RetryCapability = activeSkillId === "report" ? reportCapability : activeSkillId' in home
+    assert "capability," in home
+    assert '...(capability === "report"' in home
+    assert '? { event_id: events[0]?.event_id ?? null }' in home
+    assert 'event_id: activeSkillId === "report"' not in home
+    assert 'suggestions: capability === "report" || capability === "competitor_report" ? undefined : result.suggested_questions' in home
+    assert 'report_asset?: { report_run_id?: string | number | null }' in home
+    assert 'function toCompetitorReportAsset' in home
+    assert 'return { report_run_id: String(asset.report_run_id) }' in home
+    assert 'const { reportAsset: storedReportAsset, ...storedMessage }' in home
+    assert 'toCompetitorReportAsset(storedReportAsset)' in home
+    assert 'toCompetitorReportAsset(result.report_asset)' in home
+    assert 'reportAsset: activeSkillId === "report"' not in home
+    assert "reportAsset," in home
+    assert "export type CompetitorReportAsset" in types
+    assert "report_run_id: string" in types
+    assert "html" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
+    assert "context" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
+    assert "rendered_prompt" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
+    assert "reportAsset.report_run_id" in messages
+    assert "report_type=competitor_report" in messages
+    assert "查看竞品报告" in messages
 
 
 def test_auto_voc_insight_result_renders_only_inside_conversation_cards() -> None:

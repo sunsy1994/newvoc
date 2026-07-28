@@ -1,13 +1,12 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Database, Download, RefreshCw, Search, TableProperties, X } from "lucide-react";
 
 import { DataPagination } from "@/components/shared/DataPagination";
 import { StructuredReportView } from "@/components/voc/ReportAiSummaryCard";
 import { apiBaseUrl } from "@/config/navigation";
-import type { AssetListPayload, AssetPageConfig } from "@/types/assets";
-import type { StructuredReport } from "@/types/vocMarket";
+import type { AssetListPayload, AssetPageConfig, ReportAssetDetail } from "@/types/assets";
 
 const defaultPageSize = 10;
 
@@ -54,7 +53,8 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
   const [draftQuery, setDraftQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(defaultPageSize);
-  const [openReport, setOpenReport] = useState<StructuredReport | null>(null);
+  const [openReport, setOpenReport] = useState<ReportAssetDetail | null>(null);
+  const autoOpenAttempted = useRef(false);
 
   const total = payload?.total ?? 0;
   const rows = payload?.rows ?? [];
@@ -87,9 +87,32 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
     }
   }, [config.assetKey, params]);
 
+  const openReportAsset = useCallback(async (reportType: "event_report" | "competitor_report", reportRunId: number) => {
+    const response = await fetch(buildApiUrl(`/assets/reports/${reportType}/${reportRunId}`), { cache: "no-store" });
+    if (!response.ok) return;
+    setOpenReport((await response.json()) as ReportAssetDetail);
+  }, []);
+
   useEffect(() => {
     loadRows();
   }, [loadRows]);
+
+  useEffect(() => {
+    if (!isReportAsset || autoOpenAttempted.current) return;
+    autoOpenAttempted.current = true;
+    const searchParams = new URLSearchParams(window.location.search);
+    const reportType = searchParams.get("report_type");
+    const reportRunId = searchParams.get("report_run_id");
+    if (
+      (reportType !== "event_report" && reportType !== "competitor_report") ||
+      !reportRunId ||
+      !/^\d+$/.test(reportRunId) ||
+      Number(reportRunId) <= 0
+    ) {
+      return;
+    }
+    void openReportAsset(reportType, Number(reportRunId));
+  }, [isReportAsset, openReportAsset]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,8 +201,15 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
                         <button
                           type="button"
                           onClick={() => {
-                            const summary = row.summary_json as { structured_report?: StructuredReport } | undefined;
-                            setOpenReport(summary?.structured_report ?? null);
+                            const reportType = row.report_type;
+                            const reportRunId = Number(row.report_run_id);
+                            if (
+                              (reportType === "event_report" || reportType === "competitor_report") &&
+                              Number.isInteger(reportRunId) &&
+                              reportRunId > 0
+                            ) {
+                              void openReportAsset(reportType, reportRunId);
+                            }
                           }}
                           className="rounded-lg border border-[var(--sys-border)] bg-white px-3 py-1.5 font-semibold text-[var(--sys-icon-fill)] transition hover:border-[var(--sys-icon-fill)] hover:bg-[var(--theme-soft-panel)]"
                         >
@@ -214,7 +244,7 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
             <header className="flex items-center justify-between gap-3 border-b border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-selected-bg),var(--theme-card))] p-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-muted)]">Report Asset</p>
-                <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">{openReport.title}</h2>
+                <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--theme-ink)]">{openReport.subject_name}</h2>
               </div>
               <button
                 type="button"
@@ -225,9 +255,19 @@ export function AssetLibraryPage({ config }: { config: AssetPageConfig }) {
                 <X className="h-4 w-4" />
               </button>
             </header>
-            <div className="max-h-[calc(88vh-86px)] overflow-auto p-5">
-              <StructuredReportView report={openReport} />
-            </div>
+            {openReport.view_kind === "structured" ? (
+              <div className="max-h-[calc(88vh-86px)] overflow-auto p-5">
+                <StructuredReportView report={openReport.structured_report} />
+              </div>
+            ) : (
+              <iframe
+                title={`${openReport.subject_name}竞品报告`}
+                srcDoc={openReport.html}
+                sandbox=""
+                referrerPolicy="no-referrer"
+                className="h-[calc(88vh-86px)] w-full border-0 bg-white"
+              />
+            )}
           </div>
         </div>
       ) : null}

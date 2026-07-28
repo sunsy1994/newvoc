@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { BarChart3, CalendarDays, Download, RefreshCw, Search, TableProperties } from "lucide-react";
 
 import { DataPagination } from "@/components/shared/DataPagination";
 import { apiBaseUrl } from "@/config/navigation";
-import type { CompetitorListPayload, CompetitorOptionsPayload, CompetitorPageConfig } from "@/types/competitors";
+import type { CompetitorListPayload, CompetitorOptionsPayload, CompetitorPageConfig, CompetitorWorkInsight } from "@/types/competitors";
 
 const defaultPageSize = 10;
 
@@ -64,6 +65,15 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
   const [endDate, setEndDate] = useState("");
   const [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [selectedWork, setSelectedWork] = useState<Record<string, unknown> | null>(null);
+  const [insightMarkdown, setInsightMarkdown] = useState("");
+  const [isInsightLoading, setIsInsightLoading] = useState(false);
+  const [isInsightSaving, setIsInsightSaving] = useState(false);
+  const [insightError, setInsightError] = useState("");
+  const insightTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const insightTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const insightRequestSequenceRef = useRef(0);
+  const selectedInsightWorkIdRef = useRef("");
 
   const total = payload?.total ?? 0;
   const rows = payload?.rows ?? [];
@@ -123,6 +133,10 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
     loadRows();
   }, [loadRows]);
 
+  useEffect(() => {
+    if (selectedWork) insightTextareaRef.current?.focus();
+  }, [selectedWork]);
+
   function submitFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setOffset(0);
@@ -142,6 +156,89 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
     setStartDate(toDateInputValue(start));
     setEndDate(toDateInputValue(end));
     setOffset(0);
+  }
+
+  async function openInsight(row: Record<string, unknown>) {
+    const workId = String(row.work_id ?? "");
+    if (!workId) return;
+    const requestSequence = ++insightRequestSequenceRef.current;
+    selectedInsightWorkIdRef.current = workId;
+    const isCurrentRequest = () =>
+      requestSequence === insightRequestSequenceRef.current && selectedInsightWorkIdRef.current === workId;
+
+    setSelectedWork(row);
+    setInsightMarkdown("");
+    setInsightError("");
+    setIsInsightLoading(true);
+    setIsInsightSaving(false);
+    try {
+      const response = await fetch(buildApiUrl(`/competitors/works/${encodeURIComponent(workId)}/insight`), { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const insight = (await response.json()) as CompetitorWorkInsight;
+      if (!isCurrentRequest()) return;
+      setInsightMarkdown(insight.insight_markdown ?? "");
+    } catch {
+      if (!isCurrentRequest()) return;
+      setInsightError("解读加载失败，请稍后重试。");
+    } finally {
+      if (isCurrentRequest()) setIsInsightLoading(false);
+    }
+  }
+
+  async function saveInsight(clear = false) {
+    const workId = String(selectedWork?.work_id ?? "");
+    if (!workId) return;
+    const requestSequence = ++insightRequestSequenceRef.current;
+    selectedInsightWorkIdRef.current = workId;
+    const isCurrentRequest = () =>
+      requestSequence === insightRequestSequenceRef.current && selectedInsightWorkIdRef.current === workId;
+
+    setInsightError("");
+    setIsInsightSaving(true);
+    try {
+      const response = clear
+        ? await fetch(buildApiUrl(`/competitors/works/${encodeURIComponent(workId)}/insight`), { method: "DELETE" })
+        : await fetch(buildApiUrl(`/competitors/works/${encodeURIComponent(workId)}/insight`), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ insight_markdown: insightMarkdown }),
+          });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!isCurrentRequest()) return;
+      if (clear) setInsightMarkdown("");
+      await loadRows();
+    } catch {
+      if (!isCurrentRequest()) return;
+      setInsightError(clear ? "解读清空失败，请稍后重试。" : "解读保存失败，请稍后重试。");
+    } finally {
+      if (isCurrentRequest()) setIsInsightSaving(false);
+    }
+  }
+
+  function closeInsight() {
+    const workId = String(selectedWork?.work_id ?? "");
+    insightRequestSequenceRef.current += 1;
+    selectedInsightWorkIdRef.current = "";
+    setSelectedWork(null);
+    setIsInsightLoading(false);
+    setIsInsightSaving(false);
+    window.setTimeout(() => insightTriggerRefs.current[workId]?.focus(), 0);
+  }
+
+  function trapInsightFocus(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled)"));
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   return (
@@ -301,6 +398,9 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
                       {column.label}
                     </th>
                   ))}
+                  {config.mode === "works" ? (
+                    <th className="whitespace-nowrap px-4 py-3">解读维护</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#eef1f6]">
@@ -311,6 +411,20 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
                         <span className="block overflow-hidden text-ellipsis">{formatCellValue(row[column.key])}</span>
                       </td>
                     ))}
+                    {config.mode === "works" ? (
+                      <td className="whitespace-nowrap px-4 py-3 text-xs">
+                        <button
+                          type="button"
+                          ref={(button) => {
+                            insightTriggerRefs.current[String(row.work_id ?? "")] = button;
+                          }}
+                          onClick={() => openInsight(row)}
+                          className="rounded-md border border-[#dfe5ee] bg-white px-2.5 py-1.5 font-medium text-[#485160] hover:border-[var(--sys-icon-fill)] hover:text-[var(--sys-icon-fill)]"
+                        >
+                          维护解读（{row.has_insight === true ? "已维护" : "未维护"}）
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -332,6 +446,67 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
           onPageSizeChange={setPageSize}
         />
       </section>
+
+      {config.mode === "works" && selectedWork ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#151720]/30 p-4">
+          <section
+            className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(21,23,32,0.22)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="维护作品解读"
+            onKeyDown={trapInsightFocus}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium text-[#8b92a1]">竞品作品库</p>
+                <h2 className="mt-1 text-lg font-semibold text-[#151720]">维护解读</h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeInsight}
+                className="rounded-lg border border-[#e8ecf3] px-3 py-1.5 text-sm text-[#596070]"
+              >
+                关闭
+              </button>
+            </div>
+            <dl className="mt-5 grid gap-3 rounded-xl bg-[#f7f9fc] p-4 text-sm text-[#596070] sm:grid-cols-2">
+              <div><dt className="text-xs text-[#8b92a1]">标题</dt><dd className="mt-1 text-[#151720]">{formatCellValue(selectedWork.title)}</dd></div>
+              <div><dt className="text-xs text-[#8b92a1]">作者</dt><dd className="mt-1 text-[#151720]">{formatCellValue(selectedWork.author_name)}</dd></div>
+              <div><dt className="text-xs text-[#8b92a1]">品牌</dt><dd className="mt-1 text-[#151720]">{formatCellValue(selectedWork.brand_name)}</dd></div>
+              <div><dt className="text-xs text-[#8b92a1]">发布时间</dt><dd className="mt-1 text-[#151720]">{formatCellValue(selectedWork.published_at)}</dd></div>
+            </dl>
+            <textarea
+              ref={insightTextareaRef}
+              aria-label="作品解读 Markdown"
+              value={insightMarkdown}
+              onChange={(event) => setInsightMarkdown(event.target.value)}
+              readOnly={isInsightLoading}
+              disabled={isInsightSaving}
+              placeholder={isInsightLoading ? "正在加载解读..." : "填写作品解读（Markdown）"}
+              className="mt-4 h-64 w-full resize-y rounded-xl border border-[#dfe5ee] p-3 font-mono text-sm leading-6 text-[#151720] outline-none focus:border-[var(--sys-icon-fill)]"
+            />
+            {insightError ? <p role="alert" className="mt-2 text-sm text-[#c65c5c]">{insightError}</p> : null}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => saveInsight(true)}
+                disabled={isInsightLoading || isInsightSaving}
+                className="rounded-lg border border-[#e8ecf3] px-4 py-2 text-sm font-medium text-[#596070] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                清空解读
+              </button>
+              <button
+                type="button"
+                onClick={() => saveInsight()}
+                disabled={isInsightLoading || isInsightSaving}
+                className="rounded-lg bg-[var(--sys-icon-fill)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isInsightSaving ? "保存中..." : "保存解读"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

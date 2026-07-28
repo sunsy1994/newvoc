@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{BRAND_NAME}}竞品动态报告</title>
+  <style>
+    :root { color-scheme: light; --ink:#15253d; --muted:#65748a; --line:#dce4ee; --paper:#fff; --accent:#1467d2; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#eef3f8; color:var(--ink); font:15px/1.65 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+    main { width:min(1120px,calc(100% - 32px)); margin:32px auto; }
+    header { padding:48px; color:#fff; border-radius:22px; background:linear-gradient(135deg,#102c52,#1467d2); box-shadow:0 18px 46px #183b6b26; }
+    header .eyebrow { margin:0 0 8px; opacity:.72; letter-spacing:.18em; }
+    h1 { margin:0; font-size:clamp(32px,5vw,54px); line-height:1.12; }
+    header .scope { margin:18px 0 0; font-size:17px; }
+    section { margin-top:20px; padding:30px; border:1px solid var(--line); border-radius:18px; background:var(--paper); }
+    h2 { margin:0 0 22px; font-size:24px; }
+    h3 { margin:0 0 6px; font-size:19px; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    .metric { padding:18px; border-radius:12px; background:#f4f7fb; }
+    .metric span { display:block; color:var(--muted); font-size:13px; }
+    .metric strong { display:block; margin-top:4px; font-size:28px; }
+    .findings { margin:0; padding-left:22px; }
+    .finding { padding:7px 0; }
+    .work-card { display:flex; gap:18px; padding:22px 0; border-top:1px solid var(--line); }
+    .work-card:first-of-type { padding-top:0; border-top:0; }
+    .rank { flex:0 0 46px; color:var(--accent); font-size:28px; font-weight:800; }
+    .work-main { min-width:0; flex:1; }
+    .work-meta,.metric-row { display:flex; flex-wrap:wrap; gap:10px 18px; color:var(--muted); font-size:13px; }
+    .metric-row { margin:12px 0; padding:10px 0; border-block:1px solid var(--line); }
+    .work-analysis { display:grid; gap:12px; margin-top:18px; }
+    .work-analysis h4 { margin:8px 0 0; font-size:16px; }
+    .detail-list { display:grid; grid-template-columns:112px minmax(0,1fr); margin:0; border-top:1px solid var(--line); }
+    .detail-list dt,.detail-list dd { margin:0; padding:9px 10px; border-bottom:1px solid var(--line); }
+    .detail-list dt { color:var(--muted); background:#f7f9fc; font-weight:600; }
+    .detail-list dd { overflow-wrap:anywhere; }
+    .selection-reason { display:grid; grid-template-columns:112px minmax(0,1fr); gap:10px; margin:8px 0 0; padding:12px; background:#f4f7fb; }
+    .summary-text { margin:0 0 18px; padding:14px 16px; border-left:3px solid var(--accent); background:#f7f9fc; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { padding:11px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--muted); background:#f7f9fc; font-size:13px; }
+    .notes { margin:0; padding-left:22px; }
+    .notes li { padding:5px 0; }
+    .muted { color:var(--muted); }
+    .empty { color:var(--muted); }
+    footer { padding:24px 4px; color:var(--muted); text-align:center; font-size:13px; }
+    @media (max-width:760px) { header,section{padding:24px}.metrics{grid-template-columns:repeat(2,1fr)}.detail-list,.selection-reason{grid-template-columns:1fr}.detail-list dt{border-bottom:0} }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">COMPETITOR INTELLIGENCE</p>
+      <h1>{{BRAND_NAME}}竞品动态报告</h1>
+      <p class="scope">统计范围：{{START_DATE}} 至 {{END_DATE}}</p>
+    </header>
+    <section aria-label="报告概览">
+      <h2>本期概览</h2>
+      <div class="metrics">
+        <div class="metric"><span>作品数</span><strong>{{WORK_COUNT}}</strong></div>
+        <div class="metric"><span>账号数</span><strong>{{ACCOUNT_COUNT}}</strong></div>
+        <div class="metric"><span>总互动量</span><strong>{{TOTAL_ENGAGEMENT}}</strong></div>
+        <div class="metric"><span>平均互动量</span><strong>{{AVERAGE_ENGAGEMENT}}</strong></div>
+      </div>
+    </section>
+    <section>
+      <h2>核心发现</h2>
+      <ol class="findings">{{EXECUTIVE_SUMMARY}}</ol>
+    </section>
+    <section aria-label="热门作品 Top3">
+      <h2>Top3 热门作品</h2>
+      {{TOP_WORKS}}
+    </section>
+    <section>
+      <h2>账号互动贡献</h2>
+      <p class="summary-text">{{ACCOUNT_SUMMARY}}</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>账号</th><th>账号类型</th><th>是否官方</th><th>作品数</th><th>总互动量</th></tr></thead>
+          <tbody>{{ACCOUNT_CONTRIBUTION_ROWS}}</tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>发布时间与互动走势</h2>
+      <p class="summary-text">{{RHYTHM_SUMMARY}}</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>发布日期</th><th>作品数</th><th>总互动量</th></tr></thead>
+          <tbody>{{DAILY_TREND_ROWS}}</tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>原始话题与主题分布</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>主题</th><th>作品数</th><th>总互动量</th></tr></thead>
+          <tbody>{{TOPIC_DISTRIBUTION_ROWS}}</tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>经销商承接效果</h2>
+      <p class="summary-text">{{DEALER_SUMMARY}}</p>
+    </section>
+    <section>
+      <h2>数据口径和证据说明</h2>
+      <ul class="notes">{{DATA_NOTES}}</ul>
+    </section>
+    <footer>本报告基于所选范围内的结构化竞品作品数据生成。</footer>
+  </main>
+</body>
+</html>

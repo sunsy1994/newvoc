@@ -175,6 +175,14 @@ def test_resolve_time_scope_supports_named_month_last_week() -> None:
     assert resolve_time_scope("生成5月报告", asked_at=asked_at)["start_date"] == "2026-05-01"
 
 
+def test_resolve_time_scope_does_not_partially_match_invalid_named_month_last_week() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    asked_at = datetime(2026, 7, 28, 12, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    assert resolve_time_scope("生成2026年13月最后一周的竞品动态报告", asked_at=asked_at)["mode"] == "default_30_days"
+
+
 def test_specific_event_uses_full_event_period_when_time_is_not_explicit() -> None:
     from app.agents.qa.tools import resolve_time_scope
 

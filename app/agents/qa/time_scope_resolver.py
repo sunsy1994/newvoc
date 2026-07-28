@@ -16,7 +16,7 @@ EXPLICIT_RANGE_PATTERN = re.compile(
 RELATIVE_RANGE_PATTERN = re.compile(r"近(?P<count>[一二三四五六七八九十两俩\d]+)?(?P<unit>天|日|周|个月|月|年)")
 NAMED_MONTH_PATTERN = re.compile(r"(?<!\d)(?P<month>1[0-2]|0?[1-9])月")
 NAMED_MONTH_LAST_WEEK_PATTERN = re.compile(
-    r"(?:(?P<year>\d{4})年)?(?P<month>1[0-2]|0?[1-9])月最后一(?:周|星期)"
+    r"(?<!\d)(?:(?P<year>\d{4})年)?(?P<month>1[0-2]|0?[1-9])月最后一(?:周|星期)"
 )
 
 

@@ -1539,7 +1539,10 @@ def test_auto_voc_competitor_report_request_and_asset_action_contract() -> None:
     assert "context" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
     assert "rendered_prompt" not in types.split("export type CompetitorReportAsset", 1)[1].split("};", 1)[0]
     assert "reportAsset.report_run_id" in messages
-    assert "report_type=competitor_report" in messages
+    assert (
+        "href={`/assets/reports?report_type=competitor_report&report_run_id=${encodeURIComponent(String(message.reportAsset.report_run_id))}`}"
+        in messages
+    )
     assert "查看竞品报告" in messages
 
 

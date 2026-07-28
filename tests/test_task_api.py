@@ -1147,3 +1147,82 @@ def test_unified_agent_api_accepts_competitor_report_without_event_id(tmp_path: 
         "event_id": None,
         "history": [],
     }
+
+
+def test_unified_agent_api_returns_and_stores_named_month_last_week_scope(tmp_path: Path, monkeypatch) -> None:
+    import app.agents.competitor_report.graph as competitor_graph
+
+    client = make_client(tmp_path)
+    saved: list[dict] = []
+    llm_calls = 0
+
+    def fake_llm(_prompt: str, **_kwargs) -> dict:
+        nonlocal llm_calls
+        llm_calls += 1
+        if llm_calls == 1:
+            return {
+                "brand_name": None,
+                "start_date": "2026-05-25",
+                "end_date": "2026-05-31",
+            }
+        return {
+            "executive_summary": ["结论一", "结论二", "结论三"],
+            "top_work_findings": [{"work_id": "w-1", "why_it_matters": "互动数据有事实支撑。"}],
+            "account_summary": "账号结论",
+            "rhythm_summary": "走势结论",
+            "dealer_summary": "经销商证据不足",
+        }
+
+    monkeypatch.setattr(competitor_graph, "get_competitor_options", lambda: {"brands": ["上汽大众"]})
+    monkeypatch.setattr(
+        competitor_graph,
+        "resolve_runtime_config",
+        lambda *args: ("https://llm.test/v1", "key", "model", 30),
+    )
+    monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", fake_llm)
+    monkeypatch.setattr(
+        competitor_graph,
+        "collect_competitor_report_dataset",
+        lambda brand_name, start_date, end_date: {
+            "brand_name": brand_name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "overview": {"work_count": 1},
+            "daily_trend": [],
+            "account_contribution": [],
+            "topic_distribution": [],
+            "records": [{"work_id": "w-1"}],
+            "top_works": [{"work_id": "w-1"}],
+            "data_notes": [],
+        },
+    )
+    monkeypatch.setattr(
+        competitor_graph,
+        "render_competitor_report_html",
+        lambda *args, **kwargs: "<!doctype html><html><body>McKinsey Consulting</body></html>",
+    )
+    monkeypatch.setattr(
+        competitor_graph,
+        "save_competitor_report_agent_result",
+        lambda payload: saved.append(payload) or {"report_run_id": 42},
+    )
+
+    response = client.post(
+        "/api/agents/run",
+        json={
+            "capability": "competitor_report",
+            "message": "生成5月最后一周的竞品动态报告",
+            "history": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["time_scope"] == {
+        "start_date": "2026-05-25",
+        "end_date": "2026-05-31",
+    }
+    assert response.json()["report_asset"] == {
+        "report_run_id": 42,
+        "report_type": "competitor_report",
+    }
+    assert (saved[0]["start_date"], saved[0]["end_date"]) == ("2026-05-25", "2026-05-31")

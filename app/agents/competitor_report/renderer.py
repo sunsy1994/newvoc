@@ -23,6 +23,32 @@ def _full_scope_records(dataset: dict[str, Any]) -> list[dict[str, Any]]:
     raise ValueError('full-scope competitor report records are required; Top3 is not a full dataset')
 
 
+def _work_id(record: dict[str, Any]) -> str:
+    return str(record.get('作品ID') or record.get('work_id') or '')
+
+
+def _generator_record(record: dict[str, Any], selection_reason: str) -> dict[str, Any]:
+    if '作品ID' not in record:
+        return {**record, 'selection_reason': selection_reason}
+    return {
+        **record,
+        'work_id': record.get('作品ID'),
+        'title': record.get('标题'),
+        'author_name': record.get('作者'),
+        'account_type': record.get('账号类型'),
+        'is_official': record.get('是否官方号') == '是',
+        'published_at': record.get('发布时间'),
+        'video_url': record.get('视频链接'),
+        'interaction_like_cnt': record.get('互动点赞数'),
+        'comment_cnt': record.get('评论数'),
+        'favorite_cnt': record.get('收藏数'),
+        'share_cnt': record.get('分享数'),
+        'is_pinned': record.get('是否置顶') == '是',
+        'topic_tags': record.get('话题标签'),
+        'selection_reason': selection_reason,
+    }
+
+
 def _summary_text(value: Any) -> str:
     return escape(str(value), quote=True)
 
@@ -58,23 +84,27 @@ def _inject_visible_summary(html: str, dataset: dict[str, Any], summary: dict[st
     return html
 
 
-def render_competitor_report_html(dataset: dict, summary: dict) -> str:
-    records = _full_scope_records(dataset)
+def render_competitor_report_html(
+    dataset: dict,
+    summary: dict,
+    *,
+    records: list[dict[str, Any]] | None = None,
+    video_insights_by_work_id: dict[str, str] | None = None,
+) -> str:
+    records = _records(records) if records is not None else _full_scope_records(dataset)
     findings = {
         str(item.get('work_id')): str(item.get('why_it_matters') or '无')
         for item in summary.get('top_work_findings') or []
         if isinstance(item, dict) and item.get('work_id')
     }
     render_records = [
-        {
-            **record,
-            'selection_reason': findings.get(str(record.get('work_id') or ''), ''),
-        }
+        _generator_record(record, findings.get(_work_id(record), ''))
         for record in records
     ]
-    video_insights = {
-        str(record.get('work_id') or ''): str(record.get('insight_markdown') or '')
-        for record in render_records
+    video_insights = video_insights_by_work_id or {
+        _work_id(record): str(record.get('insight_markdown') or '无')
+        for record in _records(dataset.get('top_works'))
+        if _work_id(record)
     }
     html = generate_html_from_records(
         render_records,

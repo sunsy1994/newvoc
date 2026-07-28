@@ -103,6 +103,7 @@ def _sample_report_dataset(work_count: int = 3) -> dict[str, Any]:
             {"author_name": "官方账号", "account_type": "官方号", "work_count": 1, "total_engagement": 50}
         ],
         "topic_distribution": [{"topic": "新能源", "work_count": 1, "total_engagement": 50}],
+        "records": top_works,
         "top_works": top_works,
         "data_notes": [],
     }
@@ -186,6 +187,52 @@ def test_fixed_html_renderer_contains_scope_overview_top3_and_escapes_dynamic_te
         assert internal_name not in report_markup
 
 
+def test_renderer_hands_canonical_records_and_top3_insights_to_single_generator(monkeypatch) -> None:
+    dataset = _sample_report_dataset()
+    dataset["records"] = [
+        {
+            "作品ID": work["work_id"],
+            "标题": work["title"],
+            "作者": work["author_name"],
+            "品牌": dataset["brand_name"],
+            "账号类型": work["account_type"],
+            "是否官方号": "是" if work["is_official"] else "否",
+            "发布时间": work["published_at"],
+            "视频链接": work["video_url"],
+            "互动点赞数": work["interaction_like_cnt"],
+            "评论数": work["comment_cnt"],
+            "收藏数": work["favorite_cnt"],
+            "分享数": work["share_cnt"],
+            "总互动量": work["interaction_like_cnt"]
+            + work["comment_cnt"]
+            + work["favorite_cnt"]
+            + work["share_cnt"],
+            "是否置顶": "否",
+            "话题标签": work["topic_tags"],
+        }
+        for work in dataset["top_works"]
+    ]
+    captured: dict[str, Any] = {}
+
+    def fake_generate(records: list[dict[str, Any]], **kwargs: Any) -> str:
+        captured["records"] = records
+        captured.update(kwargs)
+        return "<html><div class=\"insight-list\"><div class=\"footer\"></div></html>"
+
+    monkeypatch.setattr(competitor_renderer, "generate_html_from_records", fake_generate)
+
+    competitor_renderer.render_competitor_report_html(dataset, _sample_llm_summary())
+
+    assert captured["records"][0]["作品ID"] == "w-001"
+    assert captured["records"][0]["work_id"] == "w-001"
+    assert captured["records"][0]["selection_reason"] == "互动量50，排名第一。"
+    assert captured["video_insights_by_work_id"] == {
+        "w-001": "<b>来源解读</b>",
+        "w-002": "无",
+        "w-003": "第三条解读",
+    }
+
+
 def test_internal_leak_guard_allows_business_tool_words_urls_and_token_substrings() -> None:
     summary = _sample_llm_summary()
     summary["executive_summary"][0] = "total_engagement_rate 是业务自定义标签，不是内部字段。"
@@ -217,6 +264,32 @@ def test_competitor_graph_uses_exact_required_node_sequence() -> None:
         ("summarize", "render_report"),
         ("render_report", "save_report"),
         ("save_report", "__end__"),
+    }
+
+
+def test_render_node_passes_records_top3_insights_and_validated_summary(monkeypatch) -> None:
+    dataset = _sample_report_dataset()
+    dataset["records"] = [{"作品ID": work["work_id"]} for work in dataset["top_works"]]
+    summary = _sample_llm_summary()
+    captured: dict[str, Any] = {}
+
+    def fake_render(dataset_arg: dict[str, Any], summary_arg: dict[str, Any], **kwargs: Any) -> str:
+        captured["dataset"] = dataset_arg
+        captured["summary"] = summary_arg
+        captured.update(kwargs)
+        return "<html>ok</html>"
+
+    monkeypatch.setattr(competitor_graph, "render_competitor_report_html", fake_render)
+
+    state = competitor_graph.render_report_node({"dataset": dataset, "llm_summary": summary})
+
+    assert state["report_html"] == "<html>ok</html>"
+    assert captured["records"] is dataset["records"]
+    assert captured["summary"] is summary
+    assert captured["video_insights_by_work_id"] == {
+        "w-001": "<b>来源解读</b>",
+        "w-002": "无",
+        "w-003": "第三条解读",
     }
 
 
@@ -375,7 +448,11 @@ def test_invalid_llm_contract_does_not_render_or_save(monkeypatch, invalid_summa
     _patch_resolved_scope(monkeypatch)
     monkeypatch.setattr(competitor_graph, "collect_competitor_report_dataset", lambda *args: _sample_report_dataset())
     monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", lambda *args, **kwargs: invalid_summary)
-    monkeypatch.setattr(competitor_graph, "render_competitor_report_html", lambda *args: pytest.fail("invalid summary must not render"))
+    monkeypatch.setattr(
+        competitor_graph,
+        "render_competitor_report_html",
+        lambda *args, **kwargs: pytest.fail("invalid summary must not render"),
+    )
     saved: list[dict[str, Any]] = []
     monkeypatch.setattr(competitor_graph, "save_competitor_report_agent_result", lambda asset: saved.append(asset) or {"report_run_id": 1})
 
@@ -481,7 +558,11 @@ def test_schema_valid_internal_leak_from_prompt_injected_source_never_renders_or
     _patch_resolved_scope(monkeypatch)
     monkeypatch.setattr(competitor_graph, "collect_competitor_report_dataset", lambda *args: dataset)
     monkeypatch.setattr(competitor_graph, "call_openai_compatible_json", lambda *args, **kwargs: leaking_summary)
-    monkeypatch.setattr(competitor_graph, "render_competitor_report_html", lambda *args: pytest.fail("leaking summary must not render"))
+    monkeypatch.setattr(
+        competitor_graph,
+        "render_competitor_report_html",
+        lambda *args, **kwargs: pytest.fail("leaking summary must not render"),
+    )
     saved: list[dict[str, Any]] = []
     monkeypatch.setattr(competitor_graph, "save_competitor_report_agent_result", lambda asset: saved.append(asset) or {"report_run_id": 1})
 
@@ -796,6 +877,46 @@ def test_scope_defaults_natural_brand_without_known_brands() -> None:
         assert scope["brand_defaulted"] is True, message
 
 
+def test_database_row_maps_to_canonical_skill_record_and_recomputes_total_engagement() -> None:
+    record = competitor_tools.to_competitor_skill_record(
+        {
+            "work_id": "w-1",
+            "title": "样例标题",
+            "author_name": "样例账号",
+            "brand_name": "上汽大众",
+            "account_type": "官方",
+            "is_official": True,
+            "published_at": datetime.fromisoformat("2026-05-26T10:00:00+08:00"),
+            "video_url": "https://example.test/w-1",
+            "interaction_like_cnt": 10,
+            "comment_cnt": 2,
+            "favorite_cnt": 3,
+            "share_cnt": 4,
+            "total_engagement": 999,
+            "is_pinned": False,
+            "topic_tags": "#上市",
+        }
+    )
+
+    assert record == {
+        "作品ID": "w-1",
+        "标题": "样例标题",
+        "作者": "样例账号",
+        "品牌": "上汽大众",
+        "账号类型": "官方",
+        "是否官方号": "是",
+        "发布时间": "2026-05-26T10:00:00+08:00",
+        "视频链接": "https://example.test/w-1",
+        "互动点赞数": 10,
+        "评论数": 2,
+        "收藏数": 3,
+        "分享数": 4,
+        "总互动量": 19,
+        "是否置顶": "否",
+        "话题标签": "#上市",
+    }
+
+
 class FakeReportCursor:
     def __init__(self, works: list[dict[str, Any]], insights: dict[str, str], calls: list[tuple[str, Any]]) -> None:
         self.works = works
@@ -1046,9 +1167,10 @@ def test_dataset_filters_before_top3_and_returns_grounded_aggregates(monkeypatch
     assert dataset["top_works"][1]["insight_markdown"] == "无"
     assert dataset["top_works"][0]["title"] == "原始标题-w-001"
     assert dataset["top_works"][0]["video_url"] == "https://example.test/w-001"
-    assert [row["work_id"] for row in dataset["records"]] == ["w-001", "w-003", "w-002", "w-004"]
-    assert dataset["records"][0]["insight_markdown"] == "按作品 ID 命中的解读"
-    assert dataset["records"][1]["insight_markdown"] == "无"
+    assert [row["作品ID"] for row in dataset["records"]] == ["w-001", "w-003", "w-002", "w-004"]
+    assert dataset["records"][0]["总互动量"] == 50
+    assert dataset["records"][0]["是否官方号"] == "是"
+    assert dataset["records"][1]["是否官方号"] == "否"
     assert dataset["daily_trend"][0]["publish_date"] == "2026-07-10"
     assert dataset["account_contribution"][0]["author_name"] == "账号A"
     assert {row["topic"]: row["work_count"] for row in dataset["topic_distribution"]} == {

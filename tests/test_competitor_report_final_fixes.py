@@ -284,6 +284,11 @@ def test_no_data_result_is_structured_and_records_non_asset_status(monkeypatch: 
     assert result.get("report_asset") is None
     assert saved[0]["status"] == "no_data"
     assert saved[0]["error_message"]
+    assert saved[0]["html"] == ""
+    assert result["time_scope"] == {
+        "start_date": saved[0]["start_date"],
+        "end_date": saved[0]["end_date"],
+    }
 
 
 def test_llm_failure_returns_retryable_failed_and_records_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -304,6 +309,35 @@ def test_llm_failure_returns_retryable_failed_and_records_failure(monkeypatch: p
     assert result.get("report_asset") is None
     assert saved[0]["status"] == "failed"
     assert saved[0]["error_message"] == "LLM down"
+
+
+def test_renderer_failure_records_failed_without_completed_asset(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_scope(monkeypatch)
+    monkeypatch.setattr(graph, "collect_competitor_report_dataset", lambda *args: _dataset())
+    monkeypatch.setattr(graph, "call_openai_compatible_json", lambda *args, **kwargs: _summary())
+    monkeypatch.setattr(
+        graph,
+        "render_competitor_report_html",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("renderer exploded")),
+    )
+    saved: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        graph,
+        "save_competitor_report_agent_result",
+        lambda payload: saved.append(payload) or {"report_run_id": 10},
+    )
+
+    result = graph.run_competitor_report_agent("生成比亚迪最近两周竞品报告")
+
+    assert result["status"] == "failed"
+    assert result["report_asset"] is None
+    assert saved[0]["status"] == "failed"
+    assert saved[0]["error_message"] == "renderer exploded"
+    assert saved[0]["html"] == ""
+    assert result["time_scope"] == {
+        "start_date": saved[0]["start_date"],
+        "end_date": saved[0]["end_date"],
+    }
 
 
 def test_scope_runtime_failure_still_records_failed_run_with_safe_scope(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -378,11 +412,12 @@ def test_success_returns_consistent_type_and_minimal_report_asset(monkeypatch: p
     dataset = _dataset()
     monkeypatch.setattr(graph, "collect_competitor_report_dataset", lambda *args: dataset)
     monkeypatch.setattr(graph, "call_openai_compatible_json", lambda *args, **kwargs: _summary())
-    monkeypatch.setattr(graph, "render_competitor_report_html", lambda *args: "<html>ok</html>")
+    monkeypatch.setattr(graph, "render_competitor_report_html", lambda *args, **kwargs: "<html>ok</html>")
+    saved: list[dict[str, Any]] = []
     monkeypatch.setattr(
         graph,
         "save_competitor_report_agent_result",
-        lambda payload: {**payload, "report_run_id": 42},
+        lambda payload: saved.append(payload) or {**payload, "report_run_id": 42},
     )
 
     result = graph.run_competitor_report_agent("生成比亚迪最近两周竞品报告")
@@ -392,6 +427,10 @@ def test_success_returns_consistent_type_and_minimal_report_asset(monkeypatch: p
     assert result["report_asset"] == {
         "report_run_id": 42,
         "report_type": "competitor_report",
+    }
+    assert result["time_scope"] == {
+        "start_date": saved[0]["start_date"],
+        "end_date": saved[0]["end_date"],
     }
 
 

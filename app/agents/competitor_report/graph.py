@@ -315,8 +315,19 @@ def summarize_node(state: CompetitorReportState) -> CompetitorReportState:
 
 
 def render_report_node(state: CompetitorReportState) -> CompetitorReportState:
+    dataset = state["dataset"]
+    video_insights_by_work_id = {
+        str(work.get("work_id")): str(work.get("insight_markdown") or "无")
+        for work in dataset.get("top_works") or []
+        if work.get("work_id")
+    }
     try:
-        state["report_html"] = render_competitor_report_html(state["dataset"], state["llm_summary"])
+        state["report_html"] = render_competitor_report_html(
+            dataset,
+            state["llm_summary"],
+            records=dataset.get("records") or [],
+            video_insights_by_work_id=video_insights_by_work_id,
+        )
     except Exception as exc:
         raise CompetitorReportExecutionError("render", state, exc) from exc
     return state

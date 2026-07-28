@@ -29,6 +29,45 @@ def _rows(cursor: psycopg.Cursor) -> list[dict[str, Any]]:
     return [normalize_row(dict(row)) for row in cursor.fetchall()]
 
 
+def to_competitor_skill_record(row: dict[str, Any]) -> dict[str, Any]:
+    def metric(key: str) -> int:
+        return int(row.get(key) or 0)
+
+    def yes_no(key: str) -> str:
+        value = row.get(key)
+        if isinstance(value, str):
+            return "是" if value.strip().lower() in {"1", "true", "t", "yes", "是"} else "否"
+        return "是" if value else "否"
+
+    published_at = row.get("published_at")
+    published_at_text = (
+        published_at.isoformat()
+        if hasattr(published_at, "isoformat")
+        else str(published_at or "")
+    )
+    likes = metric("interaction_like_cnt")
+    comments = metric("comment_cnt")
+    favorites = metric("favorite_cnt")
+    shares = metric("share_cnt")
+    return {
+        "作品ID": str(row.get("work_id") or ""),
+        "标题": str(row.get("title") or ""),
+        "作者": str(row.get("author_name") or ""),
+        "品牌": str(row.get("brand_name") or ""),
+        "账号类型": str(row.get("account_type") or ""),
+        "是否官方号": yes_no("is_official"),
+        "发布时间": published_at_text,
+        "视频链接": str(row.get("video_url") or ""),
+        "互动点赞数": likes,
+        "评论数": comments,
+        "收藏数": favorites,
+        "分享数": shares,
+        "总互动量": likes + comments + favorites + shares,
+        "是否置顶": yes_no("is_pinned"),
+        "话题标签": str(row.get("topic_tags") or ""),
+    }
+
+
 def collect_competitor_report_dataset(
     brand_name: str,
     start_date: str,
@@ -113,6 +152,7 @@ def collect_competitor_report_dataset(
                 /* full_scope_records */
                 SELECT w.work_id AS work_id, w.title, w.author_name, w.brand_name,
                        w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url,
+                       w.is_pinned,
                        w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt,
                        {TOTAL_ENGAGEMENT_SQL} AS total_engagement,
                        i.insight_markdown
@@ -129,6 +169,7 @@ def collect_competitor_report_dataset(
                 f"""
                 SELECT w.work_id AS work_id, w.title, w.author_name, w.brand_name,
                        w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url,
+                       w.is_pinned,
                        w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt,
                        {TOTAL_ENGAGEMENT_SQL} AS total_engagement,
                        i.insight_markdown
@@ -142,12 +183,10 @@ def collect_competitor_report_dataset(
             )
             top_works = _rows(cursor)
 
-    for work in records:
-        if not str(work.get("insight_markdown") or "").strip():
-            work["insight_markdown"] = "无"
     for work in top_works:
         if not str(work.get("insight_markdown") or "").strip():
             work["insight_markdown"] = "无"
+    records = [to_competitor_skill_record(work) for work in records]
 
     work_count = int(overview.get("work_count") or 0)
     data_notes = ["总互动量为互动点赞数、评论数、收藏数与分享数之和。"]

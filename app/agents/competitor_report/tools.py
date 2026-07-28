@@ -53,6 +53,7 @@ def to_competitor_skill_record(row: dict[str, Any]) -> dict[str, Any]:
         "是否官方号": yes_no("is_official"),
         "发布时间": format_shanghai_datetime(row.get("published_at")),
         "视频链接": str(row.get("video_url") or ""),
+        "封面图路径": str(row.get("cover_url") or ""),
         "互动点赞数": likes,
         "评论数": comments,
         "收藏数": favorites,
@@ -146,7 +147,7 @@ def collect_competitor_report_dataset(
                 f"""
                 /* full_scope_records */
                 SELECT w.work_id AS work_id, w.title, w.author_name, w.brand_name,
-                       w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url,
+                       w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url, w.cover_url,
                        w.is_pinned,
                        w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt,
                        {TOTAL_ENGAGEMENT_SQL} AS total_engagement,
@@ -163,7 +164,7 @@ def collect_competitor_report_dataset(
             cursor.execute(
                 f"""
                 SELECT w.work_id AS work_id, w.title, w.author_name, w.brand_name,
-                       w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url,
+                       w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url, w.cover_url,
                        w.is_pinned,
                        w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt,
                        {TOTAL_ENGAGEMENT_SQL} AS total_engagement,

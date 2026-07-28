@@ -69,6 +69,10 @@ def test_competitor_report_lineage_traces_deterministic_and_llm_stages() -> None
     assert nodes["source.competitor.insight_markdown"]["implementation_ref"] == (
         "data_asset.competitor_work_insight.insight_markdown"
     )
+    assert nodes["rule.competitor.top3"]["calculation_logic"] == (
+        "先按品牌和时间过滤，再按总互动量降序、互动点赞数降序、评论数降序、"
+        "发布时间降序、work_id 升序取前三。"
+    )
 
     edges = {
         (item["upstream_code"], item["downstream_code"], item["relation_type"])

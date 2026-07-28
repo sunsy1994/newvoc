@@ -102,7 +102,7 @@ LINEAGE_NODE_SEEDS = [
     _node("source.competitor.work_facts", "竞品作品事实", "source_field", "raw_fact", "market", "竞品作品的品牌、作者、发布时间、主题和互动分项等原始事实。", "竞品库导入并按作品原样保存。", "data_asset.competitor_work"),
     _node("source.competitor.insight_markdown", "竞品作品人工解读", "source_field", "raw_fact", "market", "用户按作品维护的视频与评论 Markdown 解读。", "按 work_id 人工维护；未维护时为空。", "data_asset.competitor_work_insight.insight_markdown"),
     _node("metric.competitor.total_engagement", "竞品作品总互动量", "metric", "derived_metric", "market", "单条竞品作品的点赞、评论、收藏和分享之和。", "interaction_like_cnt + comment_cnt + favorite_cnt + share_cnt", "app.agents.competitor_report.tools.TOTAL_ENGAGEMENT_SQL"),
-    _node("rule.competitor.top3", "竞品热门作品Top3", "rule", "rule_judgement", "market", "指定品牌和时间范围内按统一互动口径选出的前三条作品。", "先按品牌和时间过滤，再按总互动量降序、发布时间降序、work_id 升序取前三。", "app.agents.competitor_report.tools.collect_competitor_report_dataset"),
+    _node("rule.competitor.top3", "竞品热门作品Top3", "rule", "rule_judgement", "market", "指定品牌和时间范围内按统一互动口径选出的前三条作品。", "先按品牌和时间过滤，再按总互动量降序、互动点赞数降序、评论数降序、发布时间降序、work_id 升序取前三。", "app.agents.competitor_report.tools.collect_competitor_report_dataset"),
     _node("summary.competitor.report_prose", "竞品报告AI结论", "ai_summary", "llm_summary", "market", "基于确定性指标、Top3 事实和人工解读生成的报告结论文案。", "LLM只组织结构化数据与人工维护资料，不计算指标或选择Top3。", "app.agents.competitor_report.graph", "competitor_report_agent_v1"),
     _node("agent.competitor_report.output", "竞品动态报告", "agent_output", "consumer_only", "market", "固定模板渲染的竞品动态 HTML 报告。", "系统模板组合范围、指标、Top3、人工解读和AI结论。", "app.agents.competitor_report.renderer"),
 ]

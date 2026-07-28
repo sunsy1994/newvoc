@@ -822,7 +822,7 @@ def build_html(
         comment_summary = comment_summary_by_url.get(row.get('视频链接'), {'count': 0, 'keywords': [], 'samples': []})
         if comment_summary['count'] == 0 and '标题' in row.index and not comments_df.empty:
             comment_summary = comment_summary_by_title.get(str(row.get('标题', '')), {'count': 0, 'keywords': [], 'samples': []})
-        keyword_text = '、'.join([word for word, _ in comment_summary['keywords'][:5]]) or '暂无评论关键词'
+        keyword_text = '、'.join([word for word, _ in comment_summary['keywords'][:5]]) or '无'
         sentiment_ratio = format_sentiment_ratio(comment_summary.get('sentiment', Counter()))
         comment_sample_html = ''.join(
             f'<li><strong>{safe_html(sample.get("昵称"))}</strong>：{safe_html(sample.get("评论"))}</li>'
@@ -838,6 +838,9 @@ def build_html(
             if not legacy_video_insight
             else legacy_video_insight
         )
+        insight_keywords = (row_video_insight or {}).get('keywords') or []
+        if insight_keywords:
+            keyword_text = '、'.join(str(item) for item in insight_keywords[:5])
         if row_video_insight and (
             not legacy_video_insight or matches_video_insight(row, row_video_insight)
         ):
@@ -1244,6 +1247,7 @@ def _record_video_insight(record: dict[str, Any], markdown: str) -> dict[str, An
         'publish_time': str(record.get('published_at') or ''),
         'intro': parsed_sections['视频介绍'],
         'key_points': parsed_sections['要点总结'],
+        'keywords': parsed_sections['评论关键词'],
         'sentiment': {
             '正面': sentiment_text or '未标注',
             '中性': '未标注',

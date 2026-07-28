@@ -8,6 +8,17 @@ PROMPT_VERSION = "competitor_report_agent_v1"
 
 
 def render_competitor_summary_prompt(dataset: dict[str, Any]) -> str:
+    evidence = {
+        key: dataset.get(key)
+        for key in (
+            "overview",
+            "daily_trend",
+            "account_contribution",
+            "topic_distribution",
+            "top_works",
+            "data_notes",
+        )
+    }
     return f"""你是 AutoVOC 竞品动态报告摘要助手。请只基于给定结构化证据提炼结论。
 
 输出必须是以下 JSON 对象：
@@ -26,5 +37,5 @@ def render_competitor_summary_prompt(dataset: dict[str, Any]) -> str:
 4. 不输出行动建议，不输出数据字段名、系统路径、工具或实现细节。
 
 结构化证据：
-{json.dumps(dataset, ensure_ascii=False, indent=2, default=str)}
+{json.dumps(evidence, ensure_ascii=False, indent=2, default=str)}
 """

@@ -35,6 +35,7 @@ def _generator_record(record: dict[str, Any], selection_reason: str) -> dict[str
         'is_official': record.get('是否官方号') == '是',
         'published_at': record.get('发布时间'),
         'video_url': record.get('视频链接'),
+        'cover_path': record.get('封面图路径'),
         'interaction_like_cnt': record.get('互动点赞数'),
         'comment_cnt': record.get('评论数'),
         'favorite_cnt': record.get('收藏数'),

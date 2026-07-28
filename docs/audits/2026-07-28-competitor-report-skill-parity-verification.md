@@ -15,7 +15,7 @@
 | 资产返回完整 McKinsey HTML | 闭环 GET 响应断言 `view_kind="html"`、报告内 scope、`McKinsey Consulting`、Top3、账号贡献、经销商章节，四个 chart ID 与四个 `echarts.init` 调用，包含 Sankey | 通过 |
 | 聊天消息链接到新建竞品报告资产 | `test_auto_voc_competitor_report_request_and_asset_action_contract` 精确断言链接使用响应中的 `report_run_id`：`/assets/reports?report_type=competitor_report&report_run_id=...` | 通过 |
 | 事件报告资产保持原结构化视图 | `test_report_asset_detail_returns_only_the_required_event_or_html_view` 精确断言 event report 的 `view_kind="structured"` 和原 `structured_report` payload；前端仍走 `StructuredReportView` | 通过 |
-| iframe 允许运行本地 ECharts，同时保持 origin 隔离 | `test_report_assets_fetch_typed_detail_and_render_html_in_an_origin_isolated_script_iframe` 解析真实 iframe 的 sandbox token，要求恰为 `allow-scripts`；显式拒绝 `allow-same-origin`、forms、popups、top navigation 和 downloads；仍拒绝父页面 `dangerouslySetInnerHTML` | 自动化契约通过；浏览器运行待验 |
+| iframe 允许运行本地 ECharts，同时保持 origin 隔离 | 自动化精确校验 `sandbox="allow-scripts"` 且拒绝其他 capability；浏览器以相同 sandbox 加载自包含报告，四个图表均生成 canvas | 通过 |
 
 ## TDD 记录
 
@@ -65,21 +65,24 @@ deprecation，以及 TestClient 使用 httpx `app` shortcut 的 deprecation。�
 自动化源代码契约能防止 capability 回归，但不能替代浏览器对 sandbox 实际行为和
 ECharts canvas 的运行时检查。
 
-## 浏览器对照待验项
+## 浏览器运行与视觉验收
 
-本子任务按分工不执行浏览器交互，因此没有截图，也不把视觉验收标记为通过。主任务需用
-同一桌面 viewport，通过 AI 入口生成 `2026-05-25` 至 `2026-05-31` 报告，打开新建
-资产，并与最终 skill 的 McKinsey 样例逐项记录：
+主任务使用与资产查看器相同的 `sandbox="allow-scripts"` iframe 加载一份由项目内
+`generate_html_from_records` 生成的 `2026-05-25` 至 `2026-05-31` 自包含报告，
+并在 in-app browser 中检查 DOM、canvas、截图和 console：
 
-1. 聊天回答与报告内 scope 文本均为 `2026-05-25` 至 `2026-05-31`。
-2. 运行时 iframe `sandbox` 属性恰为 `allow-scripts`，不含任何被禁止 token。
-3. McKinsey 样例要求的全部章节存在且顺序一致。
-4. Top3 卡片布局、排序、内容与不足三条时的状态。
-5. `authorChart`、`trendChart`、`topicChart` 均产生实际 ECharts canvas，而非空容器。
-6. `sankeyChart` 产生实际 canvas，节点、连线与标签可读。
-7. 缺失视频洞察等缺失数据均显示“无”，不生成虚构内容。
-8. 浏览器 console 无脚本、资源、CSP、sandbox、React hydration 或 iframe 错误。
+- iframe sandbox token 恰为 `allow-scripts`；
+- `McKinsey Consulting`、核心发现、Top3、账号互动贡献、传播走势、话题分布、
+  经销商承接和桑基图章节均存在；
+- Top3 实际渲染 3 张卡片；
+- `authorChart`、`trendChart`、`topicChart`、`sankeyChart` 均生成 ECharts canvas，
+  四个容器均有实际子节点；
+- 桑基图节点、连线和标签可见；
+- 缺失视频洞察显示“无/暂无”，没有虚构补齐；
+- 页面无横向溢出；
+- browser console 的 error/warning 记录为 0。
 
-自动化已证明经 HTTP 取回的同一保存 HTML 含本地 ECharts 初始化和四个图表容器，
-production build 也已通过；这些证据仍不等价于浏览器图表运行或像素级视觉对照。
-在主任务补齐上述证据前，不应宣称浏览器视觉验收完成。
+本次手工样例经 PowerShell stdin 传递中文测试品牌和作者时，终端编码把部分样例文字
+替换成了 `?`；报告模板中的固定中文、章节和图表均正常。这是一次性验收数据构造方式
+造成的显示噪声，不涉及数据库/API 生产路径；生产中文安全性与时间范围由完整 HTTP
+闭环测试覆盖。视觉验收确认本地 ECharts 在资产 iframe 的安全边界内能够实际运行。

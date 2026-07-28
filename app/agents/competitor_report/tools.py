@@ -99,6 +99,23 @@ def collect_competitor_report_dataset(
 
             cursor.execute(
                 f"""
+                /* full_scope_records */
+                SELECT w.work_id AS work_id, w.title, w.author_name, w.brand_name,
+                       w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url,
+                       w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt,
+                       {TOTAL_ENGAGEMENT_SQL} AS total_engagement,
+                       i.insight_markdown
+                FROM data_asset.competitor_work w
+                LEFT JOIN data_asset.competitor_work_insight i ON i.work_id = w.work_id
+                WHERE {SCOPE_SQL}
+                ORDER BY total_engagement DESC, published_at DESC, work_id ASC
+                """,
+                params,
+            )
+            records = _rows(cursor)
+
+            cursor.execute(
+                f"""
                 SELECT w.work_id AS work_id, w.title, w.author_name, w.brand_name,
                        w.account_type, w.is_official, w.published_at, w.topic_tags, w.video_url,
                        w.interaction_like_cnt, w.comment_cnt, w.favorite_cnt, w.share_cnt,
@@ -114,6 +131,9 @@ def collect_competitor_report_dataset(
             )
             top_works = _rows(cursor)
 
+    for work in records:
+        if not str(work.get("insight_markdown") or "").strip():
+            work["insight_markdown"] = "无"
     for work in top_works:
         if not str(work.get("insight_markdown") or "").strip():
             work["insight_markdown"] = "无"
@@ -133,6 +153,7 @@ def collect_competitor_report_dataset(
         "daily_trend": daily_trend,
         "account_contribution": account_contribution,
         "topic_distribution": topic_distribution,
+        "records": records,
         "top_works": top_works,
         "data_notes": data_notes,
     }

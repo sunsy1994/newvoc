@@ -143,7 +143,9 @@ def test_top_work_cards_keep_final_skill_missing_data_copy() -> None:
     html = competitor_renderer.render_competitor_report_html(dataset, _sample_llm_summary())
 
     assert "<strong>原始话题：</strong>暂无原始话题" in html
-    assert "视频与评论洞察补充" not in html
+    assert "视频与评论洞察补充" in html
+    for label in ("视频介绍", "要点总结", "评论情绪", "评论关键词", "典型评论", "作者回复"):
+        assert f"<dt>{label}</dt><dd>无</dd>" in html
 
 
 @pytest.mark.parametrize("video_url", ["javascript:alert(1)", "data:text/html,<script>alert(1)</script>"])
@@ -209,7 +211,7 @@ def test_database_records_and_excel_rows_have_identical_report_payload(tmp_path)
         {
             "work_id": "w-001",
             "title": "智能新车发布会",
-            "author_name": "官方账号",
+            "author_name": "A&B 官方账号",
             "brand_name": "比亚迪",
             "account_type": "官方号",
             "is_official": True,
@@ -309,3 +311,193 @@ def test_database_records_and_excel_rows_have_identical_report_payload(tmp_path)
     )
 
     assert _extract_parity_payload(records_html) == _extract_parity_payload(excel_html)
+    assert _extract_parity_payload(records_html)["report_data"]["author_labels"][0] == "A&B 官方账号"
+
+
+def test_dataframe_html_and_embedded_json_escape_injection_at_output_sinks() -> None:
+    from app.agents.competitor_report.skill_generator import (
+        build_html,
+        prepare_top_hot_df,
+        summarize_hot_topics,
+    )
+
+    marker = '</script><script id="xss">alert(1)</script>\u2028\u2029'
+    works_df = pd.DataFrame(
+        [
+            {
+                "作品ID": "w-xss",
+                "标题": marker,
+                "作者": marker,
+                "品牌": "安全测试",
+                "账号类型": "官方号",
+                "是否官方号": "是",
+                "发布时间": marker,
+                "发布日": "2026-07-10",
+                "话题标签": f"#{marker}",
+                "主题分类": marker,
+                "视频链接": 'javascript:alert(1)',
+                "封面图路径": '" onerror="alert(1)',
+                "互动点赞数": 1,
+                "评论数": 1,
+                "收藏数": 1,
+                "分享数": 1,
+                "总互动量": 4,
+            }
+        ]
+    )
+
+    rendered = build_html(
+        "安全测试",
+        works_df,
+        prepare_top_hot_df(works_df),
+        pd.DataFrame([{"标题": marker, "评论": marker, "昵称": marker}]),
+        summarize_hot_topics(works_df),
+        "xss.xlsx",
+    )
+
+    assert '<script id="xss">' not in rendered
+    assert '&lt;/script&gt;&lt;script id=&quot;xss&quot;&gt;' in rendered
+    assert '" onerror="alert(1)' not in rendered
+    assert "javascript:alert(1)" not in rendered
+    report_data_match = re.search(r"const reportData = (\{.+?\});", rendered)
+    assert report_data_match is not None
+    serialized = report_data_match.group(1)
+    assert "</script" not in serialized.lower()
+    assert "<" not in serialized
+    assert "\u2028" not in serialized
+    assert "\u2029" not in serialized
+    assert "\\u2028" in serialized
+    assert "\\u2029" in serialized
+    assert json.loads(serialized)["author_labels"] == [marker]
+
+
+def test_excel_total_engagement_is_recomputed_from_four_components(tmp_path) -> None:
+    from app.agents.competitor_report.skill_generator import prepare_top_hot_df, prepare_works_df
+
+    row = {
+        "作品ID": "w-001",
+        "标题": "指标校验",
+        "作者": "账号",
+        "品牌": "比亚迪",
+        "发布时间": "2026-07-10",
+        "互动点赞数": 1,
+        "评论数": 1,
+        "收藏数": 1,
+        "分享数": 1,
+        "总互动量": 999,
+    }
+    works_path = tmp_path / "works.xlsx"
+    top_path = tmp_path / "top.xlsx"
+    pd.DataFrame([row]).to_excel(works_path, index=False)
+    pd.DataFrame([row]).to_excel(top_path, index=False)
+
+    works_df = prepare_works_df(works_path)
+    top_df = prepare_top_hot_df(works_df, top_hot_path=top_path)
+
+    assert works_df.loc[0, "总互动量"] == 4
+    assert top_df.loc[0, "总互动量"] == 4
+
+
+def test_top3_ties_are_stable_by_work_id_regardless_of_input_order() -> None:
+    from app.agents.competitor_report.skill_generator import generate_html_from_records
+
+    records = [
+        {
+            "work_id": f"w-{index}",
+            "title": "同分作品",
+            "author_name": "同一账号",
+            "brand_name": "比亚迪",
+            "account_type": "媒体",
+            "is_official": False,
+            "published_at": "2026-07-10T10:00:00",
+            "topic_tags": "#同分",
+            "video_url": f"https://example.test/w-{index}",
+            "interaction_like_cnt": 1,
+            "comment_cnt": 1,
+            "favorite_cnt": 1,
+            "share_cnt": 1,
+        }
+        for index in (4, 3, 2, 1)
+    ]
+
+    forward = generate_html_from_records(
+        records,
+        brand_name="比亚迪",
+        output_name="records",
+        video_insights_by_work_id={},
+    )
+    reverse = generate_html_from_records(
+        list(reversed(records)),
+        brand_name="比亚迪",
+        output_name="records",
+        video_insights_by_work_id={},
+    )
+
+    assert _extract_parity_payload(forward)["work_ids"] == ["w-1", "w-2", "w-3"]
+    assert _extract_parity_payload(reverse)["work_ids"] == ["w-1", "w-2", "w-3"]
+
+
+def test_renderer_uses_full_scope_records_instead_of_top3_for_kpis_and_charts() -> None:
+    dataset = _sample_report_dataset()
+    records = []
+    for index in range(1, 6):
+        records.append(
+            {
+                **dataset["top_works"][0],
+                "work_id": f"w-{index:03d}",
+                "title": f"作品 {index}",
+                "author_name": f"账号 {index}",
+                "interaction_like_cnt": 10,
+                "comment_cnt": 0,
+                "favorite_cnt": 0,
+                "share_cnt": 0,
+                "total_engagement": 10,
+            }
+        )
+    dataset["records"] = records
+    dataset["top_works"] = records[:3]
+    dataset["overview"] = {
+        "work_count": 5,
+        "account_count": 5,
+        "total_engagement": 50,
+        "average_engagement": 10,
+    }
+
+    rendered = competitor_renderer.render_competitor_report_html(dataset, _sample_llm_summary())
+    payload = _extract_parity_payload(rendered)
+
+    assert payload["kpis"]["本周新增作品"] == "5"
+    assert payload["kpis"]["总互动量"] == "50"
+    assert len(payload["report_data"]["author_labels"]) == 5
+    assert payload["work_ids"] == ["w-001", "w-002", "w-003"]
+
+
+def test_renderer_rejects_partial_top3_when_full_scope_records_are_missing() -> None:
+    dataset = _sample_report_dataset()
+    dataset["overview"]["work_count"] = 10
+
+    with pytest.raises(ValueError, match="full-scope"):
+        competitor_renderer.render_competitor_report_html(dataset, _sample_llm_summary())
+
+
+def test_compatibility_summary_is_visible_in_matching_mckinsey_modules() -> None:
+    summary = {
+        "executive_summary": ["EXEC-VISIBLE"],
+        "top_work_findings": [{"work_id": "w-001", "why_it_matters": "TOP-VISIBLE"}],
+        "account_summary": "ACCOUNT-VISIBLE",
+        "rhythm_summary": "RHYTHM-VISIBLE",
+        "dealer_summary": "DEALER-VISIBLE",
+    }
+
+    rendered = competitor_renderer.render_competitor_report_html(_sample_report_dataset(), summary)
+
+    for marker in (
+        "EXEC-VISIBLE",
+        "TOP-VISIBLE",
+        "ACCOUNT-VISIBLE",
+        "RHYTHM-VISIBLE",
+        "DEALER-VISIBLE",
+    ):
+        assert marker in rendered
+    assert "aria-hidden" not in rendered
+    assert "sr-only" not in rendered

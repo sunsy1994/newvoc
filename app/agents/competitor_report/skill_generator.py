@@ -100,6 +100,17 @@ def safe_html(value):
     return html.escape(str(value), quote=True)
 
 
+def script_safe_json(value):
+    return (
+        json.dumps(value, ensure_ascii=False)
+        .replace('&', '\\u0026')
+        .replace('<', '\\u003c')
+        .replace('>', '\\u003e')
+        .replace('\u2028', '\\u2028')
+        .replace('\u2029', '\\u2029')
+    )
+
+
 def strip_inline_markdown(text):
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', str(text))
     return text.replace('`', '').strip()
@@ -164,6 +175,33 @@ def classify_topic(title, tags=''):
     return '其他 / 待补充'
 
 
+METRIC_COLUMNS = ['互动点赞数', '评论数', '收藏数', '分享数']
+
+
+def _recompute_total_engagement(df):
+    for col in METRIC_COLUMNS:
+        if col not in df.columns:
+            df[col] = 0
+        df[col] = df[col].map(parse_metric)
+    df['总互动量'] = sum((df[col] for col in METRIC_COLUMNS), start=0)
+    return df
+
+
+def _rank_top_works(df):
+    ranked = df.copy()
+    if '发布时间_dt' not in ranked.columns:
+        ranked['发布时间_dt'] = pd.to_datetime(ranked.get('发布时间'), errors='coerce')
+    for col in ['作品ID', '标题', '作者']:
+        if col not in ranked.columns:
+            ranked[col] = ''
+    return ranked.sort_values(
+        ['品牌', '总互动量', '互动点赞数', '评论数', '发布时间_dt', '作品ID', '标题', '作者'],
+        ascending=[True, False, False, False, False, True, True, True],
+        na_position='last',
+        kind='mergesort',
+    )
+
+
 def prepare_works_df(path, default_brand='未标注品牌'):
     df = pd.read_excel(path)
     df = apply_aliases(df, {
@@ -171,18 +209,12 @@ def prepare_works_df(path, default_brand='未标注品牌'):
         '互动点赞数': ['点赞数'],
         '总互动量': ['互动量综合'],
         '封面图路径': ['封面图URL', '封面URL'],
+        '作品ID': ['work_id', '作品id'],
     })
-    for col in ['互动点赞数', '评论数', '收藏数', '分享数']:
-        if col not in df.columns:
-            df[col] = 0
-        df[col] = df[col].map(parse_metric)
+    df = _recompute_total_engagement(df)
     if '品牌' not in df.columns:
         df['品牌'] = infer_brand_from_content(df, fallback=default_brand)
     df['品牌'] = df['品牌'].map(normalize_brand)
-    if '总互动量' not in df.columns:
-        df['总互动量'] = df['互动点赞数'] + df['评论数'] + df['收藏数'] + df['分享数']
-    else:
-        df['总互动量'] = df['总互动量'].map(parse_metric)
     df['发布时间_dt'] = pd.to_datetime(df.get('发布时间'), errors='coerce')
     df['发布日'] = df['发布时间_dt'].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else '未知日期')
     if '账号类型' not in df.columns:
@@ -201,20 +233,18 @@ def prepare_top_hot_df(works_df, top_hot_path=None, top_n=3, default_brand='未�
             '互动点赞数': ['点赞数'],
             '总互动量': ['互动量综合'],
             '封面图路径': ['封面图片'],
+            '作品ID': ['work_id', '作品id'],
         })
-        for col in ['互动点赞数', '评论数', '收藏数', '分享数', '总互动量']:
-            if col not in top_df.columns:
-                top_df[col] = 0
-            top_df[col] = top_df[col].map(parse_metric)
+        top_df = _recompute_total_engagement(top_df)
         if '品牌' not in top_df.columns:
             top_df['品牌'] = infer_brand_from_content(top_df, fallback=default_brand)
         top_df['品牌'] = top_df['品牌'].map(normalize_brand)
+        top_df['发布时间_dt'] = pd.to_datetime(top_df.get('发布时间'), errors='coerce')
         if '主题分类' not in top_df.columns:
             top_df['主题分类'] = top_df.apply(lambda row: classify_topic(row.get('标题', ''), row.get('话题标签', '')), axis=1)
-        return top_df
+        return _rank_top_works(top_df).reset_index(drop=True)
 
-    fallback = works_df.copy()
-    fallback = fallback.sort_values(['品牌', '总互动量', '互动点赞数', '评论数'], ascending=[True, False, False, False])
+    fallback = _rank_top_works(works_df)
     return fallback.groupby('品牌', dropna=False, group_keys=False).head(top_n).reset_index(drop=True)
 
 
@@ -642,7 +672,7 @@ def render_video_insight_block(video_insight, mode='section'):
     if not video_insight:
         return ''
     title = safe_html(video_insight.get('title') or '未命名视频')
-    link = safe_html(video_insight.get('link') or '')
+    link = safe_html(_http_url(video_insight.get('link')))
     author = safe_html(video_insight.get('author') or '未知作者')
     publish_time = safe_html(video_insight.get('publish_time') or '未知时间')
     source_name = safe_html(video_insight.get('source_name') or '视频及评论总结.md')
@@ -697,6 +727,19 @@ def render_video_insight_block(video_insight, mode='section'):
     """
 
 
+def render_missing_video_insight_block():
+    rows = ''.join(
+        f'<dt>{label}</dt><dd>无</dd>'
+        for label in ('视频介绍', '要点总结', '评论情绪', '评论关键词', '典型评论', '作者回复')
+    )
+    return f"""
+    <div class="video-insight video-insight-compact">
+      <h3>视频与评论洞察补充</h3>
+      <dl class="insight-detail-list">{rows}</dl>
+    </div>
+    """
+
+
 def build_html(
     brand: str,
     works_df: pd.DataFrame,
@@ -742,11 +785,11 @@ def build_html(
         f"""
         <tr>
           <td>{idx + 1}</td>
-          <td>{item['name']}</td>
-          <td>{item['evidence']}</td>
+          <td>{safe_html(item['name'])}</td>
+          <td>{safe_html(item['evidence'])}</td>
           <td>{item['works']}</td>
           <td>{format_int(item['interactions'])}</td>
-          <td>{item['topic_type']}</td>
+          <td>{safe_html(item['topic_type'])}</td>
         </tr>
         """
         for idx, item in enumerate(hot_topics)
@@ -756,7 +799,7 @@ def build_html(
         f"""
         <tr>
           <td>{idx + 1}</td>
-          <td>{row['主题分类']}</td>
+          <td>{safe_html(row['主题分类'])}</td>
           <td>{int(row['作品数'])}</td>
           <td>{format_int(row['累计互动量'])}</td>
         </tr>
@@ -782,13 +825,13 @@ def build_html(
         keyword_text = '、'.join([word for word, _ in comment_summary['keywords'][:5]]) or '暂无评论关键词'
         sentiment_ratio = format_sentiment_ratio(comment_summary.get('sentiment', Counter()))
         comment_sample_html = ''.join(
-            f'<li><strong>{sample["昵称"]}</strong>：{sample["评论"]}</li>'
+            f'<li><strong>{safe_html(sample.get("昵称"))}</strong>：{safe_html(sample.get("评论"))}</li>'
             for sample in comment_summary['samples'][:3]
         ) or '<li>暂无评论样本</li>'
-        cover_path = row.get('封面图路径', '')
-        cover_html = f'<img class="cover" src="{cover_path}" alt="封面图" />' if cover_path and not pd.isna(cover_path) else '<div class="cover cover-empty">暂无封面图</div>'
+        cover_path = _image_source(row.get('封面图路径', ''))
+        cover_html = f'<img class="cover" src="{safe_html(cover_path)}" alt="封面图" />' if cover_path and not pd.isna(cover_path) else '<div class="cover cover-empty">暂无封面图</div>'
         topic_evidence = ' '.join(extract_tags(row.get('话题标签'))) or '暂无原始话题'
-        insight_html = ''
+        insight_html = render_missing_video_insight_block()
         work_id = str(row.get('作品ID', ''))
         row_video_insight = (
             (video_insights or {}).get(work_id)
@@ -805,8 +848,8 @@ def build_html(
         <article class="hot-card" data-work-id="{safe_html(work_id)}">
           <div class="cover-wrap">{cover_html}</div>
           <div class="hot-body">
-            <div class="hot-meta">{row.get('作者', '未知账号')} | {row.get('发布时间', '未知时间')}</div>
-            <h3>{str(row.get('标题', '')).replace(chr(10), '<br>')}</h3>
+            <div class="hot-meta">{safe_html(row.get('作者', '未知账号'))} | {safe_html(row.get('发布时间', '未知时间'))}</div>
+            <h3>{safe_html(row.get('标题', '')).replace(chr(10), '<br>')}</h3>
             <div class="metric-strip">
               <span>赞 {format_int(row.get('互动点赞数', 0))}</span>
               <span>评 {format_int(row.get('评论数', 0))}</span>
@@ -814,9 +857,9 @@ def build_html(
               <span>转 {format_int(row.get('分享数', 0))}</span>
               <span class="strong">总互动 {format_int(row.get('总互动量', 0))}</span>
             </div>
-            <p><strong>原始话题：</strong>{topic_evidence}</p>
-            <p><strong>主题分类：</strong>{row.get('主题分类', '其他 / 待补充')}</p>
-            <p><strong>评论关键词：</strong>{keyword_text}</p>
+            <p><strong>原始话题：</strong>{safe_html(topic_evidence)}</p>
+            <p><strong>主题分类：</strong>{safe_html(row.get('主题分类', '其他 / 待补充'))}</p>
+            <p><strong>评论关键词：</strong>{safe_html(keyword_text)}</p>
             <p><strong>评论情绪：</strong>正向 {sentiment_ratio['正向']}% / 中性 {sentiment_ratio['中性']}% / 负向 {sentiment_ratio['负向']}%</p>
             <ul class="comment-list">{comment_sample_html}</ul>
             {insight_html}
@@ -845,7 +888,7 @@ def build_html(
         'sankey_nodes': sankey_data['nodes'],
         'sankey_links': sankey_data['links'],
     }
-    report_json = json.dumps(report_data, ensure_ascii=False)
+    report_json = script_safe_json(report_data)
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -906,6 +949,9 @@ def build_html(
     .video-insight h3 {{ font-size: 16px; margin: 8px 0; }}
     .video-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }}
     .video-insight ul {{ margin: 6px 0 12px; padding-left: 18px; }}
+    .insight-detail-list {{ display: grid; grid-template-columns: 96px 1fr; margin: 8px 0 0; }}
+    .insight-detail-list dt, .insight-detail-list dd {{ margin: 0; padding: 6px 8px; border-bottom: 1px solid {style['grid']}; }}
+    .insight-detail-list dt {{ color: {style['muted']}; font-weight: 600; }}
     .reply-box {{ margin-top: 12px; padding: 12px; background: {style['metric_bg']}; border: 1px solid {style['border']}; }}
     .comment-table {{ margin-top: 10px; }}
     table {{ width: 100%; border-collapse: collapse; background: {style['panel_bg']}; border: 1px solid {style['border']}; }}
@@ -914,7 +960,6 @@ def build_html(
     tr:nth-child(even) td {{ background: {style['table_even']}; }}
     a {{ color: {style['brand']}; text-decoration: none; }}
     .footer {{ color: {style['muted']}; font-size: 12px; margin-top: 24px; }}
-    .sr-only {{ position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }}
     @media (max-width: 960px) {{
       body {{ padding: 24px; }}
       .cards, .grid, .hot-list {{ grid-template-columns: 1fr; }}
@@ -938,13 +983,12 @@ def build_html(
   <section class="section">
     <h2>核心发现</h2>
     <div class="insight-list">
-      {''.join(f'<div class="insight">{text}</div>' for text in insights)}
+      {''.join(f'<div class="insight">{safe_html(text)}</div>' for text in insights)}
     </div>
   </section>
 
   <section class="section">
     <h2>Top3 热门作品</h2>
-    <span class="sr-only">热门作品 Top3</span>
     <div class="hot-list">
       {''.join(top_cards) or '<div class="insight">暂无热门作品数据</div>'}
     </div>
@@ -1005,7 +1049,7 @@ def build_html(
       <h2>重点经销商承接效果</h2>
       <div class="insight-list">
         {''.join(
-            f'<div class="insight"><strong>{item["dealer"]}</strong>：{item["effect"]}，平均互动 {item["avg_interaction"]}，承接主题数 {item["topic_count"]}</div>'
+            f'<div class="insight"><strong>{safe_html(item["dealer"])}</strong>：{safe_html(item["effect"])}，平均互动 {item["avg_interaction"]}，承接主题数 {item["topic_count"]}</div>'
             for item in sankey_data.get('dealer_summary', [])
         ) or '<div class="insight">暂无足够的经销商承接样本</div>'}
       </div>
@@ -1015,7 +1059,7 @@ def build_html(
   <section class="section">
     <div class="panel">
       <h2>官方发起 → 经销商承接 桑基图</h2>
-      <p class="meta">优先按原视频话题建立关系，突出本周官方重点发起与经销商承接流向。{sankey_data['message']}</p>
+      <p class="meta">优先按原视频话题建立关系，突出本周官方重点发起与经销商承接流向。{safe_html(sankey_data['message'])}</p>
       <div id="sankeyChart" class="chart" style="height: {sankey_height}px;"></div>
     </div>
   </section>
@@ -1129,18 +1173,33 @@ def _http_url(value: Any) -> str:
     return url if re.match(r'^https?://', url, flags=re.IGNORECASE) else ''
 
 
+def _image_source(value: Any) -> str:
+    source = str(value or '').strip()
+    if not source:
+        return ''
+    if re.match(r'^[A-Za-z]:[\\/]', source):
+        return source
+    if re.match(r'^[A-Za-z][A-Za-z0-9+.-]*:', source) and not re.match(
+        r'^https?://',
+        source,
+        flags=re.IGNORECASE,
+    ):
+        return ''
+    return source
+
+
 def _record_row(record: dict[str, Any], brand_name: str) -> dict[str, Any]:
     return {
         '作品ID': str(record.get('work_id') or ''),
-        '标题': safe_html(record.get('title')),
-        '作者': safe_html(record.get('author_name')),
+        '标题': str(record.get('title') or ''),
+        '作者': str(record.get('author_name') or ''),
         '品牌': brand_name,
-        '账号类型': safe_html(record.get('account_type')),
+        '账号类型': str(record.get('account_type') or ''),
         '是否官方号': '是' if record.get('is_official') else '否',
-        '发布时间': safe_html(record.get('published_at')),
-        '话题标签': safe_html(record.get('topic_tags')),
-        '视频链接': safe_html(_http_url(record.get('video_url'))),
-        '封面图路径': safe_html(record.get('cover_path')),
+        '发布时间': str(record.get('published_at') or ''),
+        '话题标签': str(record.get('topic_tags') or ''),
+        '视频链接': _http_url(record.get('video_url')),
+        '封面图路径': str(record.get('cover_path') or ''),
         '互动点赞数': parse_metric(record.get('interaction_like_cnt')),
         '评论数': parse_metric(record.get('comment_cnt')),
         '收藏数': parse_metric(record.get('favorite_cnt')),
@@ -1208,14 +1267,7 @@ def generate_html_from_records(
                 '互动点赞数', '评论数', '收藏数', '分享数',
             ]
         )
-    for metric in ['互动点赞数', '评论数', '收藏数', '分享数']:
-        works_df[metric] = works_df[metric].map(parse_metric)
-    works_df['总互动量'] = (
-        works_df['互动点赞数']
-        + works_df['评论数']
-        + works_df['收藏数']
-        + works_df['分享数']
-    )
+    works_df = _recompute_total_engagement(works_df)
     works_df['发布时间_dt'] = pd.to_datetime(works_df['发布时间'], errors='coerce')
     works_df['发布日'] = works_df['发布时间_dt'].apply(
         lambda value: value.strftime('%Y-%m-%d') if pd.notna(value) else '未知日期'

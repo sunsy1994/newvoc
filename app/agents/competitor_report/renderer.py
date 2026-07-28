@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from html import escape
 from typing import Any
 
@@ -12,18 +13,73 @@ def _records(value: Any) -> list[dict[str, Any]]:
     return [item for item in value if isinstance(item, dict)]
 
 
-def _compatibility_metadata(dataset: dict[str, Any], summary: dict[str, Any]) -> str:
-    values: list[Any] = []
-    executive_summary = summary.get('executive_summary')
-    if isinstance(executive_summary, list):
-        values.extend(executive_summary)
-    values.extend(dataset.get('data_notes') or [])
-    rendered = ''.join(f'<p>{escape(str(value), quote=True)}</p>' for value in values)
-    return f'<div class="sr-only" aria-hidden="true"><span>无</span>{rendered}</div>'
+def _full_scope_records(dataset: dict[str, Any]) -> list[dict[str, Any]]:
+    for key in ('records', 'works'):
+        if key in dataset and isinstance(dataset[key], list):
+            return _records(dataset[key])
+    top_works = _records(dataset.get('top_works'))
+    work_count = int((dataset.get('overview') or {}).get('work_count') or 0)
+    if work_count == len(top_works):
+        return top_works
+    raise ValueError('full-scope competitor report records are required; Top3 is not a full dataset')
+
+
+def _summary_text(value: Any) -> str:
+    return escape(str(value), quote=True)
+
+
+def _inject_visible_summary(html: str, dataset: dict[str, Any], summary: dict[str, Any]) -> str:
+    executive = summary.get('executive_summary')
+    if isinstance(executive, list):
+        content = ''.join(f'<div class="insight">{_summary_text(item)}</div>' for item in executive)
+        html = html.replace('<div class="insight-list">', f'<div class="insight-list">{content}', 1)
+
+    findings = summary.get('top_work_findings')
+    if isinstance(findings, list):
+        for finding in findings:
+            if not isinstance(finding, dict) or not finding.get('work_id'):
+                continue
+            work_id = escape(str(finding['work_id']), quote=True)
+            reason = _summary_text(finding.get('why_it_matters') or '无')
+            pattern = rf'(<article class="hot-card" data-work-id="{re.escape(work_id)}".*?)(</article>)'
+            html = re.sub(
+                pattern,
+                lambda match: (
+                    f'{match.group(1)}<p class="selection-reason">'
+                    f'<strong>入选判断：</strong>{reason}</p>{match.group(2)}'
+                ),
+                html,
+                count=1,
+                flags=re.DOTALL,
+            )
+
+    module_summaries = (
+        ('账号互动贡献', summary.get('account_summary')),
+        ('发布时间与互动走势', summary.get('rhythm_summary')),
+        ('重点经销商承接效果', summary.get('dealer_summary')),
+    )
+    for heading, value in module_summaries:
+        if value is not None and str(value).strip():
+            needle = f'<h2>{heading}</h2>'
+            html = html.replace(
+                needle,
+                f'{needle}<p class="meta">{_summary_text(value)}</p>',
+                1,
+            )
+
+    notes = dataset.get('data_notes')
+    if isinstance(notes, list) and notes:
+        items = ''.join(f'<li>{_summary_text(note)}</li>' for note in notes)
+        section = (
+            '<section class="section"><h2>数据口径和证据说明</h2>'
+            f'<ul class="comment-list">{items}</ul></section>'
+        )
+        html = html.replace('<div class="footer">', f'{section}<div class="footer">', 1)
+    return html
 
 
 def render_competitor_report_html(dataset: dict, summary: dict) -> str:
-    records = _records(dataset.get('top_works'))
+    records = _full_scope_records(dataset)
     video_insights = {
         str(record.get('work_id') or ''): str(record.get('insight_markdown') or '')
         for record in records
@@ -37,4 +93,4 @@ def render_competitor_report_html(dataset: dict, summary: dict) -> str:
         ),
         video_insights_by_work_id=video_insights,
     )
-    return html.replace('</body>', f'{_compatibility_metadata(dataset, summary)}</body>')
+    return _inject_visible_summary(html, dataset, summary)

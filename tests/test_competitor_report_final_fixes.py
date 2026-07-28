@@ -17,6 +17,7 @@ import app.services.asset_library as asset_library
 
 def _dataset(*work_ids: str, work_count: int | None = None) -> dict[str, Any]:
     ids = work_ids or ("w-1", "w-2", "w-3")
+    top_works = [{"work_id": work_id} for work_id in ids]
     return {
         "brand_name": "比亚迪",
         "start_date": "2026-07-05",
@@ -25,7 +26,8 @@ def _dataset(*work_ids: str, work_count: int | None = None) -> dict[str, Any]:
         "daily_trend": [],
         "account_contribution": [],
         "topic_distribution": [],
-        "top_works": [{"work_id": work_id} for work_id in ids],
+        "records": top_works,
+        "top_works": top_works,
         "data_notes": [],
     }
 
@@ -338,6 +340,40 @@ def test_renderer_failure_records_failed_without_completed_asset(monkeypatch: py
         "start_date": saved[0]["start_date"],
         "end_date": saved[0]["end_date"],
     }
+
+
+@pytest.mark.parametrize("records", [None, []], ids=["missing", "empty"])
+def test_positive_overview_requires_full_records_before_completed_asset(
+    monkeypatch: pytest.MonkeyPatch,
+    records: list[dict[str, Any]] | None,
+) -> None:
+    _patch_scope(monkeypatch)
+    dataset = _dataset()
+    if records is None:
+        dataset.pop("records")
+    else:
+        dataset["records"] = records
+    monkeypatch.setattr(graph, "collect_competitor_report_dataset", lambda *args: dataset)
+    monkeypatch.setattr(graph, "call_openai_compatible_json", lambda *args, **kwargs: _summary())
+    monkeypatch.setattr(
+        graph,
+        "render_competitor_report_html",
+        lambda *args, **kwargs: "<html>must not complete</html>",
+    )
+    saved: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        graph,
+        "save_competitor_report_agent_result",
+        lambda payload: saved.append(payload) or {"report_run_id": 11},
+    )
+
+    result = graph.run_competitor_report_agent("生成比亚迪最近两周竞品报告")
+
+    assert result["status"] == "failed"
+    assert result["report_asset"] is None
+    assert saved[0]["status"] == "failed"
+    assert saved[0]["html"] == ""
+    assert not any(payload["status"] == "completed" for payload in saved)
 
 
 def test_scope_runtime_failure_still_records_failed_run_with_safe_scope(monkeypatch: pytest.MonkeyPatch) -> None:

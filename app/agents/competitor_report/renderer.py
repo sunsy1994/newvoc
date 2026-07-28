@@ -16,11 +16,7 @@ def _full_scope_records(dataset: dict[str, Any]) -> list[dict[str, Any]]:
     for key in ('records', 'works'):
         if key in dataset and isinstance(dataset[key], list):
             return _records(dataset[key])
-    top_works = _records(dataset.get('top_works'))
-    work_count = int((dataset.get('overview') or {}).get('work_count') or 0)
-    if work_count == len(top_works):
-        return top_works
-    raise ValueError('full-scope competitor report records are required; Top3 is not a full dataset')
+    raise ValueError('full-scope competitor report records are required')
 
 
 def _work_id(record: dict[str, Any]) -> str:
@@ -92,6 +88,9 @@ def render_competitor_report_html(
     video_insights_by_work_id: dict[str, str] | None = None,
 ) -> str:
     records = _records(records) if records is not None else _full_scope_records(dataset)
+    work_count = int((dataset.get('overview') or {}).get('work_count') or 0)
+    if work_count > 0 and not records:
+        raise ValueError('full-scope competitor report records are required')
     findings = {
         str(item.get('work_id')): str(item.get('why_it_matters') or '无')
         for item in summary.get('top_work_findings') or []

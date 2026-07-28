@@ -8,6 +8,7 @@ from psycopg.rows import dict_row
 from app.agents.qa.time_slice import date_bounds
 from app.config import DATABASE_URL
 from app.services.asset_library import normalize_row
+from app.services.report_time import format_shanghai_datetime
 
 
 TOTAL_ENGAGEMENT_SQL = "coalesce(interaction_like_cnt,0)+coalesce(comment_cnt,0)+coalesce(favorite_cnt,0)+coalesce(share_cnt,0)"
@@ -39,12 +40,6 @@ def to_competitor_skill_record(row: dict[str, Any]) -> dict[str, Any]:
             return "是" if value.strip().lower() in {"1", "true", "t", "yes", "是"} else "否"
         return "是" if value else "否"
 
-    published_at = row.get("published_at")
-    published_at_text = (
-        published_at.isoformat()
-        if hasattr(published_at, "isoformat")
-        else str(published_at or "")
-    )
     likes = metric("interaction_like_cnt")
     comments = metric("comment_cnt")
     favorites = metric("favorite_cnt")
@@ -56,7 +51,7 @@ def to_competitor_skill_record(row: dict[str, Any]) -> dict[str, Any]:
         "品牌": str(row.get("brand_name") or ""),
         "账号类型": str(row.get("account_type") or ""),
         "是否官方号": yes_no("is_official"),
-        "发布时间": published_at_text,
+        "发布时间": format_shanghai_datetime(row.get("published_at")),
         "视频链接": str(row.get("video_url") or ""),
         "互动点赞数": likes,
         "评论数": comments,

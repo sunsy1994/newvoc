@@ -315,17 +315,21 @@ def summarize_node(state: CompetitorReportState) -> CompetitorReportState:
 
 
 def render_report_node(state: CompetitorReportState) -> CompetitorReportState:
-    dataset = state["dataset"]
-    video_insights_by_work_id = {
-        str(work.get("work_id")): str(work.get("insight_markdown") or "无")
-        for work in dataset.get("top_works") or []
-        if work.get("work_id")
-    }
     try:
+        dataset = state["dataset"]
+        records = dataset.get("records")
+        work_count = int((dataset.get("overview") or {}).get("work_count") or 0)
+        if work_count > 0 and (not isinstance(records, list) or not records):
+            raise ValueError("full-scope competitor report records are required")
+        video_insights_by_work_id = {
+            str(work.get("work_id")): str(work.get("insight_markdown") or "无")
+            for work in dataset.get("top_works") or []
+            if work.get("work_id")
+        }
         state["report_html"] = render_competitor_report_html(
             dataset,
             state["llm_summary"],
-            records=dataset.get("records") or [],
+            records=records,
             video_insights_by_work_id=video_insights_by_work_id,
         )
     except Exception as exc:

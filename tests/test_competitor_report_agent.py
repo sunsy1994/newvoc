@@ -917,6 +917,49 @@ def test_database_row_maps_to_canonical_skill_record_and_recomputes_total_engage
     }
 
 
+def test_normalized_sql_row_assigns_shanghai_offset_and_keeps_true_pinned_flag() -> None:
+    class Cursor:
+        @staticmethod
+        def fetchall() -> list[dict[str, Any]]:
+            return [
+                {
+                    "work_id": "w-sql",
+                    "published_at": datetime(2026, 5, 26, 10),
+                    "is_pinned": True,
+                }
+            ]
+
+    normalized_row = competitor_tools._rows(Cursor())[0]
+    assert normalized_row["published_at"] == "2026-05-26T10:00:00"
+
+    record = competitor_tools.to_competitor_skill_record(normalized_row)
+
+    assert record["发布时间"] == "2026-05-26T10:00:00+08:00"
+    assert record["是否置顶"] == "是"
+
+
+@pytest.mark.parametrize(
+    ("published_at", "expected"),
+    [
+        (
+            datetime.fromisoformat("2026-05-26T10:00:00+08:00"),
+            "2026-05-26T10:00:00+08:00",
+        ),
+        ("2026-05-26T10:00:00+08:00", "2026-05-26T10:00:00+08:00"),
+        ("2026-05-26T02:00:00+00:00", "2026-05-26T10:00:00+08:00"),
+        ("", ""),
+        ("not-a-date", "not-a-date"),
+    ],
+)
+def test_canonical_publish_time_normalizes_without_double_offset(
+    published_at: Any,
+    expected: str,
+) -> None:
+    record = competitor_tools.to_competitor_skill_record({"published_at": published_at})
+
+    assert record["发布时间"] == expected
+
+
 class FakeReportCursor:
     def __init__(self, works: list[dict[str, Any]], insights: dict[str, str], calls: list[tuple[str, Any]]) -> None:
         self.works = works

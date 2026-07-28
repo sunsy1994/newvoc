@@ -10,7 +10,7 @@ import app.agents.competitor_report.renderer as competitor_renderer
 
 
 def _sample_report_dataset() -> dict[str, object]:
-    return {
+    dataset = {
         "brand_name": "比亚迪&汽车",
         "start_date": "2026-07-01",
         "end_date": "2026-07-18",
@@ -52,6 +52,8 @@ def _sample_report_dataset() -> dict[str, object]:
         ],
         "data_notes": ["总互动量为互动点赞数、评论数、收藏数与分享数之和。"],
     }
+    dataset["records"] = dataset["top_works"]
+    return dataset
 
 
 def _sample_llm_summary() -> dict[str, object]:
@@ -474,10 +476,27 @@ def test_renderer_uses_full_scope_records_instead_of_top3_for_kpis_and_charts() 
 
 def test_renderer_rejects_partial_top3_when_full_scope_records_are_missing() -> None:
     dataset = _sample_report_dataset()
+    dataset.pop("records")
     dataset["overview"]["work_count"] = 10
 
     with pytest.raises(ValueError, match="full-scope"):
         competitor_renderer.render_competitor_report_html(dataset, _sample_llm_summary())
+
+
+def test_renderer_rejects_explicit_empty_full_records_for_positive_overview(monkeypatch) -> None:
+    dataset = _sample_report_dataset()
+    monkeypatch.setattr(
+        competitor_renderer,
+        "generate_html_from_records",
+        lambda *args, **kwargs: pytest.fail("empty full records must not reach generator"),
+    )
+
+    with pytest.raises(ValueError, match="full-scope"):
+        competitor_renderer.render_competitor_report_html(
+            dataset,
+            _sample_llm_summary(),
+            records=[],
+        )
 
 
 def test_compatibility_summary_is_visible_in_matching_mckinsey_modules() -> None:

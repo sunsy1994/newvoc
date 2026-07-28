@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -26,7 +27,14 @@ def test_competitor_report_fixed_renderer_files_are_project_local() -> None:
     assert (package_dir / "prompts.py").is_file()
     assert (package_dir / "renderer.py").is_file()
     assert (package_dir / "storage.py").is_file()
-    assert (package_dir / "templates" / "long_report.html").is_file()
+    assert (package_dir / "skill_generator.py").is_file()
+    assert (package_dir / "assets" / "echarts.min.js").is_file()
+    assert not (package_dir / "templates" / "long_report.html").exists()
+    runtime_source = "\n".join(
+        (package_dir / name).read_text(encoding="utf-8")
+        for name in ("renderer.py", "skill_generator.py")
+    )
+    assert "E:\\" not in runtime_source
 
 
 def _sample_report_dataset(work_count: int = 3) -> dict[str, Any]:
@@ -172,8 +180,9 @@ def test_fixed_html_renderer_contains_scope_overview_top3_and_escapes_dynamic_te
     assert "<b>来源解读</b>" not in html
     assert "<em>官方内容</em>" not in html
     assert ">无<" in html
+    report_markup = re.sub(r"<script>.*?</script>", "", html, flags=re.DOTALL)
     for internal_name in ("Skill", "Tool", "insight_markdown"):
-        assert internal_name not in html
+        assert internal_name not in report_markup
 
 
 def test_internal_leak_guard_allows_business_tool_words_urls_and_token_substrings() -> None:

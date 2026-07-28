@@ -158,6 +158,23 @@ def test_named_month_time_scope_uses_anchor_year_and_past_month() -> None:
     assert scope["source"] == "user_month_phrase"
 
 
+def test_resolve_time_scope_supports_named_month_last_week() -> None:
+    from app.agents.qa.tools import resolve_time_scope
+
+    asked_at = datetime(2026, 7, 28, 12, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    assert resolve_time_scope("生成2026年5月最后一周的竞品动态报告", asked_at=asked_at) == {
+        "mode": "named_month_last_week",
+        "start_date": "2026-05-25",
+        "end_date": "2026-05-31",
+        "label": "2026-05-25 至 2026-05-31（用户指定2026年5月最后一周）",
+        "source": "user_month_last_week_phrase",
+        "anchor_date": "2026-07-28",
+    }
+    assert resolve_time_scope("生成5月最后一周的竞品动态报告", asked_at=asked_at)["start_date"] == "2026-05-25"
+    assert resolve_time_scope("生成5月报告", asked_at=asked_at)["start_date"] == "2026-05-01"
+
+
 def test_specific_event_uses_full_event_period_when_time_is_not_explicit() -> None:
     from app.agents.qa.tools import resolve_time_scope
 

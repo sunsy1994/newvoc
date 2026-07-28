@@ -12,7 +12,7 @@ import app.agents.competitor_report.graph as competitor_graph
 import app.agents.competitor_report.prompts as competitor_prompts
 import app.agents.competitor_report.renderer as competitor_renderer
 import app.agents.competitor_report.storage as competitor_storage
-from app.agents.competitor_report.scope import resolve_competitor_report_scope
+from app.agents.competitor_report.scope import extract_competitor_report_scope, resolve_competitor_report_scope
 from app.agents.competitor_report.tools import collect_competitor_report_dataset
 
 
@@ -612,6 +612,26 @@ def test_scope_resolves_last_month() -> None:
     assert scope["start_date"] == "2026-06-01"
     assert scope["end_date"] == "2026-06-30"
     assert scope["time_defaulted"] is False
+
+
+def test_competitor_scope_keeps_supported_last_week_candidate() -> None:
+    scope = extract_competitor_report_scope(
+        "生成5月最后一周的竞品动态报告",
+        history=[],
+        known_brands=["上汽大众"],
+        llm_json=lambda _: {
+            "brand_name": None,
+            "start_date": "2026-05-25",
+            "end_date": "2026-05-31",
+        },
+        today=date(2026, 7, 28),
+    )
+
+    assert (scope["start_date"], scope["end_date"], scope["time_defaulted"]) == (
+        "2026-05-25",
+        "2026-05-31",
+        False,
+    )
 
 
 def test_scope_resolves_recent_two_weeks_with_default_brand() -> None:

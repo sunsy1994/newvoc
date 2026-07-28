@@ -15,6 +15,9 @@ EXPLICIT_RANGE_PATTERN = re.compile(
 )
 RELATIVE_RANGE_PATTERN = re.compile(r"近(?P<count>[一二三四五六七八九十两俩\d]+)?(?P<unit>天|日|周|个月|月|年)")
 NAMED_MONTH_PATTERN = re.compile(r"(?<!\d)(?P<month>1[0-2]|0?[1-9])月")
+NAMED_MONTH_LAST_WEEK_PATTERN = re.compile(
+    r"(?:(?P<year>\d{4})年)?(?P<month>1[0-2]|0?[1-9])月最后一(?:周|星期)"
+)
 
 
 def _date_text(value: Any) -> str:
@@ -133,6 +136,26 @@ def _named_month_scope(question: str, anchor: date) -> dict[str, str] | None:
     return _scope(mode="named_month", start=start, end=end, label_suffix=f"用户指定{month}月", source="user_month_phrase", anchor=anchor)
 
 
+def _named_month_last_week_scope(question: str, anchor: date) -> dict[str, str] | None:
+    match = NAMED_MONTH_LAST_WEEK_PATTERN.search(question)
+    if not match:
+        return None
+    month = int(match.group("month"))
+    year = int(match.group("year") or (anchor.year if month <= anchor.month else anchor.year - 1))
+    month_start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    start = max(month_start, end - timedelta(days=end.weekday()))
+    month_text = f"{year}年{month}月" if match.group("year") else f"{month}月"
+    return _scope(
+        mode="named_month_last_week",
+        start=start,
+        end=end,
+        label_suffix=f"用户指定{month_text}最后一周",
+        source="user_month_last_week_phrase",
+        anchor=anchor,
+    )
+
+
 def resolve_time_scope(question: str, *, asked_at: datetime | None = None, event: dict[str, Any] | None = None) -> dict[str, str]:
     anchor = _anchor_date(asked_at)
 
@@ -151,6 +174,10 @@ def resolve_time_scope(question: str, *, asked_at: datetime | None = None, event
     relative = _relative_scope(question, anchor)
     if relative:
         return relative
+
+    named_month_last_week = _named_month_last_week_scope(question, anchor)
+    if named_month_last_week:
+        return named_month_last_week
 
     named_month = _named_month_scope(question, anchor)
     if named_month:

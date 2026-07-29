@@ -9,6 +9,63 @@ import pytest
 import app.agents.competitor_report.renderer as competitor_renderer
 
 
+def test_topic_account_network_uses_engagement_for_nodes_and_work_count_for_links() -> None:
+    from app.agents.competitor_report.skill_generator import build_topic_account_network
+
+    frame = pd.DataFrame(
+        [
+            {"作者": "品牌官方", "账号类型": "官方号", "是否官方号": "是", "话题标签": "#智能座舱", "总互动量": 100, "标题": "作品一"},
+            {"作者": "品牌官方", "账号类型": "官方号", "是否官方号": "是", "话题标签": "#智能座舱", "总互动量": 80, "标题": "作品二"},
+            {"作者": "门店A", "账号类型": "经销商", "是否官方号": "否", "话题标签": "#智能座舱 #空间", "总互动量": 40, "标题": "作品三"},
+        ]
+    )
+
+    result = build_topic_account_network(frame)
+
+    topic = next(item for item in result["topics"] if item["name"] == "智能座舱")
+    official = next(item for item in result["accounts"] if item["name"] == "品牌官方")
+    official_link = next(
+        item
+        for item in result["links"]
+        if item["topic"] == "智能座舱" and item["account"] == "品牌官方"
+    )
+    assert topic["interaction_count"] == 220
+    assert official["interaction_count"] == 180
+    assert official["account_type"] == "official"
+    assert official_link["work_count"] == 2
+    assert official_link["interaction_count"] == 180
+
+
+def test_topic_account_network_is_bounded_and_empty_without_original_tags() -> None:
+    from app.agents.competitor_report.skill_generator import build_topic_account_network
+
+    rows = []
+    for topic_index in range(7):
+        for account_index in range(25):
+            rows.append(
+                {
+                    "作者": f"账号{account_index}",
+                    "账号类型": "其他",
+                    "是否官方号": "否",
+                    "话题标签": f"#话题{topic_index}",
+                    "总互动量": (topic_index + 1) * (account_index + 1),
+                    "标题": "测试作品",
+                }
+            )
+
+    result = build_topic_account_network(pd.DataFrame(rows))
+    empty = build_topic_account_network(
+        pd.DataFrame([{"作者": "无标签账号", "话题标签": "", "总互动量": 10, "标题": "无标签"}])
+    )
+
+    assert len(result["topics"]) == 5
+    assert len(result["accounts"]) == 20
+    assert empty["topics"] == []
+    assert empty["accounts"] == []
+    assert empty["links"] == []
+    assert "暂无" in empty["message"]
+
+
 def _sample_report_dataset() -> dict[str, object]:
     dataset = {
         "brand_name": "比亚迪&汽车",
@@ -82,9 +139,7 @@ def test_fixed_html_renderer_consumes_all_dataset_sections_in_chapter_order() ->
         "账号互动贡献",
         "发布时间与互动走势",
         "上周该品牌相关热门话题",
-        "热门话题热度分布",
-        "话题分类分布",
-        "重点经销商承接效果",
+        "话题传播网络",
         "官方发起 → 经销商承接 桑基图",
     ]
     positions = [html.index(f"<h2>{chapter}</h2>") for chapter in chapters]
@@ -174,13 +229,32 @@ def test_renderer_uses_complete_mckinsey_report_and_local_echarts() -> None:
         'id="topicChart"',
         'id="sankeyChart"',
         "账号互动贡献",
-        "重点经销商承接效果",
+        "话题传播网络",
         "官方发起 → 经销商承接 桑基图",
     ]
     for fragment in required_fragments:
         assert fragment in rendered
     assert "cdn.jsdelivr.net" not in rendered
     assert "echarts.init" in rendered
+
+
+def test_competitor_report_uses_big_force_and_consolidates_repeated_sections() -> None:
+    rendered = competitor_renderer.render_competitor_report_html(
+        _sample_report_dataset(),
+        _sample_llm_summary(),
+    )
+
+    assert "renderTopicForceGraph" in rendered
+    assert "FORCE GRAPH · TOPIC ACCOUNT NETWORK" in rendered
+    assert "type: 'graph'" in rendered
+    assert "layout: 'force'" in rendered
+    assert "renderMode: 'richText'" in rendered
+    assert "话题分类分布" not in rendered
+    assert "<h2>重点经销商承接效果</h2>" not in rendered
+    assert "最强承接账号" in rendered
+    assert "覆盖话题最多账号" in rendered
+    assert "低效承接账号" in rendered
+    assert "cdn.jsdelivr.net" not in rendered
 
 
 def test_competitor_report_uses_lieflat_tick_rows_for_author_contribution() -> None:

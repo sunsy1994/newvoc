@@ -1309,12 +1309,13 @@ def test_competitor_report_closes_ai_save_asset_service_and_http_route_loop(tmp_
     for chart_id in ("authorChart", "trendChart", "topicChart", "sankeyChart"):
         assert f'id="{chart_id}"' in asset["html"]
     assert "renderAuthorTickRows" in asset["html"]
+    assert "renderTopicForceGraph" in asset["html"]
     assert "renderBigThreads" in asset["html"]
-    for chart_id in ("trendChart", "topicChart"):
+    for chart_id in ("trendChart",):
         assert f"echarts.init(document.getElementById('{chart_id}'))" in asset["html"]
     assert "McKinsey Consulting" in asset["html"]
     assert "Top3 热门作品" in asset["html"]
     assert "账号互动贡献" in asset["html"]
-    assert "重点经销商承接效果" in asset["html"]
+    assert "话题传播网络" in asset["html"]
     assert any(query.startswith("INSERT INTO data_asset.competitor_report_agent_run") for query in executed_queries)
     assert any("WHERE r.report_run_id = %s AND r.status = 'completed'" in query for query in executed_queries)

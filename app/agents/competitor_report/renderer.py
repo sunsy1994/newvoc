@@ -59,7 +59,7 @@ def _inject_visible_summary(html: str, dataset: dict[str, Any], summary: dict[st
     module_summaries = (
         ('账号互动贡献', summary.get('account_summary')),
         ('发布时间与互动走势', summary.get('rhythm_summary')),
-        ('重点经销商承接效果', summary.get('dealer_summary')),
+        ('官方发起 → 经销商承接 桑基图', summary.get('dealer_summary')),
     )
     for heading, value in module_summaries:
         if value is not None and str(value).strip():

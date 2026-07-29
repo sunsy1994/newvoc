@@ -310,6 +310,108 @@ def summarize_hot_topics(brand_df, hotlist_df=None, top_n=6):
     return topics[:top_n]
 
 
+def build_topic_account_network(brand_df):
+    topic_interactions = Counter()
+    topic_works = Counter()
+    edge_interactions = Counter()
+    edge_works = Counter()
+    account_types = {}
+    tagged_rows = []
+
+    for _, row in brand_df.iterrows():
+        topics = list(
+            dict.fromkeys(
+                tag.lstrip('#').strip()
+                for tag in extract_tags(row.get('话题标签'))
+                if tag.lstrip('#').strip()
+            )
+        )
+        if not topics:
+            continue
+        account = str(row.get('作者', '未知账号')).strip() or '未知账号'
+        interaction = parse_metric(row.get('总互动量', 0))
+        account_type_text = str(row.get('账号类型', ''))
+        is_official = str(row.get('是否官方号', '')).strip() == '是' or '官方' in account_type_text
+        if is_official:
+            account_type = 'official'
+        elif '经销' in account_type_text or '门店' in account_type_text:
+            account_type = 'dealer'
+        else:
+            account_type = 'other'
+        account_types[account] = account_type
+        tagged_rows.append((account, topics, interaction))
+        for topic in topics:
+            topic_interactions[topic] += interaction
+            topic_works[topic] += 1
+            edge_interactions[(topic, account)] += interaction
+            edge_works[(topic, account)] += 1
+
+    if not tagged_rows:
+        return {
+            'topics': [],
+            'accounts': [],
+            'links': [],
+            'message': '当前时间范围暂无可构建的话题传播网络。',
+        }
+
+    top_topics = [
+        topic
+        for topic, _ in sorted(
+            topic_interactions.items(),
+            key=lambda item: (-item[1], -topic_works[item[0]], item[0]),
+        )[:5]
+    ]
+    top_topic_set = set(top_topics)
+    account_interactions = Counter()
+    account_works = Counter()
+    for account, topics, interaction in tagged_rows:
+        if top_topic_set.intersection(topics):
+            account_interactions[account] += interaction
+            account_works[account] += 1
+
+    top_accounts = [
+        account
+        for account, _ in sorted(
+            account_interactions.items(),
+            key=lambda item: (-item[1], -account_works[item[0]], item[0]),
+        )[:20]
+    ]
+    topics = [
+        {
+            'name': topic,
+            'interaction_count': int(topic_interactions[topic]),
+            'work_count': int(topic_works[topic]),
+        }
+        for topic in top_topics
+    ]
+    accounts = [
+        {
+            'name': account,
+            'account_type': account_types.get(account, 'other'),
+            'interaction_count': int(account_interactions[account]),
+            'work_count': int(account_works[account]),
+        }
+        for account in top_accounts
+    ]
+    links = [
+        {
+            'topic': topic,
+            'account': account,
+            'work_count': int(edge_works[(topic, account)]),
+            'interaction_count': int(edge_interactions[(topic, account)]),
+        }
+        for topic in top_topics
+        for account in top_accounts
+        if edge_works[(topic, account)] > 0
+    ]
+    return {
+        'topics': topics,
+        'accounts': accounts,
+        'links': links,
+        'message': f'展示累计互动量最高的 {len(topics)} 个话题与 {len(accounts)} 个传播账号。',
+    }
+
+
 def summarize_comments(comment_df):
     if comment_df.empty:
         return {
@@ -562,7 +664,7 @@ def build_official_dealer_sankey(brand_df):
         'links': links,
         'highlight_topic': highlight_topic,
         'message': message,
-        'dealer_summary': dealer_summary[:5],
+        'dealer_summary': dealer_summary,
     }
 
 
@@ -777,7 +879,7 @@ def build_html(
         .sort_values('发布日')
     )
     insights = build_brand_insights(brand_df, top_df, hot_topics, video_insight=first_video_insight)
-    topic_category_df = summarize_topic_categories(brand_df)
+    topic_network = build_topic_account_network(brand_df)
     sankey_data = build_official_dealer_sankey(brand_df)
     sankey_height = max(460, min(680, 180 + len(sankey_data.get('nodes', [])) * 24))
 
@@ -794,18 +896,6 @@ def build_html(
         """
         for idx, item in enumerate(hot_topics)
     ) or '<tr><td colspan="6">暂无足够话题数据</td></tr>'
-
-    category_rows = ''.join(
-        f"""
-        <tr>
-          <td>{idx + 1}</td>
-          <td>{safe_html(row['主题分类'])}</td>
-          <td>{int(row['作品数'])}</td>
-          <td>{format_int(row['累计互动量'])}</td>
-        </tr>
-        """
-        for idx, (_, row) in enumerate(topic_category_df.iterrows())
-    ) or '<tr><td colspan="4">暂无主题分类数据</td></tr>'
 
     comment_summary_by_url = {}
     comment_summary_by_title = {}
@@ -886,7 +976,30 @@ def build_html(
         </section>
         """
 
+    dealer_summary = sankey_data.get('dealer_summary', [])
+    strongest_dealer = max(dealer_summary, key=lambda item: item['total_interaction'], default=None)
+    widest_dealer = max(dealer_summary, key=lambda item: (item['topic_count'], item['total_interaction']), default=None)
+    inefficient_dealer = next((item for item in dealer_summary if item['effect'] == '反向/低效'), None)
+    dealer_digest = [
+        (
+            '最强承接账号',
+            f'{strongest_dealer["dealer"]}，累计互动 {format_int(strongest_dealer["total_interaction"])}'
+            if strongest_dealer else '暂无足够样本',
+        ),
+        (
+            '覆盖话题最多账号',
+            f'{widest_dealer["dealer"]}，覆盖 {widest_dealer["topic_count"]} 个话题'
+            if widest_dealer else '暂无足够样本',
+        ),
+        (
+            '低效承接账号',
+            f'{inefficient_dealer["dealer"]}，平均互动 {inefficient_dealer["avg_interaction"]}'
+            if inefficient_dealer else '暂无明确低效样本',
+        ),
+    ]
+
     report_data = {
+        'total_interactions': total_interactions,
         'author_labels': author_summary['作者'].fillna('未知账号').head(8).tolist(),
         'author_values': author_summary['总互动量'].astype(int).head(8).tolist(),
         'trend_labels': trend['发布日'].tolist(),
@@ -894,8 +1007,7 @@ def build_html(
         'trend_interactions': trend['总互动量'].astype(int).tolist(),
         'topic_labels': [item['name'] for item in hot_topics],
         'topic_values': [int(item['works']) for item in hot_topics],
-        'category_labels': topic_category_df['主题分类'].tolist(),
-        'category_values': topic_category_df['作品数'].astype(int).tolist(),
+        'topic_network': topic_network,
         'sankey_nodes': sankey_data['nodes'],
         'sankey_links': sankey_data['links'],
     }
@@ -954,6 +1066,13 @@ def build_html(
     .thread-node {{ cursor: pointer; transition: opacity .18s ease; }}
     .lieflat-chart.focused .thread-node:not(.hot) {{ opacity: .24; }}
     .thread-hit {{ cursor: pointer; }}
+    .topic-network-grid {{ display: grid; grid-template-columns: minmax(280px, 36%) minmax(0, 64%); gap: 20px; }}
+    .topic-force-chart {{ height: 540px; cursor: grab; }}
+    .topic-force-chart:active {{ cursor: grabbing; }}
+    .dealer-digest {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 20px; }}
+    .dealer-digest-item {{ padding: 14px 16px; background: {style['insight_bg']}; border: 1px solid {style['border']}; }}
+    .dealer-digest-label {{ color: {style['muted']}; font-size: 11px; letter-spacing: .08em; }}
+    .dealer-digest-value {{ margin-top: 6px; color: {style['text']}; font-size: 14px; font-weight: 650; }}
     .hot-list {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }}
     .hot-card {{ overflow: hidden; display: flex; flex-direction: column; }}
     .cover-wrap {{ background: {style['cover_bg']}; aspect-ratio: 4 / 5; display: flex; align-items: center; justify-content: center; max-height: 240px; }}
@@ -987,7 +1106,7 @@ def build_html(
     .footer {{ color: {style['muted']}; font-size: 12px; margin-top: 24px; }}
     @media (max-width: 960px) {{
       body {{ padding: 24px; }}
-      .cards, .grid, .hot-list {{ grid-template-columns: 1fr; }}
+      .cards, .grid, .hot-list, .topic-network-grid, .dealer-digest {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
@@ -1034,7 +1153,7 @@ def build_html(
     </div>
   </section>
 
-  <section class="section grid">
+  <section class="section topic-network-grid">
     <div class="panel">
       <h2>上周该品牌相关热门话题</h2>
       <table>
@@ -1052,34 +1171,10 @@ def build_html(
       </table>
     </div>
     <div class="panel">
-      <h2>热门话题热度分布</h2>
-      <div id="topicChart" class="chart"></div>
-    </div>
-  </section>
-
-  <section class="section grid">
-    <div class="panel">
-      <h2>话题分类分布</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>主题分类</th>
-            <th>作品数</th>
-            <th>累计互动量</th>
-          </tr>
-        </thead>
-        <tbody>{category_rows}</tbody>
-      </table>
-    </div>
-    <div class="panel">
-      <h2>重点经销商承接效果</h2>
-      <div class="insight-list">
-        {''.join(
-            f'<div class="insight"><strong>{safe_html(item["dealer"])}</strong>：{safe_html(item["effect"])}，平均互动 {item["avg_interaction"]}，承接主题数 {item["topic_count"]}</div>'
-            for item in sankey_data.get('dealer_summary', [])
-        ) or '<div class="insight">暂无足够的经销商承接样本</div>'}
-      </div>
+      <h2>话题传播网络</h2>
+      <p class="chart-kicker">节点大小代表累计互动量，连线粗细代表作品数；拖拽探索，悬停聚焦相邻关系。</p>
+      <div id="topicChart" class="topic-force-chart" aria-label="热门话题与传播账号 Force Graph"></div>
+      <div class="chart-source">FORCE GRAPH · TOPIC ACCOUNT NETWORK</div>
     </div>
   </section>
 
@@ -1087,6 +1182,12 @@ def build_html(
     <div class="panel">
       <h2>官方发起 → 经销商承接 桑基图</h2>
       <p class="meta">每条线代表一条可追溯的承接关系；悬停聚焦单条或整束链路，点击可锁定。{safe_html(sankey_data['message'])}</p>
+      <div class="dealer-digest">
+        {''.join(
+            f'<div class="dealer-digest-item"><div class="dealer-digest-label">{safe_html(label)}</div><div class="dealer-digest-value">{safe_html(value)}</div></div>'
+            for label, value in dealer_digest
+        )}
+      </div>
       <svg id="sankeyChart" class="chart lieflat-chart" style="height: {sankey_height}px;" viewBox="0 0 1100 560" preserveAspectRatio="xMidYMid meet" aria-label="官方到经销商 Big Threads"></svg>
       <div id="threadStatus" class="thread-status"><span id="threadStatusText">悬停线条或节点查看传播链路</span><span id="threadStatusPin" class="thread-pin"></span></div>
       <div class="chart-source">BIG THREADS · OFFICIAL → TOPIC → DEALER</div>
@@ -1188,15 +1289,117 @@ def build_html(
       ]
     }});
 
-    const topicChart = echarts.init(document.getElementById('topicChart'));
-    topicChart.setOption({{
-      animation: false,
-      tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'shadow' }} }},
-      grid: {{ left: 80, right: 20, top: 20, bottom: 30 }},
-      xAxis: {{ type: 'value', splitLine: {{ lineStyle: {{ color: '{style['grid']}', type: 'dashed' }} }} }},
-      yAxis: {{ type: 'category', data: reportData.topic_labels, axisLabel: {{ width: 150, overflow: 'truncate' }} }},
-      series: [{{ type: 'bar', data: reportData.topic_values, itemStyle: {{ color: colorGreen }} }}]
-    }});
+    const renderTopicForceGraph = () => {{
+      const chart = echarts.init(document.getElementById('topicChart'));
+      const network = reportData.topic_network || {{ topics: [], accounts: [], links: [] }};
+      if (!network.topics.length || !network.accounts.length) {{
+        chart.setOption({{
+          title: {{
+            text: network.message || '当前时间范围暂无可构建的话题传播网络',
+            left: 'center',
+            top: 'middle',
+            textStyle: {{ color: '{style['muted']}', fontSize: 14, fontWeight: 400 }}
+          }}
+        }});
+        return chart;
+      }}
+
+      const allInteractions = [
+        ...network.topics.map(item => item.interaction_count),
+        ...network.accounts.map(item => item.interaction_count)
+      ];
+      const maxInteraction = Math.max(...allInteractions, 1);
+      const share = value => value / maxInteraction;
+      const accountColors = {{
+        official: colorMain,
+        dealer: colorGreen,
+        other: colorAssist
+      }};
+      const nodes = [
+        ...network.topics.map(item => ({{
+          id: `topic::${{item.name}}`,
+          name: item.name,
+          nodeType: '话题',
+          interactionCount: item.interaction_count,
+          workCount: item.work_count,
+          symbolSize: 28 + Math.sqrt(share(item.interaction_count)) * 42,
+          itemStyle: {{ color: colorAssist, borderColor: '{style['body_bg']}', borderWidth: 4 }},
+          label: {{ show: true, color: '{style['text']}', fontWeight: 700, fontSize: 11 }}
+        }})),
+        ...network.accounts.map(item => ({{
+          id: `account::${{item.name}}`,
+          name: item.name,
+          nodeType: item.account_type === 'official' ? '官方账号' : item.account_type === 'dealer' ? '经销商账号' : '其他账号',
+          interactionCount: item.interaction_count,
+          workCount: item.work_count,
+          symbolSize: 8 + Math.sqrt(share(item.interaction_count)) * 28,
+          itemStyle: {{ color: accountColors[item.account_type] || colorAssist }},
+          label: {{ show: item.account_type === 'official', color: '{style['text']}', fontSize: 10 }}
+        }}))
+      ];
+      const links = network.links.map(item => ({{
+        source: `account::${{item.account}}`,
+        target: `topic::${{item.topic}}`,
+        workCount: item.work_count,
+        interactionCount: item.interaction_count,
+        lineStyle: {{
+          width: .8 + Math.min(5, item.work_count * 1.2),
+          color: '{style['grid']}',
+          opacity: .48,
+          curveness: .08
+        }}
+      }}));
+      const option = {{
+        animationDuration: 320,
+        tooltip: {{
+          renderMode: 'richText',
+          backgroundColor: '{style['body_bg']}',
+          borderColor: '{style['border']}',
+          textStyle: {{ color: '{style['text']}', fontSize: 12 }},
+          formatter: params => {{
+            if (params.dataType === 'edge') {{
+              return `${{params.data.workCount}} 条作品\\n累计互动 ${{compactNumber(params.data.interactionCount)}}`;
+            }}
+            const ratio = reportData.total_interactions > 0
+              ? (params.data.interactionCount / reportData.total_interactions * 100).toFixed(1)
+              : '0.0';
+            return `${{params.data.nodeType}} · ${{params.name}}\\n${{params.data.workCount}} 条作品\\n累计互动 ${{compactNumber(params.data.interactionCount)}}\\n互动占比 ${{ratio}}%`;
+          }}
+        }},
+        series: [{{
+          type: 'graph',
+          layout: 'force',
+          roam: true,
+          draggable: true,
+          data: nodes,
+          links,
+          force: {{
+            repulsion: [90, 260],
+            edgeLength: [64, 150],
+            gravity: .12,
+            friction: .22,
+            layoutAnimation: true
+          }},
+          emphasis: {{
+            focus: 'adjacency',
+            lineStyle: {{ opacity: .95, width: 2.4 }},
+            label: {{ show: true, color: '{style['text']}', position: 'right' }}
+          }},
+          blur: {{
+            itemStyle: {{ opacity: .12 }},
+            lineStyle: {{ opacity: .04 }}
+          }}
+        }}]
+      }};
+      const replay = () => {{
+        chart.clear();
+        chart.setOption(option);
+      }};
+      replay();
+      chart.getZr().on('click', event => {{ if (!event.target) replay(); }});
+      return chart;
+    }};
+    const topicChart = renderTopicForceGraph();
 
     const renderBigThreads = () => {{
       const svg = document.getElementById('sankeyChart');

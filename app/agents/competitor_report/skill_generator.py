@@ -779,7 +779,7 @@ def build_html(
     insights = build_brand_insights(brand_df, top_df, hot_topics, video_insight=first_video_insight)
     topic_category_df = summarize_topic_categories(brand_df)
     sankey_data = build_official_dealer_sankey(brand_df)
-    sankey_height = max(460, min(760, 120 + len(sankey_data.get('nodes', [])) * 34))
+    sankey_height = max(460, min(680, 180 + len(sankey_data.get('nodes', [])) * 24))
 
     topic_rows = ''.join(
         f"""
@@ -887,8 +887,8 @@ def build_html(
         """
 
     report_data = {
-        'author_labels': author_summary['作者'].fillna('未知账号').tolist(),
-        'author_values': author_summary['总互动量'].astype(int).tolist(),
+        'author_labels': author_summary['作者'].fillna('未知账号').head(8).tolist(),
+        'author_values': author_summary['总互动量'].astype(int).head(8).tolist(),
         'trend_labels': trend['发布日'].tolist(),
         'trend_works': trend['作品数'].astype(int).tolist(),
         'trend_interactions': trend['总互动量'].astype(int).tolist(),
@@ -942,6 +942,18 @@ def build_html(
     .grid {{ display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 20px; }}
     .panel {{ padding: 20px; }}
     .chart {{ width: 100%; height: 320px; }}
+    .lieflat-chart {{ display: block; overflow: visible; }}
+    .chart-kicker {{ color: {style['muted']}; font-size: 12px; margin: -8px 0 12px; }}
+    .chart-source {{ color: {style['muted']}; font-size: 10px; letter-spacing: .12em; margin-top: 8px; }}
+    .thread-status {{ min-height: 32px; display: flex; align-items: center; gap: 10px; color: {style['muted']}; font-size: 12px; border-top: 1px solid {style['grid']}; padding-top: 8px; }}
+    .thread-status strong {{ color: {style['text']}; }}
+    .thread-pin {{ color: {style['brand']}; font-size: 10px; font-weight: 700; letter-spacing: .08em; }}
+    .thread-route {{ transition: opacity .18s ease, stroke-width .18s ease; }}
+    .thread-route.hot {{ opacity: .92 !important; }}
+    .lieflat-chart.focused .thread-route:not(.hot) {{ opacity: .05 !important; }}
+    .thread-node {{ cursor: pointer; transition: opacity .18s ease; }}
+    .lieflat-chart.focused .thread-node:not(.hot) {{ opacity: .24; }}
+    .thread-hit {{ cursor: pointer; }}
     .hot-list {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }}
     .hot-card {{ overflow: hidden; display: flex; flex-direction: column; }}
     .cover-wrap {{ background: {style['cover_bg']}; aspect-ratio: 4 / 5; display: flex; align-items: center; justify-content: center; max-height: 240px; }}
@@ -1012,7 +1024,9 @@ def build_html(
   <section class="section grid">
     <div class="panel">
       <h2>账号互动贡献</h2>
-      <div id="authorChart" class="chart"></div>
+      <p class="chart-kicker">相对贡献刻度用于快速比较账号强弱，行尾保留精确互动量。</p>
+      <svg id="authorChart" class="chart lieflat-chart" viewBox="0 0 560 320" preserveAspectRatio="xMidYMid meet" aria-label="账号互动贡献 Tick Rows"></svg>
+      <div class="chart-source">TICK ROWS · ACCOUNT CONTRIBUTION</div>
     </div>
     <div class="panel">
       <h2>发布时间与互动走势</h2>
@@ -1072,8 +1086,10 @@ def build_html(
   <section class="section">
     <div class="panel">
       <h2>官方发起 → 经销商承接 桑基图</h2>
-      <p class="meta">优先按原视频话题建立关系，突出本周官方重点发起与经销商承接流向。{safe_html(sankey_data['message'])}</p>
-      <div id="sankeyChart" class="chart" style="height: {sankey_height}px;"></div>
+      <p class="meta">每条线代表一条可追溯的承接关系；悬停聚焦单条或整束链路，点击可锁定。{safe_html(sankey_data['message'])}</p>
+      <svg id="sankeyChart" class="chart lieflat-chart" style="height: {sankey_height}px;" viewBox="0 0 1100 560" preserveAspectRatio="xMidYMid meet" aria-label="官方到经销商 Big Threads"></svg>
+      <div id="threadStatus" class="thread-status"><span id="threadStatusText">悬停线条或节点查看传播链路</span><span id="threadStatusPin" class="thread-pin"></span></div>
+      <div class="chart-source">BIG THREADS · OFFICIAL → TOPIC → DEALER</div>
     </div>
   </section>
 
@@ -1094,15 +1110,66 @@ def build_html(
       return parts.join('\\n');
     }};
 
-    const authorChart = echarts.init(document.getElementById('authorChart'));
-    authorChart.setOption({{
-      animation: false,
-      grid: {{ left: 60, right: 20, top: 20, bottom: 40 }},
-      xAxis: {{ type: 'value', splitLine: {{ lineStyle: {{ color: '{style['grid']}', type: 'dashed' }} }} }},
-      yAxis: {{ type: 'category', data: reportData.author_labels, axisTick: {{ show: false }} }},
-      series: [{{ type: 'bar', data: reportData.author_values, itemStyle: {{ color: colorMain }} }}],
-      tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'shadow' }} }}
-    }});
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svgEl = (parent, tag, attrs = {{}}) => {{
+      const node = document.createElementNS(svgNS, tag);
+      Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+      parent.appendChild(node);
+      return node;
+    }};
+    const svgText = (parent, attrs, value) => {{
+      const node = svgEl(parent, 'text', attrs);
+      node.textContent = value;
+      return node;
+    }};
+    const stableNoise = (a, b) => Math.abs(((a * 73856093) ^ (b * 19349663)) % 1000) / 1000;
+    const compactNumber = value => new Intl.NumberFormat('zh-CN', {{ notation: 'compact', maximumFractionDigits: 1 }}).format(value || 0);
+
+    const renderAuthorTickRows = () => {{
+      const svg = document.getElementById('authorChart');
+      const rows = reportData.author_labels.map((label, index) => ({{
+        label,
+        value: Number(reportData.author_values[index] || 0)
+      }}));
+      if (!rows.length) {{
+        svgText(svg, {{ x: 280, y: 155, fill: '{style['muted']}', 'text-anchor': 'middle', 'font-size': 14 }}, '暂无账号互动数据');
+        return;
+      }}
+      const maxValue = Math.max(...rows.map(row => row.value), 1);
+      const x0 = 176;
+      const maxTicks = 28;
+      const tickGap = 9.2;
+      rows.forEach((row, index) => {{
+        const y = 30 + index * 36;
+        const tickCount = row.value > 0 ? Math.max(1, Math.round(row.value / maxValue * maxTicks)) : 0;
+        svgText(svg, {{
+          x: 164, y: y + 4, fill: '{style['muted']}', 'text-anchor': 'end',
+          'font-size': 11, 'font-weight': 600
+        }}, String(row.label).slice(0, 12));
+        svgEl(svg, 'line', {{
+          x1: x0, y1: y + 10, x2: x0 + maxTicks * tickGap, y2: y + 10,
+          stroke: '{style['grid']}', 'stroke-width': .8
+        }});
+        for (let tick = 0; tick < tickCount; tick += 1) {{
+          const x = x0 + tick * tickGap + tickGap / 2;
+          const height = 10 + stableNoise(tick + 1, index + 2) * 8;
+          svgEl(svg, 'line', {{
+            x1: x, y1: y + 10, x2: x, y2: y + 10 - height,
+            stroke: colorMain, 'stroke-width': 1.6,
+            opacity: .58 + stableNoise(tick + 3, index + 5) * .42,
+            'stroke-linecap': 'round'
+          }});
+          if (tick % 5 === 4) {{
+            svgEl(svg, 'circle', {{ cx: x, cy: y + 14, r: 1.2, fill: colorAssist, opacity: .7 }});
+          }}
+        }}
+        svgText(svg, {{
+          x: x0 + maxTicks * tickGap + 16, y: y + 4, fill: '{style['text']}',
+          'font-size': 12, 'font-weight': 700
+        }}, compactNumber(row.value));
+      }});
+    }};
+    renderAuthorTickRows();
 
     const trendChart = echarts.init(document.getElementById('trendChart'));
     trendChart.setOption({{
@@ -1131,50 +1198,125 @@ def build_html(
       series: [{{ type: 'bar', data: reportData.topic_values, itemStyle: {{ color: colorGreen }} }}]
     }});
 
-    const sankeyChart = echarts.init(document.getElementById('sankeyChart'));
-    sankeyChart.setOption({{
-      animation: false,
-      tooltip: {{
-        trigger: 'item',
-        triggerOn: 'mousemove'
-      }},
-      series: [{{
-        type: 'sankey',
-        layout: 'none',
-        left: 24,
-        right: 120,
-        top: 36,
-        bottom: 36,
-        nodeWidth: 14,
-        nodeGap: 28,
-        draggable: false,
-        emphasis: {{ focus: 'adjacency' }},
-        nodeAlign: 'justify',
-        lineStyle: {{
-          color: 'source',
-          curveness: 0.24,
-          opacity: 0.28
-        }},
-        label: {{
-          color: '{style['text']}',
-          fontSize: 12,
-          lineHeight: 16,
-          width: 150,
-          overflow: 'truncate',
-          formatter: function(params) {{
-            return params.name;
-          }}
-        }},
-        data: reportData.sankey_nodes,
-        links: reportData.sankey_links
-      }}]
-    }});
+    const renderBigThreads = () => {{
+      const svg = document.getElementById('sankeyChart');
+      const statusText = document.getElementById('threadStatusText');
+      const statusPin = document.getElementById('threadStatusPin');
+      const topicNames = reportData.sankey_nodes.filter(node => node.depth === 1).map(node => node.name);
+      const dealerNames = reportData.sankey_nodes.filter(node => node.depth === 2).map(node => node.name);
+      const routes = reportData.sankey_links
+        .filter(link => topicNames.includes(link.source) && dealerNames.includes(link.target))
+        .map(link => ({{ source: '官方账号', topic: link.source, dealer: link.target, value: Number(link.value || 0) }}));
+      if (!routes.length) {{
+        svgText(svg, {{ x: 550, y: 270, fill: '{style['muted']}', 'text-anchor': 'middle', 'font-size': 14 }}, '暂无可追溯的官方—话题—经销商承接链路');
+        return;
+      }}
+
+      const xSource = 130;
+      const xTopic = 520;
+      const xDealer = 930;
+      const sourceY = 280;
+      const distribute = (index, total, top = 82, bottom = 492) => total <= 1 ? (top + bottom) / 2 : top + index * (bottom - top) / (total - 1);
+      const topicY = new Map(topicNames.map((name, index) => [name, distribute(index, topicNames.length)]));
+      const dealerY = new Map(dealerNames.map((name, index) => [name, distribute(index, dealerNames.length)]));
+      const maxRoute = Math.max(...routes.map(route => route.value), 1);
+      const pathFor = route => `M${{xSource + 8}} ${{sourceY}} C300 ${{sourceY}} 350 ${{topicY.get(route.topic)}} ${{xTopic}} ${{topicY.get(route.topic)}} C690 ${{topicY.get(route.topic)}} 735 ${{dealerY.get(route.dealer)}} ${{xDealer - 8}} ${{dealerY.get(route.dealer)}}`;
+
+      [[xSource, '① 官方发起'], [xTopic, '② 话题主线'], [xDealer, '③ 经销商承接']].forEach(([x, label]) => {{
+        svgText(svg, {{ x, y: 32, fill: '{style['muted']}', 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, 'letter-spacing': '.12em' }}, label);
+      }});
+
+      const threadGroup = svgEl(svg, 'g');
+      routes.forEach((route, index) => {{
+        const d = pathFor(route);
+        route.line = svgEl(threadGroup, 'path', {{
+          d, fill: 'none', stroke: colorMain,
+          'stroke-width': Math.max(1, route.value / maxRoute * 6),
+          opacity: .12 + route.value / maxRoute * .24,
+          'stroke-linecap': 'round', class: 'thread-route'
+        }});
+        route.hit = svgEl(threadGroup, 'path', {{
+          d, fill: 'none', stroke: '#000', 'stroke-opacity': 0,
+          'stroke-width': 12, class: 'thread-hit', 'data-route': index
+        }});
+      }});
+
+      const nodes = [];
+      const addNode = (x, y, label, kind, index, anchor, color) => {{
+        const group = svgEl(svg, 'g', {{ class: 'thread-node', 'data-kind': kind, 'data-index': index }});
+        svgEl(group, 'circle', {{ cx: x, cy: y, r: kind === 'source' ? 7 : 4, fill: color }});
+        svgText(group, {{
+          x: anchor === 'end' ? x - 14 : x + 14, y: y + 4,
+          fill: '{style['text']}', 'text-anchor': anchor, 'font-size': 11, 'font-weight': 650
+        }}, String(label).slice(0, 16));
+        svgEl(group, 'rect', {{
+          x: anchor === 'end' ? x - 130 : x - 8, y: y - 12,
+          width: 138, height: 24, fill: '#000', 'fill-opacity': 0, class: 'thread-hit'
+        }});
+        nodes.push(group);
+      }};
+      addNode(xSource, sourceY, '官方账号', 'source', 0, 'end', colorMain);
+      topicNames.forEach((name, index) => addNode(xTopic, topicY.get(name), name, 'topic', index, 'start', colorAssist));
+      dealerNames.forEach((name, index) => addNode(xDealer, dealerY.get(name), name, 'dealer', index, 'start', colorGreen));
+
+      let pinned = false;
+      const clearFocus = () => {{
+        svg.classList.remove('focused');
+        routes.forEach(route => route.line.classList.remove('hot'));
+        nodes.forEach(node => node.classList.remove('hot'));
+        statusText.textContent = '悬停线条或节点查看传播链路';
+        statusPin.textContent = '';
+      }};
+      const focusRoutes = (selected, label) => {{
+        svg.classList.add('focused');
+        routes.forEach(route => route.line.classList.toggle('hot', selected.includes(route)));
+        nodes.forEach(node => {{
+          const kind = node.dataset.kind;
+          const index = Number(node.dataset.index);
+          const name = kind === 'topic' ? topicNames[index] : kind === 'dealer' ? dealerNames[index] : '官方账号';
+          node.classList.toggle('hot', selected.some(route => route.source === name || route.topic === name || route.dealer === name));
+        }});
+        statusText.textContent = label;
+      }};
+      const actionFor = target => {{
+        const hit = target.closest?.('.thread-hit');
+        if (!hit) return null;
+        if (hit.dataset.route !== undefined) {{
+          const route = routes[Number(hit.dataset.route)];
+          return () => focusRoutes([route], `${{route.source}} → ${{route.topic}} → ${{route.dealer}} · ${{compactNumber(route.value)}} 次互动`);
+        }}
+        const node = hit.closest('.thread-node');
+        if (!node) return null;
+        const kind = node.dataset.kind;
+        const index = Number(node.dataset.index);
+        const name = kind === 'topic' ? topicNames[index] : kind === 'dealer' ? dealerNames[index] : '官方账号';
+        const selected = routes.filter(route => route.source === name || route.topic === name || route.dealer === name);
+        const total = selected.reduce((sum, route) => sum + route.value, 0);
+        return () => focusRoutes(selected, `${{name}} · ${{selected.length}} 条链路 · ${{compactNumber(total)}} 次互动`);
+      }};
+      svg.addEventListener('mousemove', event => {{
+        if (pinned) return;
+        const action = actionFor(event.target);
+        action ? action() : clearFocus();
+      }});
+      svg.addEventListener('mouseleave', () => {{ if (!pinned) clearFocus(); }});
+      svg.addEventListener('click', event => {{
+        const action = actionFor(event.target);
+        if (action) {{
+          pinned = true;
+          action();
+          statusPin.textContent = 'PINNED · 点击空白处释放';
+        }} else {{
+          pinned = false;
+          clearFocus();
+        }}
+      }});
+    }};
+    renderBigThreads();
 
     window.addEventListener('resize', () => {{
-      authorChart.resize();
       trendChart.resize();
       topicChart.resize();
-      sankeyChart.resize();
     }});
   </script>
 </body>

@@ -1308,6 +1308,9 @@ def test_competitor_report_closes_ai_save_asset_service_and_http_route_loop(tmp_
     assert "2026-05-25 至 2026-05-31" in asset["html"]
     for chart_id in ("authorChart", "trendChart", "topicChart", "sankeyChart"):
         assert f'id="{chart_id}"' in asset["html"]
+    assert "renderAuthorTickRows" in asset["html"]
+    assert "renderBigThreads" in asset["html"]
+    for chart_id in ("trendChart", "topicChart"):
         assert f"echarts.init(document.getElementById('{chart_id}'))" in asset["html"]
     assert "McKinsey Consulting" in asset["html"]
     assert "Top3 热门作品" in asset["html"]

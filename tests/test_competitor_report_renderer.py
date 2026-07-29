@@ -183,6 +183,35 @@ def test_renderer_uses_complete_mckinsey_report_and_local_echarts() -> None:
     assert "echarts.init" in rendered
 
 
+def test_competitor_report_uses_lieflat_tick_rows_for_author_contribution() -> None:
+    rendered = competitor_renderer.render_competitor_report_html(
+        _sample_report_dataset(),
+        _sample_llm_summary(),
+    )
+
+    assert '<svg id="authorChart"' in rendered
+    assert "TICK ROWS" in rendered
+    assert "相对贡献刻度" in rendered
+    assert "renderAuthorTickRows" in rendered
+    assert "echarts.init(document.getElementById('authorChart'))" not in rendered
+
+
+def test_competitor_report_uses_interactive_big_threads_for_dealer_paths() -> None:
+    rendered = competitor_renderer.render_competitor_report_html(
+        _sample_report_dataset(),
+        _sample_llm_summary(),
+    )
+
+    assert '<svg id="sankeyChart"' in rendered
+    assert "BIG THREADS" in rendered
+    assert 'id="threadStatus"' in rendered
+    assert "renderBigThreads" in rendered
+    assert "thread-route" in rendered
+    assert "PINNED" in rendered
+    assert "echarts.init(document.getElementById('sankeyChart'))" not in rendered
+    assert "type: 'sankey'" not in rendered
+
+
 def _extract_parity_payload(rendered: str) -> dict[str, object]:
     kpis = dict(
         re.findall(

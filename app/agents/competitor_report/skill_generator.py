@@ -359,7 +359,7 @@ def build_topic_account_network(brand_df):
         for topic, _ in sorted(
             topic_interactions.items(),
             key=lambda item: (-item[1], -topic_works[item[0]], item[0]),
-        )[:5]
+        )[:10]
     ]
     top_topic_set = set(top_topics)
     account_interactions = Counter()
@@ -374,7 +374,7 @@ def build_topic_account_network(brand_df):
         for account, _ in sorted(
             account_interactions.items(),
             key=lambda item: (-item[1], -account_works[item[0]], item[0]),
-        )[:20]
+        )
     ]
     topics = [
         {
@@ -408,7 +408,7 @@ def build_topic_account_network(brand_df):
         'topics': topics,
         'accounts': accounts,
         'links': links,
-        'message': f'展示累计互动量最高的 {len(topics)} 个话题与 {len(accounts)} 个传播账号。',
+        'message': f'展示累计互动量最高的 {len(topics)} 个话题及其全部 {len(accounts)} 个传播账号。',
     }
 
 
@@ -883,20 +883,6 @@ def build_html(
     sankey_data = build_official_dealer_sankey(brand_df)
     sankey_height = max(460, min(680, 180 + len(sankey_data.get('nodes', [])) * 24))
 
-    topic_rows = ''.join(
-        f"""
-        <tr>
-          <td>{idx + 1}</td>
-          <td>{safe_html(item['name'])}</td>
-          <td>{safe_html(item['evidence'])}</td>
-          <td>{item['works']}</td>
-          <td>{format_int(item['interactions'])}</td>
-          <td>{safe_html(item['topic_type'])}</td>
-        </tr>
-        """
-        for idx, item in enumerate(hot_topics)
-    ) or '<tr><td colspan="6">暂无足够话题数据</td></tr>'
-
     comment_summary_by_url = {}
     comment_summary_by_title = {}
     if not comments_df.empty and 'URL' in comments_df.columns:
@@ -1005,8 +991,6 @@ def build_html(
         'trend_labels': trend['发布日'].tolist(),
         'trend_works': trend['作品数'].astype(int).tolist(),
         'trend_interactions': trend['总互动量'].astype(int).tolist(),
-        'topic_labels': [item['name'] for item in hot_topics],
-        'topic_values': [int(item['works']) for item in hot_topics],
         'topic_network': topic_network,
         'sankey_nodes': sankey_data['nodes'],
         'sankey_links': sankey_data['links'],
@@ -1066,8 +1050,7 @@ def build_html(
     .thread-node {{ cursor: pointer; transition: opacity .18s ease; }}
     .lieflat-chart.focused .thread-node:not(.hot) {{ opacity: .24; }}
     .thread-hit {{ cursor: pointer; }}
-    .topic-network-grid {{ display: grid; grid-template-columns: minmax(280px, 36%) minmax(0, 64%); gap: 20px; }}
-    .topic-force-chart {{ height: 540px; cursor: grab; }}
+    .topic-force-chart {{ height: 640px; cursor: grab; }}
     .topic-force-chart:active {{ cursor: grabbing; }}
     .dealer-digest {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 20px; }}
     .dealer-digest-item {{ padding: 14px 16px; background: {style['insight_bg']}; border: 1px solid {style['border']}; }}
@@ -1106,7 +1089,7 @@ def build_html(
     .footer {{ color: {style['muted']}; font-size: 12px; margin-top: 24px; }}
     @media (max-width: 960px) {{
       body {{ padding: 24px; }}
-      .cards, .grid, .hot-list, .topic-network-grid, .dealer-digest {{ grid-template-columns: 1fr; }}
+      .cards, .grid, .hot-list, .dealer-digest {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
@@ -1153,26 +1136,10 @@ def build_html(
     </div>
   </section>
 
-  <section class="section topic-network-grid">
-    <div class="panel">
-      <h2>上周该品牌相关热门话题</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>话题</th>
-            <th>证据</th>
-            <th>作品数</th>
-            <th>累计互动量</th>
-            <th>判断口径</th>
-          </tr>
-        </thead>
-        <tbody>{topic_rows}</tbody>
-      </table>
-    </div>
+  <section class="section">
     <div class="panel">
       <h2>话题传播网络</h2>
-      <p class="chart-kicker">节点大小代表累计互动量，连线粗细代表作品数；拖拽探索，悬停聚焦相邻关系。</p>
+      <p class="chart-kicker">展示互动量最高的 Top10 话题及全部传播账号；大球是话题，小球是账号，节点大小代表累计互动量，连线粗细代表作品数。</p>
       <div id="topicChart" class="topic-force-chart" aria-label="热门话题与传播账号 Force Graph"></div>
       <div class="chart-source">FORCE GRAPH · TOPIC ACCOUNT NETWORK</div>
     </div>
@@ -1304,12 +1271,10 @@ def build_html(
         return chart;
       }}
 
-      const allInteractions = [
-        ...network.topics.map(item => item.interaction_count),
-        ...network.accounts.map(item => item.interaction_count)
-      ];
-      const maxInteraction = Math.max(...allInteractions, 1);
-      const share = value => value / maxInteraction;
+      const maxTopicInteraction = Math.max(...network.topics.map(item => item.interaction_count), 1);
+      const maxAccountInteraction = Math.max(...network.accounts.map(item => item.interaction_count), 1);
+      const topicShare = value => value / maxTopicInteraction;
+      const accountShare = value => value / maxAccountInteraction;
       const accountColors = {{
         official: colorMain,
         dealer: colorGreen,
@@ -1322,7 +1287,7 @@ def build_html(
           nodeType: '话题',
           interactionCount: item.interaction_count,
           workCount: item.work_count,
-          symbolSize: 28 + Math.sqrt(share(item.interaction_count)) * 42,
+          symbolSize: 50 + Math.sqrt(topicShare(item.interaction_count)) * 38,
           itemStyle: {{ color: colorAssist, borderColor: '{style['body_bg']}', borderWidth: 4 }},
           label: {{ show: true, color: '{style['text']}', fontWeight: 700, fontSize: 11 }}
         }})),
@@ -1332,7 +1297,7 @@ def build_html(
           nodeType: item.account_type === 'official' ? '官方账号' : item.account_type === 'dealer' ? '经销商账号' : '其他账号',
           interactionCount: item.interaction_count,
           workCount: item.work_count,
-          symbolSize: 8 + Math.sqrt(share(item.interaction_count)) * 28,
+          symbolSize: 8 + Math.sqrt(accountShare(item.interaction_count)) * 24,
           itemStyle: {{ color: accountColors[item.account_type] || colorAssist }},
           label: {{ show: item.account_type === 'official', color: '{style['text']}', fontSize: 10 }}
         }}))

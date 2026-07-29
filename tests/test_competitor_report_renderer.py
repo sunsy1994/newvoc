@@ -40,7 +40,7 @@ def test_topic_account_network_is_bounded_and_empty_without_original_tags() -> N
     from app.agents.competitor_report.skill_generator import build_topic_account_network
 
     rows = []
-    for topic_index in range(7):
+    for topic_index in range(12):
         for account_index in range(25):
             rows.append(
                 {
@@ -58,12 +58,32 @@ def test_topic_account_network_is_bounded_and_empty_without_original_tags() -> N
         pd.DataFrame([{"作者": "无标签账号", "话题标签": "", "总互动量": 10, "标题": "无标签"}])
     )
 
-    assert len(result["topics"]) == 5
-    assert len(result["accounts"]) == 20
+    assert len(result["topics"]) == 10
+    assert len(result["accounts"]) == 25
     assert empty["topics"] == []
     assert empty["accounts"] == []
     assert empty["links"] == []
     assert "暂无" in empty["message"]
+
+
+def test_topic_account_network_keeps_one_shared_account_with_multiple_topic_links() -> None:
+    from app.agents.competitor_report.skill_generator import build_topic_account_network
+
+    frame = pd.DataFrame(
+        [
+            {"作者": "跨话题账号", "账号类型": "经销商", "是否官方号": "否", "话题标签": "#智能 #空间", "总互动量": 60},
+            {"作者": "跨话题账号", "账号类型": "经销商", "是否官方号": "否", "话题标签": "#智能", "总互动量": 40},
+            {"作者": "空间账号", "账号类型": "其他", "是否官方号": "否", "话题标签": "#空间", "总互动量": 20},
+        ]
+    )
+
+    result = build_topic_account_network(frame)
+
+    shared_accounts = [item for item in result["accounts"] if item["name"] == "跨话题账号"]
+    shared_links = [item for item in result["links"] if item["account"] == "跨话题账号"]
+    assert len(shared_accounts) == 1
+    assert shared_accounts[0]["interaction_count"] == 100
+    assert {item["topic"] for item in shared_links} == {"智能", "空间"}
 
 
 def _sample_report_dataset() -> dict[str, object]:
@@ -138,7 +158,6 @@ def test_fixed_html_renderer_consumes_all_dataset_sections_in_chapter_order() ->
         "Top3 热门作品",
         "账号互动贡献",
         "发布时间与互动走势",
-        "上周该品牌相关热门话题",
         "话题传播网络",
         "官方发起 → 经销商承接 桑基图",
     ]
@@ -250,7 +269,10 @@ def test_competitor_report_uses_big_force_and_consolidates_repeated_sections() -
     assert "layout: 'force'" in rendered
     assert "renderMode: 'richText'" in rendered
     assert "话题分类分布" not in rendered
+    assert "上周该品牌相关热门话题" not in rendered
     assert "<h2>重点经销商承接效果</h2>" not in rendered
+    assert "maxTopicInteraction" in rendered
+    assert "maxAccountInteraction" in rendered
     assert "最强承接账号" in rendered
     assert "覆盖话题最多账号" in rendered
     assert "低效承接账号" in rendered

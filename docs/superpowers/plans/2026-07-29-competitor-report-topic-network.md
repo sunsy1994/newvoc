@@ -12,7 +12,7 @@
 
 - Topic and account node sizes use cumulative interaction count.
 - Edge width uses work count only.
-- Include at most 5 topics and 20 accounts.
+- Include at most 10 topics and every account connected to those topics.
 - Use original topic tags only; do not invent missing relationships.
 - Account colors distinguish official, dealer, and other accounts.
 - Keep all report assets offline and self-contained; no CDN.
@@ -36,8 +36,8 @@
 Add tests that call `build_topic_account_network` with real pandas rows and assert:
 
 ```python
-assert len(result["topics"]) <= 5
-assert len(result["accounts"]) <= 20
+assert len(result["topics"]) <= 10
+assert len(result["accounts"]) == expected_connected_account_count
 assert result["topics"][0]["interaction_count"] == 180
 assert result["accounts"][0]["account_type"] == "official"
 assert result["links"][0]["work_count"] == 2
@@ -70,8 +70,8 @@ Implement one function that:
 
 1. Extracts original tags with `extract_tags`.
 2. Aggregates `(topic, account)` work count and cumulative interaction count.
-3. Selects Top5 topics by cumulative interaction count.
-4. Selects Top20 connected accounts by cumulative interaction count.
+3. Selects Top10 topics by cumulative interaction count.
+4. Retains every account connected to those topics.
 5. Classifies accounts as `official`, `dealer`, or `other` from existing fields.
 6. Returns only nodes and links that survive both filters.
 
@@ -134,7 +134,7 @@ Replace the topic bar option with an ECharts graph adapted from `lieflat-chart/t
 - Empty canvas click restores the option.
 - Empty data renders a visible message.
 
-Restructure the topic section to a 36/64 evidence-list/network layout. Remove the topic-category table. Move exactly three deterministic dealer summaries into the Big Threads panel.
+Use the full report width for the topic network. Remove the topic evidence table and topic-category table. Move exactly three deterministic dealer summaries into the Big Threads panel.
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 
@@ -173,7 +173,7 @@ Expected: TypeScript passes and Next.js production build completes.
 With backend and frontend running, generate a new competitor report and verify:
 
 - No console errors inside the sandboxed report iframe.
-- Topic graph has at most 5 topic nodes and 20 account nodes.
+- Topic graph has at most 10 topic nodes and includes every connected account.
 - Node hover focuses adjacent nodes and edges.
 - Drag, pan, zoom, and empty-area reset work.
 - Long labels remain readable through tooltip.

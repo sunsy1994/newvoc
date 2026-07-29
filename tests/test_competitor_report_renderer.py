@@ -212,6 +212,30 @@ def test_top_work_cards_render_topics_video_link_and_parsed_insight_sections() -
     assert "<b>认可</b>" not in html
 
 
+def test_top_work_cards_parse_three_structured_sentiment_fields() -> None:
+    dataset = _sample_report_dataset()
+    dataset["top_works"][0]["insight_markdown"] = """\
+## 视频介绍
+- 新车发布
+## 要点总结
+- 00:10 核心卖点
+## 评论情绪
+- 正面：认可外观设计
+- 中性: 讨论上市时间
+- 负面：质疑配置价格
+## 评论关键词
+- 外观
+## 典型评论
+- 这个外观不错
+## 作者回复
+- 欢迎试驾
+"""
+
+    html = competitor_renderer.render_competitor_report_html(dataset, _sample_llm_summary())
+
+    assert "正面 认可外观设计 / 中性 讨论上市时间 / 负面 质疑配置价格" in html
+
+
 def test_top_work_cards_keep_final_skill_missing_data_copy() -> None:
     dataset = _sample_report_dataset()
     dataset["top_works"][0].update({"topic_tags": "", "video_url": None, "insight_markdown": "无"})

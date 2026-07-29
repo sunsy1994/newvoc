@@ -1548,7 +1548,16 @@ def _record_video_insight(record: dict[str, Any], markdown: str) -> dict[str, An
             continue
         if line.strip():
             parsed_sections[current].append(re.sub(r'^\s*-\s*', '', line).strip())
-    sentiment_text = ' '.join(parsed_sections['评论情绪'])
+    sentiment = {'正面': '未标注', '中性': '未标注', '负面': '未标注'}
+    structured_sentiment = False
+    for item in parsed_sections['评论情绪']:
+        match = re.match(r'^(正面|中性|负面)\s*[:：]\s*(.+)$', item)
+        if not match:
+            continue
+        structured_sentiment = True
+        sentiment[match.group(1)] = match.group(2).strip() or '未标注'
+    if not structured_sentiment and parsed_sections['评论情绪']:
+        sentiment['正面'] = ' '.join(parsed_sections['评论情绪'])
     return {
         'source_name': '数据库作品洞察',
         'link': _http_url(record.get('video_url')),
@@ -1558,11 +1567,7 @@ def _record_video_insight(record: dict[str, Any], markdown: str) -> dict[str, An
         'intro': parsed_sections['视频介绍'],
         'key_points': parsed_sections['要点总结'],
         'keywords': parsed_sections['评论关键词'],
-        'sentiment': {
-            '正面': sentiment_text or '未标注',
-            '中性': '未标注',
-            '负面': '未标注',
-        },
+        'sentiment': sentiment,
         'comments': [
             {
                 'author': '用户',

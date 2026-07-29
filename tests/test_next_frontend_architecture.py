@@ -252,6 +252,21 @@ def test_competitor_work_insight_editor_is_limited_to_works_mode() -> None:
     assert "insightTriggerRefs.current[workId]?.focus()" in component
 
 
+def test_competitor_work_insight_editor_prefills_the_fixed_markdown_template() -> None:
+    component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
+
+    assert "const competitorInsightMarkdownTemplate =" in component
+    for heading in ("## 视频介绍", "## 要点总结", "## 评论情绪", "## 评论关键词", "## 典型评论", "## 作者回复"):
+        assert heading in component
+    assert (
+        "setInsightMarkdown(insight.insight_markdown?.trim() "
+        "? insight.insight_markdown : competitorInsightMarkdownTemplate)"
+    ) in component
+    assert "if (clear) setInsightMarkdown(competitorInsightMarkdownTemplate)" in component
+    assert "报告按以下六个固定标题读取内容，请勿修改标题名称。" in component
+    assert "插入标准模板" not in component
+
+
 def test_competitor_work_insight_get_ignores_stale_responses_after_switch_or_close() -> None:
     component = Path("frontend/src/components/competitors/CompetitorLibraryPage.tsx").read_text(encoding="utf-8")
     open_start = component.index("async function openInsight")

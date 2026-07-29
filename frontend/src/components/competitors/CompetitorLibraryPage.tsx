@@ -9,6 +9,36 @@ import { apiBaseUrl } from "@/config/navigation";
 import type { CompetitorListPayload, CompetitorOptionsPayload, CompetitorPageConfig, CompetitorWorkInsight } from "@/types/competitors";
 
 const defaultPageSize = 10;
+const competitorInsightMarkdownTemplate = `## 视频介绍
+- 视频主要讲述什么
+- 核心场景与目标受众
+- 主要产品或车型信息
+
+## 要点总结
+- 00:00 开场内容
+- 00:15 核心卖点
+- 00:35 用户场景
+- 00:50 行动引导
+
+## 评论情绪
+- 正面：用户认可的内容
+- 中性：用户讨论但态度不明确的内容
+- 负面：用户质疑或不满的内容
+
+## 评论关键词
+- 关键词一
+- 关键词二
+- 关键词三
+
+## 典型评论
+- 典型评论原文一
+- 典型评论原文二
+- 典型评论原文三
+
+## 作者回复
+- 作者主要回复内容
+- 回复采用的沟通方式
+- 未回复时填写：无`;
 
 type LoadState = "idle" | "loading" | "error";
 
@@ -176,7 +206,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const insight = (await response.json()) as CompetitorWorkInsight;
       if (!isCurrentRequest()) return;
-      setInsightMarkdown(insight.insight_markdown ?? "");
+      setInsightMarkdown(insight.insight_markdown?.trim() ? insight.insight_markdown : competitorInsightMarkdownTemplate);
     } catch {
       if (!isCurrentRequest()) return;
       setInsightError("解读加载失败，请稍后重试。");
@@ -205,7 +235,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
           });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       if (!isCurrentRequest()) return;
-      if (clear) setInsightMarkdown("");
+      if (clear) setInsightMarkdown(competitorInsightMarkdownTemplate);
       await loadRows();
     } catch {
       if (!isCurrentRequest()) return;
@@ -475,6 +505,9 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
               <div><dt className="text-xs text-[#8b92a1]">品牌</dt><dd className="mt-1 text-[#151720]">{formatCellValue(selectedWork.brand_name)}</dd></div>
               <div><dt className="text-xs text-[#8b92a1]">发布时间</dt><dd className="mt-1 text-[#151720]">{formatCellValue(selectedWork.published_at)}</dd></div>
             </dl>
+            <p className="mt-4 text-xs text-[#8b92a1]">
+              报告按以下六个固定标题读取内容，请勿修改标题名称。
+            </p>
             <textarea
               ref={insightTextareaRef}
               aria-label="作品解读 Markdown"
@@ -483,7 +516,7 @@ export function CompetitorLibraryPage({ config }: { config: CompetitorPageConfig
               readOnly={isInsightLoading}
               disabled={isInsightSaving}
               placeholder={isInsightLoading ? "正在加载解读..." : "填写作品解读（Markdown）"}
-              className="mt-4 h-64 w-full resize-y rounded-xl border border-[#dfe5ee] p-3 font-mono text-sm leading-6 text-[#151720] outline-none focus:border-[var(--sys-icon-fill)]"
+              className="mt-2 h-80 w-full resize-y rounded-xl border border-[#dfe5ee] p-3 font-mono text-sm leading-6 text-[#151720] outline-none focus:border-[var(--sys-icon-fill)]"
             />
             {insightError ? <p role="alert" className="mt-2 text-sm text-[#c65c5c]">{insightError}</p> : null}
             <div className="mt-4 flex justify-end gap-2">

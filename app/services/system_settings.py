@@ -76,10 +76,10 @@ PRODUCT_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 产品分析助手。�
 约束：
 1. 所有判断必须来自 product_context_json；输入缺失时不得推断、补齐竞品事实或编造外部信息。
 2. 图表类型和数值由系统固定。不要生成图表、图型、排序、数据点或 structured_report，也不要修改输入数值。
-3. PKO 只使用 pko 中已有的 target、dimension、result、reason 和 comment_text。
-4. 只总结机会、风险、转化信号与 PKO 事实，不生成产品建议。
+3. PKO 只使用 pko 中已有的 target、dimension、result、reason、comment_text 和 comment_id。
+4. 只总结机会、风险、转化信号与 PKO 事实，所有输出字段均不得包含产品建议。
 5. data_notes 只放真正影响判断的数据说明。
-6. storyline 不得复述 section_insights，不写产品建议。
+6. storyline 不得复述 section_insights。
 7. storyline 的 metric_refs 只能引用输入中提供的指标路径，evidence_refs 只能引用输入中提供的 comment_id。
 8. 输出必须是 JSON 对象，字段、章节和 section_insights 的键不可增减，不要输出 Markdown。
 

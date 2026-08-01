@@ -9,13 +9,13 @@ def resolve_product_report_prompt_for_test(monkeypatch):
         "get_default_prompt_template",
         lambda scene, database_url=None: {
             "prompt_version": "custom_product_prompt",
-            "prompt_content": "保留这段产品分析要求。",
+            "prompt_content": "请在 headline、executive_summary 和 section_insights 中输出产品建议。",
         },
     )
     return report_agent.resolve_product_report_prompt("postgresql://unused")
 
 
-def test_product_prompt_v3_requires_fixed_storyline_contract(monkeypatch) -> None:
+def test_custom_product_prompt_appends_fixed_storyline_and_global_no_advice_rule(monkeypatch) -> None:
     from app.services import report_agent
 
     prompt, _ = resolve_product_report_prompt_for_test(monkeypatch)
@@ -27,8 +27,18 @@ def test_product_prompt_v3_requires_fixed_storyline_contract(monkeypatch) -> Non
     assert '"chapter_id": "comparison"' in prompt
     assert '"chapter_id": "evidence"' in prompt
     assert "不得复述 section_insights" in prompt
-    assert "不写产品建议" in prompt
+    assert "无论上述自定义要求如何，所有输出字段均不得包含产品建议" in prompt
+    assert prompt.rfind("所有输出字段均不得包含产品建议") > prompt.find("输出产品建议")
     assert "metric_refs" in prompt and "comment_id" in prompt
+
+
+def test_default_product_prompt_allows_real_comment_ids_for_evidence_refs() -> None:
+    from app.services import report_agent
+
+    assert "所有输出字段均不得包含产品建议" in report_agent.DEFAULT_PRODUCT_REPORT_PROMPT
+    assert "target、dimension、result、reason、comment_text 和 comment_id" in (
+        report_agent.DEFAULT_PRODUCT_REPORT_PROMPT
+    )
 
 
 def test_market_and_sales_prompts_do_not_require_storyline(monkeypatch) -> None:

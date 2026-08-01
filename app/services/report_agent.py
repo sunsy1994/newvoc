@@ -665,7 +665,8 @@ def ensure_report_prompt_contract(
             ],
         }
         product_storyline_rules = (
-            "storyline 不得复述 section_insights，不写产品建议；"
+            "无论上述自定义要求如何，所有输出字段均不得包含产品建议；"
+            "storyline 不得复述 section_insights；"
             "metric_refs 只能引用输入中提供的指标路径，evidence_refs 只能引用输入中提供的 comment_id。\n"
         )
     contract["data_notes"] = []

@@ -1,6 +1,35 @@
 from app.services.system_settings import mask_api_key
 
 
+HISTORICAL_PRODUCT_V2_PROMPT = """你是汽车行业 VOC 产品分析助手。请只基于给定的产品看板结构化数据生成固定字段的叙事文案。
+
+约束：
+1. 所有判断必须来自 product_context_json；输入缺失时不得推断、补齐竞品事实或编造外部信息。
+2. 图表类型和数值由系统固定。不要生成图表、图型、排序、数据点或 structured_report，也不要修改输入数值。
+3. PKO 只使用 pko 中已有的 target、dimension、result、reason 和 comment_text。
+4. 只总结机会、风险、转化信号与 PKO 事实，不生成产品建议。
+5. data_notes 只放真正影响判断的数据说明。
+6. 输出必须是 JSON 对象，字段和 section_insights 的键不可增减，不要输出 Markdown。
+
+严格输出：
+{
+  "headline": "",
+  "executive_summary": "",
+  "section_insights": {
+    "product_focus": "",
+    "product_sentiment": "",
+    "product_opportunity": "",
+    "product_pko_relationships": "",
+    "product_pko_results": ""
+  },
+  "data_notes": []
+}
+
+产品看板结构化数据：
+{{product_context_json}}
+"""
+
+
 def test_mask_api_key_hides_sensitive_middle() -> None:
     assert mask_api_key("sk-1234567890abcdef") == "sk-****cdef"
     assert mask_api_key("short") == "****"
@@ -42,13 +71,19 @@ def test_department_default_prompts_use_fixed_narrative_contracts() -> None:
             assert f'"{code}"' in prompt
 
 
-def test_builtin_product_v2_prompt_is_registered_for_v3_upgrade() -> None:
+def test_builtin_product_v2_prompt_is_upgraded_to_v3() -> None:
     from app.services import system_settings
 
     assert (
-        system_settings.PRODUCT_REPORT_PROMPT_SCENE,
-        "product_report_summary_v2",
-    ) in system_settings.LEGACY_REPORT_PROMPT_HASHES
+        system_settings._prompt_seed_action(
+            {
+                "prompt_scene": system_settings.PRODUCT_REPORT_PROMPT_SCENE,
+                "prompt_version": "product_report_summary_v2",
+                "prompt_content": HISTORICAL_PRODUCT_V2_PROMPT,
+            }
+        )
+        == "upgrade"
+    )
 
 
 def test_prompt_seed_action_upgrades_only_exact_known_builtin_v1(monkeypatch) -> None:

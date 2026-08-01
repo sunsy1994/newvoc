@@ -1,4 +1,3 @@
-import { reportChartTheme as theme } from "./chartTheme";
 import { ReportVisualShell } from "./ReportVisualShell";
 import type { ReportVisualChart } from "./types";
 
@@ -45,13 +44,19 @@ export function P1ProductFocusBars({ chart }: ChartProps) {
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-[var(--theme-soft-panel)]">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-selected-text)] shadow-[0_4px_12px_rgba(26,164,164,0.22)]"
-                style={{ width: `${Math.min(100, row.mentionRate)}%` }}
+                data-focus-emphasis={index === 0 ? "top" : "ranked"}
+                className={index === 0
+                  ? "h-full rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-selected-text)] shadow-[0_4px_12px_var(--theme-selected-bg)]"
+                  : "h-full rounded-full bg-[var(--theme-primary)]"}
+                style={{
+                  width: `${Math.min(100, row.mentionRate)}%`,
+                  ...(index > 0 ? { opacity: Math.max(0.32, 0.72 - index * 0.12) } : {}),
+                }}
               />
             </div>
             <div className="mt-2 flex gap-4 text-xs text-[var(--theme-muted)]">
               <span>评论 <b className="font-semibold text-[var(--theme-body)]">{count(row.commentCount)}</b></span>
-              <span>正向 <b className="font-semibold text-emerald-600">{percent(row.positiveRate)}</b></span>
+              <span>正向 <b className="font-semibold text-[var(--theme-primary)]">{percent(row.positiveRate)}</b></span>
             </div>
           </div>
         ))}

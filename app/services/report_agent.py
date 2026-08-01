@@ -461,6 +461,10 @@ def _bounded_text(value: Any, max_length: int) -> str:
 def normalize_product_storyline(value: Any, context: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(value, dict) or not isinstance(value.get("chapters"), list):
         return None
+    headline = _bounded_text(value.get("headline"), 160)
+    lead = _bounded_text(value.get("lead"), 600)
+    if not headline or not lead:
+        return None
     raw_chapters = {
         item.get("chapter_id"): item
         for item in value["chapters"]
@@ -501,8 +505,8 @@ def normalize_product_storyline(value: Any, context: dict[str, Any]) -> dict[str
     if any(not item["title"] or not item["conclusion"] for item in chapters):
         return None
     return {
-        "headline": _bounded_text(value.get("headline"), 160),
-        "lead": _bounded_text(value.get("lead"), 600),
+        "headline": headline,
+        "lead": lead,
         "chapters": chapters,
     }
 
@@ -845,6 +849,14 @@ def normalize_cached_report_summary(
         "report_narrative": deepcopy(raw_narrative),
         "structured_report": deepcopy(raw_structured_report),
     }
+    storyline = summary["report_narrative"].get("storyline")
+    if storyline is not None and (
+        not isinstance(storyline, dict)
+        or not _bounded_text(storyline.get("headline"), 160)
+        or not _bounded_text(storyline.get("lead"), 600)
+        or not any(has_renderable_data(chart) for chart in raw_charts)
+    ):
+        summary["report_narrative"].pop("storyline", None)
 
     if isinstance(raw.get("report_markdown"), str):
         summary["report_markdown"] = raw["report_markdown"]
@@ -1025,15 +1037,16 @@ def run_product_report_agent(
         model=resolved_model,
         timeout_seconds=resolved_timeout,
     )
+    charts = build_product_report_charts(context)
     summary = build_report_summary(
         llm_result,
-        build_product_report_charts(context),
+        charts,
         PRODUCT_REPORT_SECTION_CODES,
         _product_fallback_insights(context),
         PRODUCT_REPORT_CHART_SECTIONS,
     )
     storyline = normalize_product_storyline(llm_result.get("storyline"), context)
-    if storyline:
+    if storyline and any(has_renderable_data(chart) for chart in charts):
         summary["report_narrative"]["storyline"] = storyline
     result = {
         "event_id": event_id,

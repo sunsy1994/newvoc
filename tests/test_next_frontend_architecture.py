@@ -1897,6 +1897,123 @@ def test_product_report_visuals_have_dedicated_continuous_components() -> None:
     assert "data-product-pko-matrix" in source
 
 
+def test_product_visuals_use_no_dead_theme_import_and_p1_only_emphasizes_top_one() -> None:
+    source = Path("frontend/src/components/voc/report-visuals/ProductCharts.tsx").read_text(
+        encoding="utf-8"
+    )
+    p1_source = source[: source.index("export function P2SentimentStack")]
+
+    assert "reportChartTheme as theme" not in source
+    assert 'data-focus-emphasis={index === 0 ? "top" : "ranked"}' in p1_source
+    assert "index === 0" in p1_source
+    assert "bg-[var(--theme-primary)]" in p1_source
+    assert "opacity:" in p1_source
+    assert "text-emerald" not in p1_source
+    assert "rgba(" not in p1_source
+
+
+def test_product_visual_shells_align_insight_and_source_without_changing_other_reports() -> None:
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+const ReactDOMServer = require(path.join(base, "node_modules", "react-dom", "server"));
+const themeModule = {
+  reportChartTheme: {
+    primary: "var(--theme-primary)", secondary: "var(--theme-selected-text)",
+    ink: "var(--theme-ink)", body: "var(--theme-body)", muted: "var(--theme-muted)",
+    border: "var(--theme-border)", panel: "var(--theme-soft-panel)", white: "var(--theme-white)",
+  },
+};
+function loadTsx(relativePath, stubs) {
+  const source = fs.readFileSync(path.join(base, relativePath), "utf8");
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017,
+      jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  const localRequire = (id) => {
+    if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
+    if (id === "react") return React;
+    if (id === "react/jsx-runtime") return jsxRuntime;
+    throw new Error(`Unexpected import: ${id}`);
+  };
+  new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
+}
+const shell = loadTsx("src/components/voc/report-visuals/ReportVisualShell.tsx", {
+  "./chartTheme": themeModule,
+});
+const product = loadTsx("src/components/voc/report-visuals/ProductCharts.tsx", {
+  "./chartTheme": themeModule,
+  "./ReportVisualShell": shell,
+});
+const baseChart = {
+  title: "产品点正负反馈", subtitle: "连续构成", insight: "产品洞察",
+  source_label: "product_focus.aspects", meta: {},
+};
+const p2Markup = ReactDOMServer.renderToStaticMarkup(React.createElement(
+  product.P2SentimentStack,
+  { chart: { ...baseChart, chart_id: "product-sentiment", template_id: "P2", data: [
+    { aspect: "外观", positive_rate: 70, neutral_rate: 10, negative_rate: 20 },
+  ] } },
+));
+const emptyP3Markup = ReactDOMServer.renderToStaticMarkup(React.createElement(
+  product.P3OpportunityLanes,
+  { chart: { ...baseChart, chart_id: "product-opportunity", template_id: "P3",
+    insight: "空态不应展示", data: [], meta: { empty_reason: "暂无可用数据" } } },
+));
+const marketMarkup = ReactDOMServer.renderToStaticMarkup(React.createElement(
+  shell.ReportVisualShell,
+  {
+    chart: { ...baseChart, chart_id: "market-hot-topics", template_id: "F5", source_label: "market.topics", data: [{}] },
+    children: React.createElement("div", { "data-market-chart": true }),
+  },
+));
+process.stdout.write(JSON.stringify({ p2Markup, emptyP3Markup, marketMarkup }));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=10,
+    )
+    assert completed.returncode == 0, completed.stderr
+    probe = json.loads(completed.stdout)
+
+    assert "data-product-report-shell" in probe["p2Markup"]
+    assert "flex h-full flex-col" in probe["p2Markup"]
+    assert "data-product-insight" in probe["p2Markup"]
+    assert "min-h-[72px]" in probe["p2Markup"]
+    assert "bg-[var(--theme-soft-panel)]" in probe["p2Markup"]
+    assert "mt-auto" in probe["p2Markup"]
+    assert probe["p2Markup"].index("data-product-sentiment-stack") < probe["p2Markup"].index("数据来源：")
+    assert "空态不应展示" not in probe["emptyP3Markup"]
+    assert "暂无可用数据" in probe["emptyP3Markup"]
+    assert "data-product-report-shell" not in probe["marketMarkup"]
+    assert "data-product-insight" not in probe["marketMarkup"]
+
+
+def test_p4_design_spec_matches_dimension_by_result_category_data_boundary() -> None:
+    source = Path(
+        "docs/superpowers/specs/2026-08-01-product-report-visual-polish-v2-design.md"
+    ).read_text(encoding="utf-8")
+
+    assert "维度 × 结果类别矩阵" in source
+    assert "行为对比维度，列为结果类别" in source
+    assert "优势、中性、劣势、不明确" in source
+    assert "`top_target` 只作为该维度的主要对比对象辅助标签" in source
+    assert "维度 × 车型矩阵" not in source
+    assert "列为车型" not in source
+
+
 def test_product_storyline_resolves_allowlisted_metrics_and_l6_evidence() -> None:
     script = r"""
 const assert = require("assert");
@@ -2004,6 +2121,206 @@ assert.equal(loaded.exports.buildProductStorylineView(invalidStoryline, charts),
         text=True,
         encoding="utf-8",
     )
+
+
+@lru_cache(maxsize=1)
+def _run_product_storyline_final_fix_probe() -> dict:
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const source = fs.readFileSync(
+  path.join(base, "src/components/voc/report-summary/productStorylineData.ts"),
+  "utf8",
+);
+const output = ts.transpileModule(source, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2017,
+    esModuleInterop: true,
+  },
+}).outputText;
+const loaded = { exports: {} };
+new Function("require", "module", "exports", output)(require, loaded, loaded.exports);
+
+const chapters = [
+  {
+    chapter_id: "focus", title: "用户在关注什么", conclusion: "外观最受关注",
+    body: "讨论集中在外观。",
+    metric_refs: ["product_focus.aspects", "product_focus.aspects"], evidence_refs: [],
+  },
+  {
+    chapter_id: "attitude", title: "用户如何评价", conclusion: "价格风险更集中",
+    body: "价格负向反馈更集中。", metric_refs: [], evidence_refs: [],
+  },
+  {
+    chapter_id: "comparison", title: "用户在和谁比较", conclusion: "主要比较 ID.4",
+    body: "价格是主要对比维度。", metric_refs: [], evidence_refs: ["pko_001"],
+  },
+  {
+    chapter_id: "evidence", title: "证据如何支撑", conclusion: "原话支持上述判断",
+    body: "证据来自真实评论。", metric_refs: [], evidence_refs: [],
+  },
+];
+const storyline = {
+  headline: "用户讨论由外观吸引，价格比较形成主要分歧",
+  lead: "讨论先集中到外观，随后进入价格与竞品比较。",
+  chapters,
+};
+const charts = [
+  {
+    chart_id: "product-focus", template_id: "P1", title: "", subtitle: "", insight: "过时图表解读", source_label: "product_focus.aspects",
+    data: [
+      { aspect: "价格", mention_rate: 25, positive_rate: 10 },
+      { aspect: "外观", mention_rate: 40 },
+    ], meta: {},
+  },
+  {
+    chart_id: "product-sentiment", template_id: "P2", title: "", subtitle: "", insight: "", source_label: "product_focus.aspects",
+    data: [{ aspect: "外观", positive_rate: 72.9, neutral_rate: 18.8, negative_rate: 8.3 }], meta: {},
+  },
+  {
+    chart_id: "product-opportunity", template_id: "P3", title: "", subtitle: "", insight: "", source_label: "product_opportunity",
+    data: [], meta: { empty_reason: "暂无可用数据" },
+  },
+  {
+    chart_id: "product-pko-evidence", template_id: "L6", title: "", subtitle: "", insight: "", source_label: "pko.evidence_comments",
+    data: [{
+      comment_id: "pko_001", comment_text: "和ID.4比，价格没优势。", dimension: "价格",
+      target: "ID.4", result_bucket: "disadvantage",
+    }], meta: { displayed_count: 1, total_count: 9, unit: "条对比评论" },
+  },
+  {
+    chart_id: "product-pko-matrix", template_id: "P4", title: "", subtitle: "", insight: "", source_label: "pko.dimension_result_matrix",
+    data: [], meta: { empty_reason: "暂无可用数据" },
+  },
+];
+const view = loaded.exports.buildProductStorylineView(
+  storyline,
+  charts,
+  "ID.AURA T6 launch",
+);
+const noLlmMetricRefs = {
+  ...storyline,
+  chapters: chapters.map((chapter) => ({ ...chapter, metric_refs: [] })),
+};
+const viewWithoutLlmMetricRefs = loaded.exports.buildProductStorylineView(
+  noLlmMetricRefs,
+  charts,
+  "ID.AURA T6 launch",
+);
+const unresolvedStoryline = {
+  ...storyline,
+  chapters: chapters.map((chapter) => ({
+    ...chapter,
+    metric_refs: ["missing.path"],
+    evidence_refs: ["missing-comment"],
+  })),
+};
+
+process.stdout.write(JSON.stringify({
+  contextEventName: typeof loaded.exports.productStorylineEventName === "function"
+    ? loaded.exports.productStorylineEventName({ event_overview: { event_name: "  ID.AURA T6 launch  " } })
+    : null,
+  blankContextEventName: typeof loaded.exports.productStorylineEventName === "function"
+    ? loaded.exports.productStorylineEventName({ event_overview: { event_name: "  " } }) ?? null
+    : "missing",
+  blankHeadlineAccepted: loaded.exports.isReportStoryline({ ...storyline, headline: "  \n " }),
+  blankLeadAccepted: loaded.exports.isReportStoryline({ ...storyline, lead: "\t " }),
+  unresolvedView: loaded.exports.buildProductStorylineView(unresolvedStoryline, charts),
+  eventName: view.eventName,
+  heroMetrics: view.heroMetrics,
+  heroMetricsWithoutLlmRefs: viewWithoutLlmMetricRefs.heroMetrics,
+  focusMetrics: view.chapters[0].metrics,
+  copyText: typeof loaded.exports.formatProductStorylineCopyText === "function"
+    ? loaded.exports.formatProductStorylineCopyText(view)
+    : null,
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=10,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return json.loads(completed.stdout)
+
+
+def test_product_storyline_frontend_rejects_blank_headline_and_lead() -> None:
+    probe = _run_product_storyline_final_fix_probe()
+
+    assert probe["blankHeadlineAccepted"] is False
+    assert probe["blankLeadAccepted"] is False
+
+
+def test_product_storyline_extracts_optional_event_name_from_existing_context() -> None:
+    probe = _run_product_storyline_final_fix_probe()
+
+    assert probe["contextEventName"] == "ID.AURA T6 launch"
+    assert probe["blankContextEventName"] is None
+
+
+def test_product_storyline_view_rejects_all_unresolved_supporting_data() -> None:
+    assert _run_product_storyline_final_fix_probe()["unresolvedView"] is None
+
+
+def test_product_storyline_hero_uses_fixed_real_metrics_and_deduplicates_chapter_metrics() -> None:
+    probe = _run_product_storyline_final_fix_probe()
+    expected_hero = [
+        {"label": "最高关注点", "value": "外观 · 40%"},
+        {"label": "外观正向率", "value": "72.9%"},
+        {"label": "真实 PKO 证据", "value": "9 条"},
+    ]
+
+    assert probe["eventName"] == "ID.AURA T6 launch"
+    assert probe["heroMetrics"] == expected_hero
+    assert probe["heroMetricsWithoutLlmRefs"] == expected_hero
+    assert probe["focusMetrics"] == [
+        {"label": "价格提及率", "value": "25%"},
+        {"label": "外观提及率", "value": "40%"},
+    ]
+
+
+def test_product_storyline_copy_formatter_matches_visible_story() -> None:
+    copy_text = _run_product_storyline_final_fix_probe()["copyText"]
+
+    assert copy_text == """ID.AURA T6 launch · 事件综合摘要
+
+用户讨论由外观吸引，价格比较形成主要分歧
+
+讨论先集中到外观，随后进入价格与竞品比较。
+
+关键指标
+- 最高关注点：外观 · 40%
+- 外观正向率：72.9%
+- 真实 PKO 证据：9 条
+
+01 用户在关注什么
+结论：外观最受关注
+讨论集中在外观。
+指标：
+- 价格提及率：25%
+- 外观提及率：40%
+
+02 用户如何评价
+结论：价格风险更集中
+价格负向反馈更集中。
+
+03 用户在和谁比较
+结论：主要比较 ID.4
+价格是主要对比维度。
+证据：
+- “和ID.4比，价格没优势。”（价格 · ID.4）
+
+04 证据如何支撑
+结论：原话支持上述判断
+证据来自真实评论。"""
+    assert "P1" not in copy_text
+    assert "过时图表解读" not in copy_text
 
 
 @lru_cache(maxsize=1)
@@ -2310,14 +2627,23 @@ const historicalProductPresentation = resolvePresentation(completeProductV2);
 const storylineView = storylineData.buildProductStorylineView(
   currentProductPresentation.reportNarrative.storyline,
   currentProductPresentation.structuredReport.charts,
+  "ID.AURA T6 launch",
 );
 const storylineSummaryMarkup = ReactDOMServer.renderToStaticMarkup(
   React.createElement(storylineSummary.ReportSummaryStoryline, { storyline: storylineView }),
+);
+const storylineWithoutIdentity = storylineData.buildProductStorylineView(
+  currentProductPresentation.reportNarrative.storyline,
+  currentProductPresentation.structuredReport.charts,
+);
+const storylineWithoutIdentityMarkup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(storylineSummary.ReportSummaryStoryline, { storyline: storylineWithoutIdentity }),
 );
 const currentProductSummaryMarkup = ReactDOMServer.renderToStaticMarkup(
   React.createElement(reportCard.DepartmentReportView, {
     reportNarrative: currentProductPresentation.reportNarrative,
     structuredReport: currentProductPresentation.structuredReport,
+    eventName: "ID.AURA T6 launch",
   }),
 );
 const legacyProductSummaryMarkup = ReactDOMServer.renderToStaticMarkup(
@@ -2389,6 +2715,20 @@ process.stdout.write(JSON.stringify({
   invalidStorylineProductPresentation: resolvePresentation(invalidStorylineProductV2),
   currentProductMarkup,
   storylineSummaryMarkup,
+  storylineWithoutIdentityMarkup,
+  storylineCopyText: typeof reportCard.buildDepartmentCopyText === "function"
+    ? reportCard.buildDepartmentCopyText(
+        currentProductPresentation.reportNarrative,
+        currentProductPresentation.structuredReport,
+        "ID.AURA T6 launch",
+      )
+    : null,
+  legacyCopyText: typeof reportCard.buildDepartmentCopyText === "function"
+    ? reportCard.buildDepartmentCopyText(
+        historicalProductPresentation.reportNarrative,
+        historicalProductPresentation.structuredReport,
+      )
+    : null,
   currentProductSummaryMarkup,
   legacyProductSummaryMarkup,
   mixedCurrentProductPresentation: resolvePresentation(mixedCurrentProductV2),
@@ -2468,6 +2808,12 @@ def test_storyline_summary_renders_one_hero_and_four_ordered_chapters() -> None:
     wired_markup = probe["currentProductSummaryMarkup"]
 
     assert markup.count("data-report-storyline-hero") == 1
+    assert markup.count("data-storyline-hero-metric") == 3
+    assert "ID.AURA T6 launch · 事件综合摘要" in markup
+    assert "最高关注点" in markup
+    assert "外观正向率" in markup
+    assert "真实 PKO 证据" in markup
+    assert "data-report-event-identity" not in probe["storylineWithoutIdentityMarkup"]
     assert markup.index('data-story-chapter="focus"') < markup.index(
         'data-story-chapter="attitude"'
     )
@@ -2486,6 +2832,21 @@ def test_storyline_summary_renders_one_hero_and_four_ordered_chapters() -> None:
     assert "结构完整" not in wired_markup
     assert "摘要模式" in wired_markup
     assert "rgba(" not in wired_markup
+
+
+def test_report_copy_uses_storyline_formatter_only_for_valid_product_storyline() -> None:
+    probe = _run_report_card_boundary_probe()
+    storyline_copy = probe["storylineCopyText"]
+
+    assert storyline_copy.startswith("ID.AURA T6 launch · 事件综合摘要\n\n外观吸引关注")
+    assert "用户在关注什么" in storyline_copy
+    assert "用户如何评价" in storyline_copy
+    assert "用户在和谁比较" in storyline_copy
+    assert "证据如何支撑" in storyline_copy
+    assert "外观比竞品更协调" in storyline_copy
+    assert "product-focus" not in storyline_copy
+    assert "完整产品 v2" not in storyline_copy
+    assert probe["legacyCopyText"] == "完整产品 v2\n\n结构完整"
 
 
 def _run_storyline_mode_structure_probe() -> dict:

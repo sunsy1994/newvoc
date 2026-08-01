@@ -12,7 +12,9 @@ import type { ReportVisualChart } from "@/components/voc/report-visuals/types";
 import { ReportSummaryStoryline } from "@/components/voc/report-summary/ReportSummaryStoryline";
 import {
   buildProductStorylineView,
+  formatProductStorylineCopyText,
   isReportStoryline,
+  productStorylineEventName,
 } from "@/components/voc/report-summary/productStorylineData";
 import { apiBaseUrl } from "@/config/navigation";
 import type {
@@ -684,16 +686,18 @@ function matchesProductStorylineContract(charts: ReportVisualChart[]) {
 export function DepartmentReportView({
   reportNarrative,
   structuredReport,
+  eventName,
 }: {
   reportNarrative: ReportNarrative;
   structuredReport: DepartmentStructuredReport;
+  eventName?: string;
 }) {
   const [reportViewMode, setReportViewMode] = useState<ReportViewMode>("summary");
   const evidenceReferences = structuredReport.evidence_references ?? [];
   const calculationNotes = structuredReport.calculation_notes ?? [];
   const hasEvidence = reportNarrative.data_notes.length > 0 || evidenceReferences.length > 0 || calculationNotes.length > 0;
   const storylineView = reportNarrative.storyline && matchesProductStorylineContract(structuredReport.charts)
-    ? buildProductStorylineView(reportNarrative.storyline, structuredReport.charts)
+    ? buildProductStorylineView(reportNarrative.storyline, structuredReport.charts, eventName)
     : null;
   const isStorylineSummary = reportViewMode === "summary" && Boolean(storylineView);
   const modeClass = (mode: ReportViewMode) =>
@@ -830,7 +834,16 @@ function DetailsBlock({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function buildDepartmentCopyText(reportNarrative: ReportNarrative, structuredReport: DepartmentStructuredReport) {
+export function buildDepartmentCopyText(
+  reportNarrative: ReportNarrative,
+  structuredReport: DepartmentStructuredReport,
+  eventName?: string,
+) {
+  const storylineView = reportNarrative.storyline
+    && matchesProductStorylineContract(structuredReport.charts)
+    ? buildProductStorylineView(reportNarrative.storyline, structuredReport.charts, eventName)
+    : null;
+  if (storylineView) return formatProductStorylineCopyText(storylineView);
   const sections = structuredReport.charts
     .map((chart) => (chart.insight ? `${chart.title}\n${chart.insight}` : ""))
     .filter(Boolean);
@@ -864,10 +877,11 @@ export function ReportAiSummaryCard({
   const reportMarkdown = presentation.kind === "markdown" ? presentation.reportMarkdown : "";
   const reportNarrative = presentation.kind === "department" ? presentation.reportNarrative : undefined;
   const structuredReport = presentation.kind === "department" ? presentation.structuredReport : undefined;
+  const eventName = productStorylineEventName(payload?.context);
   const dataNotes = reportNarrative?.data_notes
     ?? (isStringList(payload?.summary.data_notes) ? payload.summary.data_notes : []);
   const copyText = reportNarrative && structuredReport
-    ? buildDepartmentCopyText(reportNarrative, structuredReport)
+    ? buildDepartmentCopyText(reportNarrative, structuredReport, eventName)
     : `${reportMarkdown}${dataNotes.length ? `\n\n数据说明：\n${dataNotes.map((note) => `- ${note}`).join("\n")}` : ""}`;
   const isLoading = Boolean(loadingMode);
 
@@ -1005,7 +1019,11 @@ export function ReportAiSummaryCard({
                     正在读取最近一次 AI 总结...
                   </div>
                 ) : reportNarrative && structuredReport ? (
-                  <DepartmentReportView reportNarrative={reportNarrative} structuredReport={structuredReport} />
+                  <DepartmentReportView
+                    reportNarrative={reportNarrative}
+                    structuredReport={structuredReport}
+                    eventName={eventName}
+                  />
                 ) : reportMarkdown ? (
                   <div className="space-y-1">{renderMarkdownReport(reportMarkdown)}</div>
                 ) : (

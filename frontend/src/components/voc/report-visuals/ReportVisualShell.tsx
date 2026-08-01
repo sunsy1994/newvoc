@@ -10,6 +10,7 @@ type ReportVisualShellProps = {
 };
 
 export function ReportVisualShell({ chart, children, hasData = chart.data.length > 0 }: ReportVisualShellProps) {
+  const isProductChart = typeof chart.chart_id === "string" && chart.chart_id.startsWith("product-");
   const emptyReason =
     typeof chart.meta?.empty_reason === "string" && chart.meta.empty_reason.trim()
       ? chart.meta.empty_reason
@@ -18,7 +19,10 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
     <section
       role="figure"
       aria-label={`${chart.title}。${chart.subtitle}`}
-      className="h-full rounded-2xl border p-5"
+      data-product-report-shell={isProductChart || undefined}
+      className={isProductChart
+        ? "flex h-full flex-col rounded-2xl border p-5"
+        : "h-full rounded-2xl border p-5"}
       style={{
         borderColor: reportChartTheme.border,
         background: reportChartTheme.white,
@@ -32,7 +36,16 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
         <p className="mt-1 text-sm" style={{ color: reportChartTheme.muted }}>
           {chart.subtitle}
         </p>
-        {hasData && chart.insight ? (
+        {hasData && isProductChart ? (
+          <div
+            data-product-insight
+            className="mt-3 min-h-[72px] rounded-xl bg-[var(--theme-soft-panel)] px-3 py-2.5"
+          >
+            <p className="text-sm leading-6" style={{ color: reportChartTheme.body }}>
+              {chart.insight || "当前图表暂无可用判断。"}
+            </p>
+          </div>
+        ) : hasData && chart.insight ? (
           <p className="mt-3 text-sm leading-6" style={{ color: reportChartTheme.body }}>
             {chart.insight}
           </p>
@@ -41,7 +54,7 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
 
       {!hasData ? (
         <div
-          className="my-5 rounded-xl border border-dashed px-4 py-10 text-center text-sm"
+          className={`${isProductChart ? "flex-1" : ""} my-5 rounded-xl border border-dashed px-4 py-10 text-center text-sm`}
           style={{
             borderColor: reportChartTheme.border,
             background: reportChartTheme.panel,
@@ -51,10 +64,13 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
           {emptyReason}
         </div>
       ) : (
-        <div className="mt-4">{children}</div>
+        <div className={isProductChart ? "mt-4 flex-1" : "mt-4"}>{children}</div>
       )}
 
-      <p className="mt-2 text-xs" style={{ color: reportChartTheme.muted }}>
+      <p
+        className={isProductChart ? "mt-auto pt-3 text-xs" : "mt-2 text-xs"}
+        style={{ color: reportChartTheme.muted }}
+      >
         数据来源：{chart.source_label}
       </p>
     </section>

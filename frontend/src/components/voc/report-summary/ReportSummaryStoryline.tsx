@@ -16,15 +16,38 @@ export function ReportSummaryStoryline({ storyline }: ReportSummaryStorylineProp
           className="absolute -right-16 -top-24 h-56 w-56 rounded-full bg-[var(--theme-primary)] opacity-[0.08] blur-3xl"
         />
         <div className="relative max-w-4xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--theme-primary)]">
-            核心结论
-          </p>
+          {storyline.eventName ? (
+            <p
+              data-report-event-identity
+              className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--theme-primary)]"
+            >
+              {storyline.eventName} · 事件综合摘要
+            </p>
+          ) : null}
           <h2 className="mt-3 text-2xl font-semibold leading-tight tracking-tight text-[var(--theme-ink)] md:text-3xl">
             {storyline.headline}
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--theme-body)] md:text-base">
             {storyline.lead}
           </p>
+          {storyline.heroMetrics.length ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {storyline.heroMetrics.map((metric) => (
+                <div
+                  key={`${metric.label}-${metric.value}`}
+                  data-storyline-hero-metric
+                  className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] px-3 py-2"
+                >
+                  <p className="text-[11px] font-medium text-[var(--theme-primary)]">
+                    {metric.label}
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold text-[var(--theme-ink)]">
+                    {metric.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 

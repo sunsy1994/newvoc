@@ -98,6 +98,19 @@ def sample_product_dashboard() -> dict:
     }
 
 
+def sample_product_storyline() -> dict:
+    return {
+        "headline": "用户讨论由外观吸引，价格比较形成主要分歧",
+        "lead": "讨论先集中到外观，随后进入价格与竞品比较。",
+        "chapters": [
+            {"chapter_id": "focus", "title": "用户在关注什么", "conclusion": "外观最受关注", "body": "讨论集中在外观。", "metric_refs": ["product_focus.aspects"], "evidence_refs": []},
+            {"chapter_id": "attitude", "title": "用户如何评价", "conclusion": "外观正向", "body": "价格负向更集中。", "metric_refs": ["product_opportunity.summary"], "evidence_refs": []},
+            {"chapter_id": "comparison", "title": "用户在和谁比较", "conclusion": "主要比较 ID.4", "body": "价格是主要维度。", "metric_refs": ["pko.summary"], "evidence_refs": ["pko_001"]},
+            {"chapter_id": "evidence", "title": "证据如何支撑", "conclusion": "原话支持上述判断", "body": "证据来自真实评论。", "metric_refs": [], "evidence_refs": ["pko_001"]},
+        ],
+    }
+
+
 def test_build_product_report_context_keeps_product_story_sections() -> None:
     from app.services.report_agent import build_product_report_context
 
@@ -165,6 +178,21 @@ def test_product_storyline_bounds_text_and_rejects_incomplete_chapters() -> None
     assert len(storyline["chapters"][0]["conclusion"]) == 240
     assert len(storyline["chapters"][0]["body"]) == 900
     assert normalize_product_storyline({"chapters": chapters[:-1]}, context) is None
+
+
+def test_product_storyline_rejects_blank_headline_and_lead_after_trimming() -> None:
+    from app.services.report_agent import (
+        build_product_report_context,
+        normalize_product_storyline,
+    )
+
+    context = build_product_report_context(sample_product_dashboard())
+
+    for field in ("headline", "lead"):
+        raw = sample_product_storyline()
+        raw[field] = " \n\t "
+
+        assert normalize_product_storyline(raw, context) is None
 
 
 def _product_cache_payload(*, sentiment_template: str, evidence_template: str) -> dict:
@@ -311,6 +339,32 @@ def test_product_cache_rejects_mixed_visual_contract() -> None:
         "report_markdown": "# 历史产品报告",
         "data_notes": [],
     }
+
+
+def test_zero_data_product_cache_strips_storyline() -> None:
+    from app.services.report_agent import (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        normalize_cached_report_summary,
+    )
+
+    payload = _current_product_cache_payload()
+    payload["report_narrative"]["storyline"] = sample_product_storyline()
+    for chart in payload["structured_report"]["charts"]:
+        chart["data"] = []
+        chart["meta"] = {"empty_reason": "暂无可用数据"}
+    payload["structured_report"]["charts"][3]["meta"] = {
+        "displayed_count": 0,
+        "empty_reason": "暂无可用数据",
+        "total_count": 0,
+        "unit": "条对比评论",
+    }
+
+    normalized = normalize_cached_report_summary(
+        payload,
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+    )
+
+    assert "storyline" not in normalized["report_narrative"]
 
 
 def test_product_pko_real_report_path_keeps_up_to_fifty_renderable_records() -> None:
@@ -930,6 +984,53 @@ def test_run_product_report_agent_attaches_storyline_and_keeps_chart_insights(mo
     assert "ID.AURA T6 launch" in result["rendered_prompt"]
     assert captured["base_url"] == "https://llm.example/v1"
     assert captured["model"] == "report-model"
+
+
+def test_run_product_report_agent_does_not_attach_storyline_without_renderable_charts(monkeypatch) -> None:
+    from app.services import report_agent
+
+    dashboard = {
+        "event": sample_product_dashboard()["event"],
+        "product_focus_story": {},
+        "product_opportunity_story": {},
+        "product_pko_story": {},
+    }
+    monkeypatch.setattr(
+        report_agent,
+        "get_voc_event_product_dashboard",
+        lambda event_id, database_url=None: dashboard,
+    )
+    monkeypatch.setattr(
+        report_agent,
+        "resolve_product_report_prompt",
+        lambda database_url=None: ("{{product_context_json}}", "product_report_summary_v3"),
+    )
+    monkeypatch.setattr(
+        report_agent,
+        "resolve_runtime_config",
+        lambda *args, **kwargs: ("https://llm.example/v1", "secret", "model", 30),
+    )
+    monkeypatch.setattr(
+        report_agent,
+        "call_openai_compatible_json",
+        lambda *args, **kwargs: {
+            "headline": "不应使用的标题",
+            "executive_summary": "不应使用的摘要",
+            "section_insights": {},
+            "data_notes": [],
+            "storyline": sample_product_storyline(),
+        },
+    )
+    monkeypatch.setattr(
+        report_agent,
+        "save_product_report_agent_result",
+        lambda result, database_url=None: result,
+    )
+
+    result = report_agent.run_product_report_agent("event_001")
+
+    assert result["summary"]["report_narrative"]["headline"] == report_agent.EMPTY_REPORT_HEADLINE
+    assert "storyline" not in result["summary"]["report_narrative"]
 
 
 def test_product_report_agent_api_runs_and_reads_latest(tmp_path, monkeypatch) -> None:

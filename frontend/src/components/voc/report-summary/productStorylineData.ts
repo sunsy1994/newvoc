@@ -22,8 +22,10 @@ export type ProductStorylineEvidence = {
 };
 
 export type ProductStorylineView = {
+  eventName?: string;
   headline: string;
   lead: string;
+  heroMetrics: ProductStorylineMetric[];
   chapters: Array<{
     chapterId: ReportStoryChapter["chapter_id"];
     title: string;
@@ -58,6 +60,49 @@ function percent(value: number): string {
 
 function chartRows(charts: ReportVisualChart[], templateId: ReportVisualChart["template_id"]) {
   return charts.find((chart) => chart.template_id === templateId)?.data ?? [];
+}
+
+function uniqueMetrics(metrics: ProductStorylineMetric[]): ProductStorylineMetric[] {
+  const seen = new Set<string>();
+  return metrics.filter((metric) => {
+    const key = `${metric.label}\u0000${metric.value}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function fixedHeroMetrics(charts: ReportVisualChart[]): ProductStorylineMetric[] {
+  const focusRows = chartRows(charts, "P1").flatMap((row) => {
+    const aspect = text(row.aspect);
+    const mentionRate = number(row.mention_rate);
+    return aspect && mentionRate !== undefined ? [{ row, aspect, mentionRate }] : [];
+  });
+  const topFocus = focusRows.reduce<(typeof focusRows)[number] | undefined>(
+    (top, item) => (!top || item.mentionRate > top.mentionRate ? item : top),
+    undefined,
+  );
+  const metrics: ProductStorylineMetric[] = [];
+  if (topFocus) {
+    metrics.push({
+      label: "最高关注点",
+      value: `${topFocus.aspect} · ${percent(topFocus.mentionRate)}`,
+    });
+    const sentimentRow = chartRows(charts, "P2").find(
+      (row) => text(row.aspect) === topFocus.aspect,
+    );
+    const positiveRate = number(topFocus.row.positive_rate)
+      ?? number(sentimentRow?.positive_rate);
+    if (positiveRate !== undefined) {
+      metrics.push({ label: `${topFocus.aspect}正向率`, value: percent(positiveRate) });
+    }
+  }
+  const evidenceChart = charts.find((chart) => chart.template_id === "L6");
+  const totalCount = number(evidenceChart?.meta?.total_count);
+  if (totalCount !== undefined && Number.isSafeInteger(totalCount)) {
+    metrics.push({ label: "真实 PKO 证据", value: `${formatted(totalCount)} 条` });
+  }
+  return metrics;
 }
 
 function focusMetrics(charts: ReportVisualChart[]): ProductStorylineMetric[] {
@@ -142,8 +187,13 @@ function evidenceById(charts: ReportVisualChart[]) {
   return records;
 }
 
+export function productStorylineEventName(context: unknown): string | undefined {
+  if (!isRecord(context) || !isRecord(context.event_overview)) return undefined;
+  return text(context.event_overview.event_name);
+}
+
 export function isReportStoryline(value: unknown): value is ReportStoryline {
-  if (!isRecord(value) || typeof value.headline !== "string" || typeof value.lead !== "string") return false;
+  if (!isRecord(value) || !text(value.headline) || !text(value.lead)) return false;
   if (!Array.isArray(value.chapters) || value.chapters.length !== CHAPTER_IDS.length) return false;
   return value.chapters.every((chapter, index) => (
     isRecord(chapter)
@@ -163,22 +213,59 @@ export function isReportStoryline(value: unknown): value is ReportStoryline {
 export function buildProductStorylineView(
   storyline: unknown,
   charts: ReportVisualChart[],
+  eventName?: unknown,
 ): ProductStorylineView | null {
   if (!isReportStoryline(storyline)) return null;
   const evidence = evidenceById(charts);
+  const chapters = storyline.chapters.map((chapter) => ({
+    chapterId: chapter.chapter_id,
+    title: chapter.title,
+    conclusion: chapter.conclusion,
+    body: chapter.body,
+    metrics: uniqueMetrics(
+      chapter.metric_refs.flatMap((ref) => METRIC_RESOLVERS.get(ref)?.(charts) ?? []),
+    ),
+    evidence: chapter.evidence_refs.flatMap((commentId) => {
+      const record = evidence.get(commentId);
+      return record ? [record] : [];
+    }),
+  }));
+  if (!chapters.some((chapter) => chapter.metrics.length || chapter.evidence.length)) {
+    return null;
+  }
   return {
+    ...(text(eventName) ? { eventName: text(eventName) } : {}),
     headline: storyline.headline,
     lead: storyline.lead,
-    chapters: storyline.chapters.map((chapter) => ({
-      chapterId: chapter.chapter_id,
-      title: chapter.title,
-      conclusion: chapter.conclusion,
-      body: chapter.body,
-      metrics: chapter.metric_refs.flatMap((ref) => METRIC_RESOLVERS.get(ref)?.(charts) ?? []),
-      evidence: chapter.evidence_refs.flatMap((commentId) => {
-        const record = evidence.get(commentId);
-        return record ? [record] : [];
-      }),
-    })),
+    heroMetrics: fixedHeroMetrics(charts),
+    chapters,
   };
+}
+
+export function formatProductStorylineCopyText(storyline: ProductStorylineView): string {
+  const heroMetrics = storyline.heroMetrics.length
+    ? `关键指标\n${storyline.heroMetrics.map((metric) => `- ${metric.label}：${metric.value}`).join("\n")}`
+    : "";
+  const chapters = storyline.chapters.map((chapter, index) => {
+    const metrics = chapter.metrics.length
+      ? `指标：\n${chapter.metrics.map((metric) => `- ${metric.label}：${metric.value}`).join("\n")}`
+      : "";
+    const evidence = chapter.evidence.length
+      ? `证据：\n${chapter.evidence.map((item) => `- “${item.commentText}”（${item.dimension} · ${item.target}）`).join("\n")}`
+      : "";
+    return [
+      `${String(index + 1).padStart(2, "0")} ${chapter.title}`,
+      `结论：${chapter.conclusion}`,
+      chapter.body,
+      metrics,
+      evidence,
+    ].filter(Boolean).join("\n");
+  });
+  return [
+    storyline.eventName ? `${storyline.eventName} · 事件综合摘要` : "",
+    storyline.headline,
+    storyline.lead,
+    heroMetrics,
+    ...chapters,
+  ].filter(Boolean).join("\n\n");
 }

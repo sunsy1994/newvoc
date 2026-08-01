@@ -280,9 +280,8 @@ def _current_product_cache_payload() -> dict:
     return payload
 
 
-def test_product_cache_accepts_new_and_legacy_visual_contracts() -> None:
+def test_product_v2_cache_remains_readable_without_storyline() -> None:
     from app.services.report_agent import (
-        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
         normalize_cached_report_summary,
     )
 
@@ -290,11 +289,14 @@ def test_product_cache_accepts_new_and_legacy_visual_contracts() -> None:
     legacy_payload = _product_cache_payload(sentiment_template="F6", evidence_template="L12")
 
     assert normalize_cached_report_summary(
-        new_payload, DEFAULT_PRODUCT_REPORT_PROMPT_VERSION
+        new_payload, "product_report_summary_v2"
     )["structured_report"]["charts"] == new_payload["structured_report"]["charts"]
     assert normalize_cached_report_summary(
-        legacy_payload, DEFAULT_PRODUCT_REPORT_PROMPT_VERSION
+        legacy_payload, "product_report_summary_v2"
     )["structured_report"]["charts"] == legacy_payload["structured_report"]["charts"]
+    assert "storyline" not in normalize_cached_report_summary(
+        new_payload, "product_report_summary_v2"
+    )["report_narrative"]
 
 
 def test_product_cache_rejects_mixed_visual_contract() -> None:
@@ -816,7 +818,7 @@ def test_render_product_report_prompt_injects_json_context() -> None:
     assert "只使用给定信息" in prompt
 
 
-def test_run_product_report_agent_returns_fixed_narrative_and_builder_charts(monkeypatch) -> None:
+def test_run_product_report_agent_attaches_storyline_and_keeps_chart_insights(monkeypatch) -> None:
     from app.services import report_agent
 
     captured = {}
@@ -858,6 +860,44 @@ def test_run_product_report_agent_returns_fixed_narrative_and_builder_charts(mon
                 "product_pko_results": "对比结果判断",
             },
             "data_notes": ["产品数据说明"],
+            "storyline": {
+                "headline": "从外观关注走向价格比较",
+                "lead": "用户讨论先聚焦外观，再进入价格与竞品比较。",
+                "chapters": [
+                    {
+                        "chapter_id": "focus",
+                        "title": "用户在关注什么",
+                        "conclusion": "外观最受关注",
+                        "body": "讨论集中在外观。",
+                        "metric_refs": ["product_focus.aspects"],
+                        "evidence_refs": [],
+                    },
+                    {
+                        "chapter_id": "attitude",
+                        "title": "用户如何评价",
+                        "conclusion": "外观正向、价格负向",
+                        "body": "反馈态度存在分化。",
+                        "metric_refs": ["product_opportunity.summary"],
+                        "evidence_refs": [],
+                    },
+                    {
+                        "chapter_id": "comparison",
+                        "title": "用户在和谁比较",
+                        "conclusion": "主要比较 ID.4",
+                        "body": "价格是主要比较维度。",
+                        "metric_refs": ["pko.summary"],
+                        "evidence_refs": ["pko_001"],
+                    },
+                    {
+                        "chapter_id": "evidence",
+                        "title": "证据如何支撑",
+                        "conclusion": "真实评论支持判断",
+                        "body": "证据来自有效评论。",
+                        "metric_refs": [],
+                        "evidence_refs": ["pko_001"],
+                    },
+                ],
+            },
             "structured_report": {
                 "charts": [{"chart_id": "llm-chart", "template_id": "F3", "data": [{"value": 999}]}],
             },
@@ -870,18 +910,16 @@ def test_run_product_report_agent_returns_fixed_narrative_and_builder_charts(mon
 
     assert result["event_id"] == "event_001"
     assert result["prompt_version"] == "product_report_v2"
-    assert result["summary"]["report_narrative"] == {
-        "headline": "产品测试标题",
-        "executive_summary": "产品测试摘要",
-            "section_insights": {
-                "product_focus": "关注判断",
-                "product_sentiment": "用户讨论集中在外观与价格。",
-            "product_opportunity": "机会判断",
-            "product_pko_relationships": "对比关系判断",
-            "product_pko_results": "对比结果判断",
-        },
-        "data_notes": ["产品数据说明"],
-    }
+    narrative = result["summary"]["report_narrative"]
+    assert "storyline" in narrative
+    assert [chapter["chapter_id"] for chapter in narrative["storyline"]["chapters"]] == [
+        "focus",
+        "attitude",
+        "comparison",
+        "evidence",
+    ]
+    assert narrative["section_insights"]["product_focus"] == "关注判断"
+    assert narrative["section_insights"]["product_sentiment"] == "用户讨论集中在外观与价格。"
     charts = result["summary"]["structured_report"]["charts"]
     assert [chart["template_id"] for chart in charts] == ["P1", "P2", "P3", "L6", "P4"]
     assert [chart["insight"] for chart in charts] == ["关注判断", "用户讨论集中在外观与价格。", "机会判断", "对比关系判断", "对比结果判断"]

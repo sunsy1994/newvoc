@@ -122,27 +122,22 @@ SALES_REPORT_CHART_CONTRACT = (
     ("sales-intents", "F5", "用户意图分布", "评论数与占比", "lead_quality.intent_distribution"),
     ("sales-source-efficiency", "F6", "渠道线索效率", "总反馈量与销售线索量", "lead_source.platform_efficiency"),
 )
+PRODUCT_REPORT_CACHE_CONTRACTS = tuple(
+    (prompt_version, PRODUCT_REPORT_SECTION_CODES, chart_contract)
+    for prompt_version in ("product_report_summary_v2", DEFAULT_PRODUCT_REPORT_PROMPT_VERSION)
+    for chart_contract in (
+        PRODUCT_REPORT_CHART_CONTRACT,
+        PREVIOUS_PRODUCT_REPORT_CHART_CONTRACT,
+        LEGACY_PRODUCT_REPORT_CHART_CONTRACT,
+    )
+)
 REPORT_CACHE_CONTRACTS = (
     (
         DEFAULT_MARKET_REPORT_PROMPT_VERSION,
         MARKET_REPORT_SECTION_CODES,
         MARKET_REPORT_CHART_CONTRACT,
     ),
-    (
-        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
-        PRODUCT_REPORT_SECTION_CODES,
-        PRODUCT_REPORT_CHART_CONTRACT,
-    ),
-    (
-        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
-        PRODUCT_REPORT_SECTION_CODES,
-        PREVIOUS_PRODUCT_REPORT_CHART_CONTRACT,
-    ),
-    (
-        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
-        PRODUCT_REPORT_SECTION_CODES,
-        LEGACY_PRODUCT_REPORT_CHART_CONTRACT,
-    ),
+    *PRODUCT_REPORT_CACHE_CONTRACTS,
     (
         DEFAULT_SALES_REPORT_PROMPT_VERSION,
         SALES_REPORT_SECTION_CODES,
@@ -649,18 +644,37 @@ def build_report_summary(
 def ensure_report_prompt_contract(
     prompt_content: str,
     section_codes: tuple[str, ...],
+    *,
+    include_product_storyline: bool = False,
 ) -> str:
     contract = {
         "headline": "",
         "executive_summary": "",
         "section_insights": {code: "" for code in section_codes},
-        "data_notes": [],
     }
+    product_storyline_rules = ""
+    if include_product_storyline:
+        contract["storyline"] = {
+            "headline": "",
+            "lead": "",
+            "chapters": [
+                {"chapter_id": "focus", "title": "用户在关注什么", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "attitude", "title": "用户如何评价", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "comparison", "title": "用户在和谁比较", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "evidence", "title": "证据如何支撑", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+            ],
+        }
+        product_storyline_rules = (
+            "storyline 不得复述 section_insights，不写产品建议；"
+            "metric_refs 只能引用输入中提供的指标路径，evidence_refs 只能引用输入中提供的 comment_id。\n"
+        )
+    contract["data_notes"] = []
     suffix = (
         f"{REPORT_PROMPT_CONTRACT_MARKER}\n"
         "保留以上业务要求，但最终只输出下面固定结构的 JSON 对象；"
         "不得输出 report_markdown、structured_report 或图表数据。"
         "图表类型和数值由系统固定，输入缺失时不得推断。\n"
+        f"{product_storyline_rules}"
         f"{json.dumps(contract, ensure_ascii=False, indent=2)}"
     )
     if prompt_content.rstrip().endswith(suffix):
@@ -674,6 +688,8 @@ def resolve_report_prompt(
     default_version: str,
     section_codes: tuple[str, ...],
     database_url: str = DATABASE_URL,
+    *,
+    include_product_storyline: bool = False,
 ) -> tuple[str, str]:
     try:
         prompt_row = get_default_prompt_template(scene, database_url=database_url)
@@ -685,7 +701,14 @@ def resolve_report_prompt(
         return default_prompt, default_version
     if prompt_content == default_prompt.strip():
         return prompt_content, prompt_version
-    return ensure_report_prompt_contract(prompt_content, section_codes), prompt_version
+    return (
+        ensure_report_prompt_contract(
+            prompt_content,
+            section_codes,
+            include_product_storyline=include_product_storyline,
+        ),
+        prompt_version,
+    )
 
 
 def resolve_market_report_prompt(database_url: str = DATABASE_URL) -> tuple[str, str]:
@@ -705,6 +728,7 @@ def resolve_product_report_prompt(database_url: str = DATABASE_URL) -> tuple[str
         DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
         PRODUCT_REPORT_SECTION_CODES,
         database_url,
+        include_product_storyline=True,
     )
 
 
@@ -1000,17 +1024,21 @@ def run_product_report_agent(
         model=resolved_model,
         timeout_seconds=resolved_timeout,
     )
+    summary = build_report_summary(
+        llm_result,
+        build_product_report_charts(context),
+        PRODUCT_REPORT_SECTION_CODES,
+        _product_fallback_insights(context),
+        PRODUCT_REPORT_CHART_SECTIONS,
+    )
+    storyline = normalize_product_storyline(llm_result.get("storyline"), context)
+    if storyline:
+        summary["report_narrative"]["storyline"] = storyline
     result = {
         "event_id": event_id,
         "prompt_version": prompt_version,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "summary": build_report_summary(
-            llm_result,
-            build_product_report_charts(context),
-            PRODUCT_REPORT_SECTION_CODES,
-            _product_fallback_insights(context),
-            PRODUCT_REPORT_CHART_SECTIONS,
-        ),
+        "summary": summary,
         "context": context,
         "rendered_prompt": prompt,
     }

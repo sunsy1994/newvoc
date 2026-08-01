@@ -7,7 +7,7 @@ def test_mask_api_key_hides_sensitive_middle() -> None:
     assert mask_api_key("") == ""
 
 
-def test_department_default_prompts_use_v2_fixed_narrative_contracts() -> None:
+def test_department_default_prompts_use_fixed_narrative_contracts() -> None:
     from app.services import system_settings
 
     cases = (
@@ -18,7 +18,7 @@ def test_department_default_prompts_use_v2_fixed_narrative_contracts() -> None:
         ),
         (
             system_settings.PRODUCT_REPORT_PROMPT_SCENE,
-            "product_report_summary_v2",
+            "product_report_summary_v3",
             ("product_focus", "product_sentiment", "product_opportunity", "product_pko_relationships", "product_pko_results"),
         ),
         (
@@ -40,6 +40,15 @@ def test_department_default_prompts_use_v2_fixed_narrative_contracts() -> None:
         assert "输入缺失时不得推断" in prompt
         for code in section_codes:
             assert f'"{code}"' in prompt
+
+
+def test_builtin_product_v2_prompt_is_registered_for_v3_upgrade() -> None:
+    from app.services import system_settings
+
+    assert (
+        system_settings.PRODUCT_REPORT_PROMPT_SCENE,
+        "product_report_summary_v2",
+    ) in system_settings.LEGACY_REPORT_PROMPT_HASHES
 
 
 def test_prompt_seed_action_upgrades_only_exact_known_builtin_v1(monkeypatch) -> None:

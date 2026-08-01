@@ -24,7 +24,7 @@ DEFAULT_PROMPT_VERSION = "comment_user_profile_v1"
 MARKET_REPORT_PROMPT_SCENE = "market_report_summary"
 MARKET_REPORT_PROMPT_VERSION = "market_report_summary_v2"
 PRODUCT_REPORT_PROMPT_SCENE = "product_report_summary"
-PRODUCT_REPORT_PROMPT_VERSION = "product_report_summary_v2"
+PRODUCT_REPORT_PROMPT_VERSION = "product_report_summary_v3"
 SALES_REPORT_PROMPT_SCENE = "sales_report_summary"
 SALES_REPORT_PROMPT_VERSION = "sales_report_summary_v2"
 DEFAULT_PROMPT_SCENES = {DEFAULT_PROMPT_SCENE, MARKET_REPORT_PROMPT_SCENE, PRODUCT_REPORT_PROMPT_SCENE, SALES_REPORT_PROMPT_SCENE}
@@ -37,6 +37,10 @@ LEGACY_REPORT_PROMPT_HASHES = {
         PRODUCT_REPORT_PROMPT_SCENE,
         "product_report_summary_v1",
     ): "dc71fe16d3788156d94a059691af2ae81cfbc92660255c194e2b18fdf12b6dc5",
+    (
+        PRODUCT_REPORT_PROMPT_SCENE,
+        "product_report_summary_v2",
+    ): "a0606723cf4598959dd965737804c85714184c2a9dffbcc1812822533c9fdd50",
     (
         SALES_REPORT_PROMPT_SCENE,
         "sales_report_summary_v1",
@@ -75,7 +79,9 @@ PRODUCT_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 产品分析助手。�
 3. PKO 只使用 pko 中已有的 target、dimension、result、reason 和 comment_text。
 4. 只总结机会、风险、转化信号与 PKO 事实，不生成产品建议。
 5. data_notes 只放真正影响判断的数据说明。
-6. 输出必须是 JSON 对象，字段和 section_insights 的键不可增减，不要输出 Markdown。
+6. storyline 不得复述 section_insights，不写产品建议。
+7. storyline 的 metric_refs 只能引用输入中提供的指标路径，evidence_refs 只能引用输入中提供的 comment_id。
+8. 输出必须是 JSON 对象，字段、章节和 section_insights 的键不可增减，不要输出 Markdown。
 
 严格输出：
 {
@@ -87,6 +93,16 @@ PRODUCT_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 产品分析助手。�
     "product_opportunity": "",
     "product_pko_relationships": "",
     "product_pko_results": ""
+  },
+  "storyline": {
+    "headline": "",
+    "lead": "",
+    "chapters": [
+      {"chapter_id": "focus", "title": "用户在关注什么", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+      {"chapter_id": "attitude", "title": "用户如何评价", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+      {"chapter_id": "comparison", "title": "用户在和谁比较", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+      {"chapter_id": "evidence", "title": "证据如何支撑", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []}
+    ]
   },
   "data_notes": []
 }

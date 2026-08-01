@@ -41,7 +41,7 @@ def test_default_product_prompt_allows_real_comment_ids_for_evidence_refs() -> N
     )
 
 
-def test_market_and_sales_prompts_do_not_require_storyline(monkeypatch) -> None:
+def test_market_prompt_requires_storyline_and_sales_does_not(monkeypatch) -> None:
     from app.services import report_agent
 
     monkeypatch.setattr(
@@ -56,5 +56,5 @@ def test_market_and_sales_prompts_do_not_require_storyline(monkeypatch) -> None:
     market_prompt, _ = report_agent.resolve_market_report_prompt("postgresql://unused")
     sales_prompt, _ = report_agent.resolve_sales_report_prompt("postgresql://unused")
 
-    assert "storyline" not in market_prompt
+    assert "storyline" in market_prompt
     assert "storyline" not in sales_prompt

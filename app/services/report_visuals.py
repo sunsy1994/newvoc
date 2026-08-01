@@ -4,7 +4,7 @@ import math
 from typing import Any
 
 
-REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15", "P1", "P2", "P3", "P4"}
+REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15", "P1", "P2", "P3", "P4", "M1", "M2", "M3", "M4"}
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 SALES_FUNNEL_STAGES = ("已打标评论", "车相关评论", "销售相关意图", "中/强购买信号")
 RESULT_BUCKETS = {"advantage", "disadvantage", "neutral", "unclear"}
@@ -151,6 +151,27 @@ def _result_bucket(value: Any) -> str:
 
 def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, Any]]:
     rows = _rows(value)
+    if template_id == "M1":
+        return [
+            row for row in rows
+            if _text(row.get("date"))
+            and _number(row.get("content_count")) is not None
+            and _number(row.get("comment_count")) is not None
+        ]
+    if template_id == "M2":
+        return [
+            row for row in rows
+            if _text(row.get("topic")) and _number(row.get("comment_count")) is not None
+        ][:10]
+    if template_id == "M3":
+        return [
+            row for row in rows
+            if _text(row.get("author_name"))
+            and _number(row.get("total_engagement")) is not None
+            and _number(row.get("content_count")) is not None
+        ][:5]
+    if template_id == "M4":
+        return [row for row in rows if _valid_f8_row(row)]
     if template_id == "F3":
         return [
             row
@@ -331,12 +352,12 @@ def _sort_pko_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def build_market_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]:
     hot_topics = context.get("hot_topics") or {}
     platform = context.get("platform") or {}
-    feedback_quality = context.get("feedback_quality") or {}
+    subjects = context.get("kol_and_authors") or {}
     chart_data = [
-        ("market-volume-trend", "F3", "传播规模与节奏", "按日声量变化", "volume_trend", _rows(context.get("volume_trend"))),
-        ("market-hot-topics", "F5", "热门话题结构", "按讨论量展示", "hot_topics.topics", _rows(hot_topics.get("topics"))),
-        ("market-platform-efficiency", "F8", "平台传播效率", "规模与反馈效率", "platform.platform_efficiency", _rows(platform.get("platform_efficiency"))),
-        ("market-feedback-sentiment", "L14", "用户反馈构成", "情感分布", "feedback_quality.sentiment_distribution", _rows(feedback_quality.get("sentiment_distribution"))),
+        ("market-volume-rhythm", "M1", "传播结果与节奏", "内容与评论的每日构成", "volume_trend", _rows(context.get("volume_trend"))),
+        ("market-topic-drivers", "M2", "话题驱动", "讨论规模、内容量与累计互动", "hot_topics.topics", _rows(hot_topics.get("topics"))),
+        ("market-subject-contribution", "M3", "传播主体", "作者互动贡献与内容量", "kol_and_authors.top_authors", _rows(subjects.get("top_authors"))),
+        ("market-channel-efficiency", "M4", "渠道效率", "传播规模与单内容互动效率", "platform.platform_efficiency", _rows(platform.get("platform_efficiency"))),
     ]
     return [_chart(*item, meta=_meta(item[-1])) for item in chart_data]
 
@@ -415,7 +436,18 @@ def build_sales_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]:
 def build_event_report_charts(
     market: dict[str, Any], product: dict[str, Any], sales: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    market_charts = build_market_report_charts(market)
+    feedback = market.get("feedback_quality") or {}
+    event_market_trend = _chart(
+        "market-volume-trend", "F3", "传播规模与节奏", "按日声量变化",
+        "volume_trend", _rows(market.get("volume_trend")),
+        meta=_meta(_rows(market.get("volume_trend"))),
+    )
+    event_market_feedback = _chart(
+        "market-feedback-sentiment", "L14", "用户反馈构成", "情感分布",
+        "feedback_quality.sentiment_distribution",
+        _rows(feedback.get("sentiment_distribution")),
+        meta=_meta(_rows(feedback.get("sentiment_distribution"))),
+    )
     product_focus = product.get("product_focus") or {}
     event_product_sentiment = _chart(
         "product-sentiment",
@@ -427,4 +459,4 @@ def build_event_report_charts(
         meta=_meta(_rows(product_focus.get("aspects"))),
     )
     sales_charts = build_sales_report_charts(sales)
-    return [market_charts[0], market_charts[3], event_product_sentiment, sales_charts[0]]
+    return [event_market_trend, event_market_feedback, event_product_sentiment, sales_charts[0]]

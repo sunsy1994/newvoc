@@ -43,7 +43,7 @@ def test_department_default_prompts_use_fixed_narrative_contracts() -> None:
         (
             system_settings.MARKET_REPORT_PROMPT_SCENE,
             "market_report_summary_v2",
-            ("market_rhythm", "market_topics", "market_platforms", "market_feedback"),
+            ("market_rhythm", "market_topics", "market_subjects", "market_channels"),
         ),
         (
             system_settings.PRODUCT_REPORT_PROMPT_SCENE,

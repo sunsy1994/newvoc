@@ -20,7 +20,7 @@ def test_market_report_chart_order_is_fixed():
             "feedback_quality": {"sentiment_distribution": [{"label": "正向", "count": 7, "rate": 70}]},
         }
     )
-    assert [item["template_id"] for item in charts] == ["F3", "F5", "F8", "L14"]
+    assert [item["template_id"] for item in charts] == ["M1", "M2", "M3", "M4"]
 
 
 def test_product_report_chart_order_is_fixed():

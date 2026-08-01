@@ -2,9 +2,10 @@ import type { ProductStorylineView } from "@/components/voc/report-summary/produ
 
 type ReportSummaryStorylineProps = {
   storyline: ProductStorylineView;
+  summaryLabel?: string;
 };
 
-export function ReportSummaryStoryline({ storyline }: ReportSummaryStorylineProps) {
+export function ReportSummaryStoryline({ storyline, summaryLabel = "事件综合摘要" }: ReportSummaryStorylineProps) {
   return (
     <div className="space-y-6">
       <section
@@ -21,7 +22,7 @@ export function ReportSummaryStoryline({ storyline }: ReportSummaryStorylineProp
               data-report-event-identity
               className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--theme-primary)]"
             >
-              {storyline.eventName} · 事件综合摘要
+              {storyline.eventName} · {summaryLabel}
             </p>
           ) : null}
           <h2 className="mt-3 text-2xl font-semibold leading-tight tracking-tight text-[var(--theme-ink)] md:text-3xl">

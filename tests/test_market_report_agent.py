@@ -1,6 +1,59 @@
 from __future__ import annotations
 
 
+def test_market_v2_uses_propagation_review_contract() -> None:
+    from app.services.report_agent import MARKET_REPORT_CHART_CONTRACT, MARKET_REPORT_SECTION_CODES
+
+    assert MARKET_REPORT_SECTION_CODES == (
+        "market_rhythm",
+        "market_topics",
+        "market_subjects",
+        "market_channels",
+    )
+    assert [(item[0], item[1]) for item in MARKET_REPORT_CHART_CONTRACT] == [
+        ("market-volume-rhythm", "M1"),
+        ("market-topic-drivers", "M2"),
+        ("market-subject-contribution", "M3"),
+        ("market-channel-efficiency", "M4"),
+    ]
+
+
+def test_normalize_market_storyline_keeps_fixed_chapters_and_real_refs() -> None:
+    from app.services.report_agent import normalize_market_storyline
+
+    chapters = [
+        {
+            "chapter_id": chapter_id,
+            "title": title,
+            "conclusion": "确定性结论",
+            "body": "仅解释现有数据。",
+            "metric_refs": [valid_ref, "unknown.metric"],
+            "evidence_refs": ["not-used"],
+        }
+        for chapter_id, title, valid_ref in (
+            ("rhythm", "传播结果与节奏", "rhythm"),
+            ("topics", "话题驱动", "hot_topics.topics"),
+            ("subjects", "传播主体", "kol_and_authors.top_authors"),
+            ("channels", "渠道效率", "platform.platform_efficiency"),
+        )
+    ]
+    result = normalize_market_storyline(
+        {"headline": "传播集中爆发", "lead": "本次事件由头部话题与核心主体共同推动。", "chapters": chapters},
+        {},
+    )
+
+    assert result is not None
+    assert [item["chapter_id"] for item in result["chapters"]] == [
+        "rhythm", "topics", "subjects", "channels"
+    ]
+    assert result["chapters"][0]["metric_refs"] == ["rhythm"]
+    assert all(item["evidence_refs"] == [] for item in result["chapters"])
+    assert normalize_market_storyline(
+        {"headline": "传播集中爆发", "lead": "完整摘要", "chapters": chapters[:-1]},
+        {},
+    ) is None
+
+
 def sample_market_dashboard() -> dict:
     return {
         "event": {
@@ -185,11 +238,11 @@ def test_run_market_report_agent_returns_fixed_narrative_and_builder_charts(monk
         return {
             "headline": "测试标题",
             "executive_summary": "测试摘要",
-            "section_insights": {
-                "market_rhythm": "节奏判断",
-                "market_topics": "话题判断",
-                "market_platforms": "平台判断",
-                "market_feedback": "反馈判断",
+                "section_insights": {
+                    "market_rhythm": "节奏判断",
+                    "market_topics": "话题判断",
+                    "market_subjects": "主体判断",
+                    "market_channels": "渠道判断",
             },
             "data_notes": [],
             "structured_report": {
@@ -207,19 +260,20 @@ def test_run_market_report_agent_returns_fixed_narrative_and_builder_charts(monk
     assert result["summary"]["report_narrative"] == {
         "headline": "测试标题",
         "executive_summary": "测试摘要",
-        "section_insights": {
-            "market_rhythm": "节奏判断",
-            "market_topics": "话题判断",
-            "market_platforms": "平台判断",
-            "market_feedback": "反馈判断",
+            "section_insights": {
+                "market_rhythm": "节奏判断",
+                "market_topics": "话题判断",
+                "market_subjects": "主体判断",
+                "market_channels": "渠道判断",
         },
         "data_notes": [],
     }
     charts = result["summary"]["structured_report"]["charts"]
-    assert [chart["template_id"] for chart in charts] == ["F3", "F5", "F8", "L14"]
-    assert [chart["insight"] for chart in charts] == ["节奏判断", "话题判断", "平台判断", "反馈判断"]
+    assert [chart["template_id"] for chart in charts] == ["M1", "M2", "M3", "M4"]
+    assert [chart["insight"] for chart in charts] == ["节奏判断", "话题判断", "主体判断", "渠道判断"]
     assert charts[0]["data"] == result["context"]["volume_trend"]
-    assert charts[2]["data"][0]["engagement_per_content"] == 1500.0
+    assert charts[2]["data"][0]["total_engagement"] == 6000
+    assert charts[3]["data"][0]["engagement_per_content"] == 1500.0
     assert all(chart["chart_id"] != "llm-chart" for chart in charts)
     assert result["context"]["event_overview"]["event_name"] == "ID.AURA T6 launch"
     assert result["rendered_prompt"] == captured["prompt"]
@@ -252,12 +306,12 @@ def test_run_market_report_agent_falls_back_to_builtin_prompt(monkeypatch) -> No
     assert report_agent.DEFAULT_MARKET_REPORT_PROMPT_VERSION == "market_report_summary_v2"
     assert result["summary"]["report_narrative"]["section_insights"]["market_rhythm"] == "The event volume concentrated on one peak day."
     charts = result["summary"]["structured_report"]["charts"]
-    assert [chart["template_id"] for chart in charts] == ["F3", "F5", "F8", "L14"]
+    assert [chart["template_id"] for chart in charts] == ["M1", "M2", "M3", "M4"]
     assert [chart["insight"] for chart in charts] == [
         "The event volume concentrated on one peak day.",
         "#T6 是讨论最集中的话题。",
+        "KOL content drove most of the engagement.",
         "Douyin contributed the main event volume.",
-        "Users discussed appearance with visible purchase signals.",
     ]
 
 

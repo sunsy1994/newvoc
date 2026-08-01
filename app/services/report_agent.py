@@ -42,7 +42,14 @@ DEFAULT_SALES_REPORT_PROMPT_VERSION = SALES_REPORT_PROMPT_VERSION
 DEFAULT_MARKET_REPORT_PROMPT = MARKET_REPORT_PROMPT_CONTENT
 DEFAULT_PRODUCT_REPORT_PROMPT = PRODUCT_REPORT_PROMPT_CONTENT
 DEFAULT_SALES_REPORT_PROMPT = SALES_REPORT_PROMPT_CONTENT
-MARKET_REPORT_SECTION_CODES = ("market_rhythm", "market_topics", "market_platforms", "market_feedback")
+MARKET_REPORT_SECTION_CODES = ("market_rhythm", "market_topics", "market_subjects", "market_channels")
+MARKET_STORY_CHAPTER_IDS = ("rhythm", "topics", "subjects", "channels")
+MARKET_STORY_METRIC_REFS = {
+    "scale", "rhythm", "volume_trend", "hot_topics.summary", "hot_topics.topics",
+    "kol_and_authors.summary", "kol_and_authors.top_authors",
+    "kol_and_authors.kol_type_distribution", "platform.summary",
+    "platform.platform_efficiency",
+}
 PRODUCT_REPORT_SECTION_CODES = (
     "product_focus",
     "product_sentiment",
@@ -63,10 +70,10 @@ PRODUCT_STORY_METRIC_REFS = {
 }
 SALES_REPORT_SECTION_CODES = ("sales_funnel", "sales_signals", "sales_intents", "sales_sources")
 MARKET_REPORT_CHART_SECTIONS = {
-    "market-volume-trend": "market_rhythm",
-    "market-hot-topics": "market_topics",
-    "market-platform-efficiency": "market_platforms",
-    "market-feedback-sentiment": "market_feedback",
+    "market-volume-rhythm": "market_rhythm",
+    "market-topic-drivers": "market_topics",
+    "market-subject-contribution": "market_subjects",
+    "market-channel-efficiency": "market_channels",
 }
 PRODUCT_REPORT_CHART_SECTIONS = {
     "product-focus": "product_focus",
@@ -89,11 +96,17 @@ MAX_REPORT_DATA_NOTES = 10
 EMPTY_REPORT_HEADLINE = "暂无可用报告数据"
 EMPTY_REPORT_EXECUTIVE_SUMMARY = "当前数据不足，无法生成可靠报告结论。"
 REPORT_PROMPT_CONTRACT_MARKER = "[AUTO_VOC_FIXED_NARRATIVE_V2_CONTRACT]"
-MARKET_REPORT_CHART_CONTRACT = (
+LEGACY_MARKET_REPORT_CHART_CONTRACT = (
     ("market-volume-trend", "F3", "传播规模与节奏", "按日声量变化", "volume_trend"),
     ("market-hot-topics", "F5", "热门话题结构", "按讨论量展示", "hot_topics.topics"),
     ("market-platform-efficiency", "F8", "平台传播效率", "规模与反馈效率", "platform.platform_efficiency"),
     ("market-feedback-sentiment", "L14", "用户反馈构成", "情感分布", "feedback_quality.sentiment_distribution"),
+)
+MARKET_REPORT_CHART_CONTRACT = (
+    ("market-volume-rhythm", "M1", "传播结果与节奏", "内容与评论的每日构成", "volume_trend"),
+    ("market-topic-drivers", "M2", "话题驱动", "讨论规模、内容量与累计互动", "hot_topics.topics"),
+    ("market-subject-contribution", "M3", "传播主体", "作者互动贡献与内容量", "kol_and_authors.top_authors"),
+    ("market-channel-efficiency", "M4", "渠道效率", "传播规模与单内容互动效率", "platform.platform_efficiency"),
 )
 LEGACY_PRODUCT_REPORT_CHART_CONTRACT = (
     ("product-focus", "F5", "产品关注点", "按提及占比展示", "product_focus.aspects"),
@@ -136,6 +149,11 @@ REPORT_CACHE_CONTRACTS = (
         DEFAULT_MARKET_REPORT_PROMPT_VERSION,
         MARKET_REPORT_SECTION_CODES,
         MARKET_REPORT_CHART_CONTRACT,
+    ),
+    (
+        "market_report_summary_v2",
+        ("market_rhythm", "market_topics", "market_platforms", "market_feedback"),
+        LEGACY_MARKET_REPORT_CHART_CONTRACT,
     ),
     *PRODUCT_REPORT_CACHE_CONTRACTS,
     (
@@ -511,6 +529,42 @@ def normalize_product_storyline(value: Any, context: dict[str, Any]) -> dict[str
     }
 
 
+def normalize_market_storyline(value: Any, context: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or not isinstance(value.get("chapters"), list):
+        return None
+    headline = _bounded_text(value.get("headline"), 160)
+    lead = _bounded_text(value.get("lead"), 600)
+    if not headline or not lead:
+        return None
+    raw_chapters = {
+        item.get("chapter_id"): item
+        for item in value["chapters"]
+        if isinstance(item, dict)
+    }
+    chapters = []
+    for chapter_id in MARKET_STORY_CHAPTER_IDS:
+        item = raw_chapters.get(chapter_id)
+        if not isinstance(item, dict):
+            return None
+        metric_refs = item.get("metric_refs")
+        chapters.append(
+            {
+                "chapter_id": chapter_id,
+                "title": _bounded_text(item.get("title"), 60),
+                "conclusion": _bounded_text(item.get("conclusion"), 240),
+                "body": _bounded_text(item.get("body"), 900),
+                "metric_refs": [
+                    ref for ref in metric_refs
+                    if isinstance(ref, str) and ref in MARKET_STORY_METRIC_REFS
+                ][:4] if isinstance(metric_refs, list) else [],
+                "evidence_refs": [],
+            }
+        )
+    if any(not item["title"] or not item["conclusion"] for item in chapters):
+        return None
+    return {"headline": headline, "lead": lead, "chapters": chapters}
+
+
 def normalize_data_notes(value: Any) -> list[str]:
     raw_notes = [value] if isinstance(value, str) else value if isinstance(value, list) else []
     notes = [
@@ -571,12 +625,12 @@ def _rule_based_conclusion(section: Any) -> str:
 def _market_fallback_insights(context: dict[str, Any]) -> dict[str, str]:
     hot_topics = context.get("hot_topics") or {}
     platform = context.get("platform") or {}
-    feedback = context.get("feedback_quality") or {}
+    subjects = context.get("kol_and_authors") or {}
     return {
         "market_rhythm": _rule_based_conclusion(context.get("rhythm")),
         "market_topics": _rule_based_conclusion(hot_topics.get("summary")),
-        "market_platforms": _rule_based_conclusion(platform.get("summary")),
-        "market_feedback": _rule_based_conclusion(feedback.get("summary")),
+        "market_subjects": _rule_based_conclusion(subjects.get("summary")),
+        "market_channels": _rule_based_conclusion(platform.get("summary")),
     }
 
 
@@ -650,6 +704,7 @@ def ensure_report_prompt_contract(
     section_codes: tuple[str, ...],
     *,
     include_product_storyline: bool = False,
+    include_market_storyline: bool = False,
 ) -> str:
     contract = {
         "headline": "",
@@ -657,6 +712,22 @@ def ensure_report_prompt_contract(
         "section_insights": {code: "" for code in section_codes},
     }
     product_storyline_rules = ""
+    if include_market_storyline:
+        contract["storyline"] = {
+            "headline": "",
+            "lead": "",
+            "chapters": [
+                {"chapter_id": "rhythm", "title": "传播结果与节奏", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "topics", "title": "话题驱动", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "subjects", "title": "传播主体", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "channels", "title": "渠道效率", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+            ],
+        }
+        product_storyline_rules = (
+            "这是事件结束后的传播复盘，不得输出营销建议；"
+            "storyline 不得复述 section_insights；"
+            "metric_refs 只能引用输入中提供的指标路径，evidence_refs 必须为空数组。\n"
+        )
     if include_product_storyline:
         contract["storyline"] = {
             "headline": "",
@@ -695,6 +766,7 @@ def resolve_report_prompt(
     database_url: str = DATABASE_URL,
     *,
     include_product_storyline: bool = False,
+    include_market_storyline: bool = False,
 ) -> tuple[str, str]:
     try:
         prompt_row = get_default_prompt_template(scene, database_url=database_url)
@@ -711,6 +783,7 @@ def resolve_report_prompt(
             prompt_content,
             section_codes,
             include_product_storyline=include_product_storyline,
+            include_market_storyline=include_market_storyline,
         ),
         prompt_version,
     )
@@ -723,6 +796,7 @@ def resolve_market_report_prompt(database_url: str = DATABASE_URL) -> tuple[str,
         DEFAULT_MARKET_REPORT_PROMPT_VERSION,
         MARKET_REPORT_SECTION_CODES,
         database_url,
+        include_market_storyline=True,
     )
 
 
@@ -994,17 +1068,22 @@ def run_market_report_agent(
         model=resolved_model,
         timeout_seconds=resolved_timeout,
     )
+    charts = build_market_report_charts(context)
+    summary = build_report_summary(
+        llm_result,
+        charts,
+        MARKET_REPORT_SECTION_CODES,
+        _market_fallback_insights(context),
+        MARKET_REPORT_CHART_SECTIONS,
+    )
+    storyline = normalize_market_storyline(llm_result.get("storyline"), context)
+    if storyline and any(has_renderable_data(chart) for chart in charts):
+        summary["report_narrative"]["storyline"] = storyline
     result = {
         "event_id": event_id,
         "prompt_version": prompt_version,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "summary": build_report_summary(
-            llm_result,
-            build_market_report_charts(context),
-            MARKET_REPORT_SECTION_CODES,
-            _market_fallback_insights(context),
-            MARKET_REPORT_CHART_SECTIONS,
-        ),
+        "summary": summary,
         "context": context,
         "rendered_prompt": prompt,
     }

@@ -2393,10 +2393,20 @@ const registry = loadTsx(
     "./NarrativeCharts": narrative,
     "./SmallDataCharts": smallData,
     "./ProductCharts": productCharts,
+    "./MarketCharts": {
+      M1VolumeRhythm: chartStub,
+      M2TopicDrivers: chartStub,
+      M3SubjectContribution: chartStub,
+      M4ChannelEfficiency: chartStub,
+    },
   },
 );
 const storylineData = loadTsx(
   "src/components/voc/report-summary/productStorylineData.ts",
+  {},
+);
+const marketStorylineData = loadTsx(
+  "src/components/voc/report-summary/marketStorylineData.ts",
   {},
 );
 const storylineSummary = loadTsx(
@@ -2437,6 +2447,7 @@ const reportCard = loadTsx(
       isReportTemplateId: registry.isReportTemplateId,
     },
     "@/components/voc/report-summary/productStorylineData": storylineData,
+    "@/components/voc/report-summary/marketStorylineData": marketStorylineData,
     "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
     "@/config/navigation": { apiBaseUrl: "" },
   },
@@ -2883,6 +2894,10 @@ const storylineData = loadTsx(
   "src/components/voc/report-summary/productStorylineData.ts",
   {},
 );
+const marketStorylineData = loadTsx(
+  "src/components/voc/report-summary/marketStorylineData.ts",
+  {},
+);
 const storylineSummary = loadTsx(
   "src/components/voc/report-summary/ReportSummaryStoryline.tsx",
   {},
@@ -2912,6 +2927,7 @@ function loadReportCard(mode) {
         isReportTemplateId: () => true,
       },
       "@/components/voc/report-summary/productStorylineData": storylineData,
+      "@/components/voc/report-summary/marketStorylineData": marketStorylineData,
       "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
       "@/config/navigation": { apiBaseUrl: "" },
     },
@@ -3685,6 +3701,9 @@ const localRequire = (id) => {
   if (id === "@/components/voc/report-summary/productStorylineData") {
     return { buildProductStorylineView: () => null, isReportStoryline: () => false };
   }
+  if (id === "@/components/voc/report-summary/marketStorylineData") {
+    return { buildMarketStorylineView: () => null, formatMarketStorylineCopyText: () => "" };
+  }
   if (id === "@/components/voc/report-summary/ReportSummaryStoryline") {
     return { ReportSummaryStoryline: () => null };
   }
@@ -3732,3 +3751,30 @@ process.stdout.write(markup);
 
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.index('data-chart-id="svg-first"') < completed.stdout.index("Legacy")
+def test_market_report_visual_models_are_registered_and_accessible() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    types_source = (root / "frontend/src/components/voc/report-visuals/types.ts").read_text(encoding="utf-8")
+    registry_source = (root / "frontend/src/components/voc/report-visuals/ReportChartRegistry.tsx").read_text(encoding="utf-8")
+    chart_source = (root / "frontend/src/components/voc/report-visuals/MarketCharts.tsx").read_text(encoding="utf-8")
+
+    for template_id in ("M1", "M2", "M3", "M4"):
+        assert f'| "{template_id}"' in types_source
+        assert f"{template_id}:" in registry_source
+    for label in ("传播结果与节奏图", "话题驱动图", "传播主体图", "渠道效率图"):
+        assert f'aria-label="{label}"' in chart_source
+
+
+def test_market_storyline_is_wired_to_four_fixed_chapters() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    data_source = (root / "frontend/src/components/voc/report-summary/marketStorylineData.ts").read_text(encoding="utf-8")
+    card_source = (root / "frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert 'const CHAPTER_IDS = ["rhythm", "topics", "subjects", "channels"]' in data_source
+    assert "buildMarketStorylineView" in card_source
+    assert "summaryLabel={marketStoryline" in card_source
+    assert "事件传播复盘" in card_source
+    assert "formatMarketStorylineCopyText" in card_source

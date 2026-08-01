@@ -109,16 +109,19 @@ function pkoMetrics(charts: ReportVisualChart[]): ProductStorylineMetric[] {
   }).slice(0, 3);
 }
 
-const METRIC_RESOLVERS: Record<string, (charts: ReportVisualChart[]) => ProductStorylineMetric[]> = {
-  "product_focus.summary": (charts) => focusMetrics(charts).slice(0, 1),
-  "product_focus.aspects": focusMetrics,
-  "product_opportunity.summary": opportunitySummaryMetrics,
-  "product_opportunity.surprise_points": (charts) => opportunityMetrics(charts, "surprise"),
-  "product_opportunity.pain_points": (charts) => opportunityMetrics(charts, "pain"),
-  "product_opportunity.conversion_points": (charts) => opportunityMetrics(charts, "conversion"),
-  "pko.summary": (charts) => pkoMetrics(charts).slice(0, 1),
-  "pko.dimension_result_matrix": pkoMetrics,
-};
+const METRIC_RESOLVERS = new Map<
+  string,
+  (charts: ReportVisualChart[]) => ProductStorylineMetric[]
+>([
+  ["product_focus.summary", (charts) => focusMetrics(charts).slice(0, 1)],
+  ["product_focus.aspects", focusMetrics],
+  ["product_opportunity.summary", opportunitySummaryMetrics],
+  ["product_opportunity.surprise_points", (charts) => opportunityMetrics(charts, "surprise")],
+  ["product_opportunity.pain_points", (charts) => opportunityMetrics(charts, "pain")],
+  ["product_opportunity.conversion_points", (charts) => opportunityMetrics(charts, "conversion")],
+  ["pko.summary", (charts) => pkoMetrics(charts).slice(0, 1)],
+  ["pko.dimension_result_matrix", pkoMetrics],
+]);
 
 function evidenceById(charts: ReportVisualChart[]) {
   const records = new Map<string, ProductStorylineEvidence>();
@@ -171,7 +174,7 @@ export function buildProductStorylineView(
       title: chapter.title,
       conclusion: chapter.conclusion,
       body: chapter.body,
-      metrics: chapter.metric_refs.flatMap((ref) => METRIC_RESOLVERS[ref]?.(charts) ?? []),
+      metrics: chapter.metric_refs.flatMap((ref) => METRIC_RESOLVERS.get(ref)?.(charts) ?? []),
       evidence: chapter.evidence_refs.flatMap((commentId) => {
         const record = evidence.get(commentId);
         return record ? [record] : [];

@@ -1924,7 +1924,9 @@ const storyline = {
   chapters: [
     {
       chapter_id: "focus", title: "用户在关注什么", conclusion: "外观最受关注",
-      body: "讨论集中在外观。", metric_refs: ["product_focus.aspects", "unknown.path"], evidence_refs: [],
+      body: "讨论集中在外观。",
+      metric_refs: ["product_focus.aspects", "unknown.path", "toString", "__proto__"],
+      evidence_refs: [],
     },
     {
       chapter_id: "attitude", title: "用户如何评价", conclusion: "价格风险更集中",
@@ -1981,7 +1983,7 @@ const charts = [
 const view = loaded.exports.buildProductStorylineView(storyline, charts);
 assert.deepEqual(view.chapters.map((item) => item.chapterId), ["focus", "attitude", "comparison", "evidence"]);
 assert.equal(view.chapters[0].metrics[0].value, "40%");
-assert.equal(view.chapters[0].metrics.length, 2);
+assert.deepEqual(view.chapters[0].metrics.map((item) => item.label), ["外观提及率", "价格提及率"]);
 assert.deepEqual(view.chapters[1].metrics.map((item) => item.label), [
   "惊喜点 · 外观", "风险点 · 价格", "机会点 · 品牌",
 ]);
@@ -3054,18 +3056,18 @@ const localRequire = (id) => {
   if (id === "@/components/ui/hover-border-gradient") {
     return { HoverBorderGradient: ({ children }) => React.createElement("button", null, children) };
   }
-      if (id === "@/components/voc/report-visuals/ReportChartRegistry") {
-        return {
+  if (id === "@/components/voc/report-visuals/ReportChartRegistry") {
+    return {
       ReportChartRegistry: ({ chart }) =>
         React.createElement("svg", { "data-chart-id": chart.chart_id }),
-          isReportTemplateId: (value) =>
-            ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"].includes(value),
-        };
-      }
-      if (id === "@/components/voc/report-summary/productStorylineData") {
-        return { isReportStoryline: () => false };
-      }
-      if (id === "@/config/navigation") return { apiBaseUrl: "" };
+      isReportTemplateId: (value) =>
+        ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"].includes(value),
+    };
+  }
+  if (id === "@/components/voc/report-summary/productStorylineData") {
+    return { isReportStoryline: () => false };
+  }
+  if (id === "@/config/navigation") return { apiBaseUrl: "" };
   throw new Error(`Unexpected import: ${id}`);
 };
 new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);

@@ -391,11 +391,27 @@ export type ReportAgentPayload = {
   rendered_prompt?: string | null;
 };
 
+export type ReportStoryChapter = {
+  chapter_id: "focus" | "attitude" | "comparison" | "evidence";
+  title: string;
+  conclusion: string;
+  body: string;
+  metric_refs: string[];
+  evidence_refs: string[];
+};
+
+export type ReportStoryline = {
+  headline: string;
+  lead: string;
+  chapters: ReportStoryChapter[];
+};
+
 export type ReportNarrative = {
   headline: string;
   executive_summary: string;
   section_insights: Record<string, string>;
   data_notes: string[];
+  storyline?: ReportStoryline;
 };
 
 export type DepartmentStructuredReport = {

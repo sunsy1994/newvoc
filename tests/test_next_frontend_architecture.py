@@ -1897,6 +1897,113 @@ def test_product_report_visuals_have_dedicated_continuous_components() -> None:
     assert "data-product-pko-matrix" in source
 
 
+def test_product_storyline_resolves_allowlisted_metrics_and_l6_evidence() -> None:
+    script = r"""
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const source = fs.readFileSync(
+  path.join(base, "src/components/voc/report-summary/productStorylineData.ts"),
+  "utf8",
+);
+const output = ts.transpileModule(source, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2017,
+    esModuleInterop: true,
+  },
+}).outputText;
+const loaded = { exports: {} };
+new Function("require", "module", "exports", output)(require, loaded, loaded.exports);
+
+const storyline = {
+  headline: "用户讨论由外观吸引，价格比较形成主要分歧",
+  lead: "讨论先集中到外观，随后进入价格与竞品比较。",
+  chapters: [
+    {
+      chapter_id: "focus", title: "用户在关注什么", conclusion: "外观最受关注",
+      body: "讨论集中在外观。", metric_refs: ["product_focus.aspects", "unknown.path"], evidence_refs: [],
+    },
+    {
+      chapter_id: "attitude", title: "用户如何评价", conclusion: "价格风险更集中",
+      body: "价格负向反馈更集中。", metric_refs: ["product_opportunity.summary"], evidence_refs: [],
+    },
+    {
+      chapter_id: "comparison", title: "用户在和谁比较", conclusion: "主要比较 ID.4",
+      body: "价格是主要对比维度。", metric_refs: ["pko.summary"], evidence_refs: ["pko_001", "missing"],
+    },
+    {
+      chapter_id: "evidence", title: "证据如何支撑", conclusion: "原话支持上述判断",
+      body: "证据来自真实评论。", metric_refs: ["pko.dimension_result_matrix"], evidence_refs: ["pko_001"],
+    },
+  ],
+};
+const charts = [
+  {
+    chart_id: "product-focus", template_id: "P1", title: "", subtitle: "", insight: "", source_label: "product_focus.aspects",
+    data: [
+      { aspect: "外观", mention_rate: 40, comment_count: 48, positive_rate: 72.9 },
+      { aspect: "价格", mention_rate: 25, comment_count: 30, positive_rate: 10 },
+    ], meta: {},
+  },
+  {
+    chart_id: "product-sentiment", template_id: "P2", title: "", subtitle: "", insight: "", source_label: "product_focus.aspects",
+    data: [{ aspect: "外观", positive_rate: 72.9, neutral_rate: 18.8, negative_rate: 8.3 }], meta: {},
+  },
+  {
+    chart_id: "product-opportunity", template_id: "P3", title: "", subtitle: "", insight: "", source_label: "product_opportunity",
+    data: [
+      { point_type: "surprise", aspect: "外观", opportunity_score: 38.2, mention_rate: 40 },
+      { point_type: "surprise", aspect: "空间", opportunity_score: 30.1, mention_rate: 32 },
+      { point_type: "surprise", aspect: "内饰", opportunity_score: 26.8, mention_rate: 28 },
+      { point_type: "pain", aspect: "价格", opportunity_score: 22.4, mention_rate: 25 },
+      { point_type: "conversion", aspect: "品牌", opportunity_score: 14.1, mention_rate: 15 },
+    ], meta: {},
+  },
+  {
+    chart_id: "product-pko-evidence", template_id: "L6", title: "", subtitle: "", insight: "", source_label: "pko.evidence_comments",
+    data: [{
+      comment_id: "pko_001", comment_text: "和ID.4比，价格没优势。", dimension: "价格",
+      target: "ID.4", result_bucket: "disadvantage",
+    }], meta: { displayed_count: 1, total_count: 1, unit: "条对比评论" },
+  },
+  {
+    chart_id: "product-pko-matrix", template_id: "P4", title: "", subtitle: "", insight: "", source_label: "pko.dimension_result_matrix",
+    data: [{
+      dimension: "价格", advantage_count: 1, disadvantage_count: 7, neutral_count: 2,
+      unclear_count: 0, top_target: "ID.4",
+    }], meta: {},
+  },
+];
+
+const view = loaded.exports.buildProductStorylineView(storyline, charts);
+assert.deepEqual(view.chapters.map((item) => item.chapterId), ["focus", "attitude", "comparison", "evidence"]);
+assert.equal(view.chapters[0].metrics[0].value, "40%");
+assert.equal(view.chapters[0].metrics.length, 2);
+assert.deepEqual(view.chapters[1].metrics.map((item) => item.label), [
+  "惊喜点 · 外观", "风险点 · 价格", "机会点 · 品牌",
+]);
+assert.equal(view.chapters[2].evidence[0].commentId, "pko_001");
+assert.equal(view.chapters[2].evidence.length, 1);
+assert.equal(view.chapters[3].metrics[0].value, "10");
+
+const invalidStoryline = {
+  ...storyline,
+  chapters: storyline.chapters.slice(0, 3),
+};
+assert.equal(loaded.exports.buildProductStorylineView(invalidStoryline, charts), null);
+"""
+    subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+
 @lru_cache(maxsize=1)
 def _run_report_card_boundary_probe() -> dict:
     script = r"""
@@ -1969,6 +2076,10 @@ const registry = loadTsx(
     "./ProductCharts": productCharts,
   },
 );
+const storylineData = loadTsx(
+  "src/components/voc/report-summary/productStorylineData.ts",
+  {},
+);
 
 function renderRegistry(chart) {
   try {
@@ -2002,6 +2113,7 @@ const reportCard = loadTsx(
       ReportChartRegistry: registry.ReportChartRegistry,
       isReportTemplateId: registry.isReportTemplateId,
     },
+    "@/components/voc/report-summary/productStorylineData": storylineData,
     "@/config/navigation": { apiBaseUrl: "" },
   },
 );
@@ -2154,6 +2266,21 @@ completeCurrentProductV2.structured_report.charts[3].meta = {
   displayed_count: 1, total_count: 1, unit: "条对比评论",
 };
 completeCurrentProductV2.structured_report.charts[4].template_id = "P4";
+completeCurrentProductV2.report_narrative.storyline = {
+  headline: "外观吸引关注，价格比较形成分歧",
+  lead: "讨论从外观进入价格比较。",
+  chapters: [
+    ["focus", "用户在关注什么"],
+    ["attitude", "用户如何评价"],
+    ["comparison", "用户在和谁比较"],
+    ["evidence", "证据如何支撑"],
+  ].map(([chapter_id, title]) => ({
+    chapter_id, title, conclusion: `${title}的结论`, body: "真实数据形成叙事。",
+    metric_refs: [], evidence_refs: [],
+  })),
+};
+const invalidStorylineProductV2 = JSON.parse(JSON.stringify(completeCurrentProductV2));
+invalidStorylineProductV2.report_narrative.storyline.chapters.pop();
 const mixedCurrentProductV2 = JSON.parse(JSON.stringify(completeCurrentProductV2));
 mixedCurrentProductV2.structured_report.charts[3].template_id = "L12";
 mixedCurrentProductV2.report_markdown = "# 混合产品契约回退";
@@ -2216,7 +2343,9 @@ process.stdout.write(JSON.stringify({
     typeof resolvePresentation === "function"
       ? resolvePresentation(unsafeL12MetaV2)
       : null,
+  historicalProductPresentation: resolvePresentation(completeProductV2),
   currentProductPresentation,
+  invalidStorylineProductPresentation: resolvePresentation(invalidStorylineProductV2),
   currentProductMarkup,
   mixedCurrentProductPresentation: resolvePresentation(mixedCurrentProductV2),
 }));
@@ -2271,6 +2400,8 @@ def test_report_card_keeps_markdown_when_v2_fields_are_incomplete() -> None:
 def test_report_card_accepts_current_product_contract_and_real_ssr_renders_l6_p2() -> None:
     probe = _run_report_card_boundary_probe()
 
+    assert probe["historicalProductPresentation"]["kind"] == "department"
+    assert "storyline" not in probe["historicalProductPresentation"]["reportNarrative"]
     assert probe["currentProductPresentation"]["kind"] == "department"
     assert [
         chart["template_id"]
@@ -2279,6 +2410,8 @@ def test_report_card_accepts_current_product_contract_and_real_ssr_renders_l6_p2
     assert "data-product-sentiment-stack" in probe["currentProductMarkup"]
     assert "产品对比点簇图" in probe["currentProductMarkup"]
     assert "外观比竞品更协调" in probe["currentProductMarkup"]
+    assert probe["currentProductPresentation"]["reportNarrative"]["storyline"]["chapters"][3]["chapter_id"] == "evidence"
+    assert "storyline" not in probe["invalidStorylineProductPresentation"]["reportNarrative"]
     assert probe["mixedCurrentProductPresentation"] == {
         "kind": "markdown",
         "reportMarkdown": "# 混合产品契约回退",
@@ -2921,15 +3054,18 @@ const localRequire = (id) => {
   if (id === "@/components/ui/hover-border-gradient") {
     return { HoverBorderGradient: ({ children }) => React.createElement("button", null, children) };
   }
-  if (id === "@/components/voc/report-visuals/ReportChartRegistry") {
-    return {
+      if (id === "@/components/voc/report-visuals/ReportChartRegistry") {
+        return {
       ReportChartRegistry: ({ chart }) =>
         React.createElement("svg", { "data-chart-id": chart.chart_id }),
-      isReportTemplateId: (value) =>
-        ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"].includes(value),
-    };
-  }
-  if (id === "@/config/navigation") return { apiBaseUrl: "" };
+          isReportTemplateId: (value) =>
+            ["F3", "F4", "F5", "F6", "F7", "F8", "L12", "L13", "L14"].includes(value),
+        };
+      }
+      if (id === "@/components/voc/report-summary/productStorylineData") {
+        return { isReportStoryline: () => false };
+      }
+      if (id === "@/config/navigation") return { apiBaseUrl: "" };
   throw new Error(`Unexpected import: ${id}`);
 };
 new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);

@@ -9,6 +9,7 @@ import {
   ReportChartRegistry,
 } from "@/components/voc/report-visuals/ReportChartRegistry";
 import type { ReportVisualChart } from "@/components/voc/report-visuals/types";
+import { isReportStoryline } from "@/components/voc/report-summary/productStorylineData";
 import { apiBaseUrl } from "@/config/navigation";
 import type {
   DepartmentReportAgentPayload,
@@ -227,8 +228,16 @@ function matchingDepartmentSectionCodes(
 export function resolveDepartmentReportPresentation(summary: unknown): DepartmentReportPresentation {
   if (!isRecord(summary)) return { kind: "empty" };
   if (isReportNarrative(summary.report_narrative) && isDepartmentStructuredReport(summary.structured_report)) {
+    const narrativeValue = summary.report_narrative;
+    const reportNarrative: ReportNarrative = {
+      headline: narrativeValue.headline,
+      executive_summary: narrativeValue.executive_summary,
+      section_insights: narrativeValue.section_insights,
+      data_notes: narrativeValue.data_notes,
+      ...(isReportStoryline(narrativeValue.storyline) ? { storyline: narrativeValue.storyline } : {}),
+    };
     const sectionCodes = matchingDepartmentSectionCodes(summary.structured_report);
-    const narrativeCodes = Object.keys(summary.report_narrative.section_insights);
+    const narrativeCodes = Object.keys(reportNarrative.section_insights);
     if (
       sectionCodes
       && narrativeCodes.length === sectionCodes.length
@@ -236,7 +245,7 @@ export function resolveDepartmentReportPresentation(summary: unknown): Departmen
     ) {
       return {
         kind: "department",
-        reportNarrative: summary.report_narrative,
+        reportNarrative,
         structuredReport: summary.structured_report,
       };
     }

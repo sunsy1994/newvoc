@@ -50,6 +50,17 @@ PRODUCT_REPORT_SECTION_CODES = (
     "product_pko_relationships",
     "product_pko_results",
 )
+PRODUCT_STORY_CHAPTER_IDS = ("focus", "attitude", "comparison", "evidence")
+PRODUCT_STORY_METRIC_REFS = {
+    "product_focus.summary",
+    "product_focus.aspects",
+    "product_opportunity.summary",
+    "product_opportunity.surprise_points",
+    "product_opportunity.pain_points",
+    "product_opportunity.conversion_points",
+    "pko.summary",
+    "pko.dimension_result_matrix",
+}
 SALES_REPORT_SECTION_CODES = ("sales_funnel", "sales_signals", "sales_intents", "sales_sources")
 MARKET_REPORT_CHART_SECTIONS = {
     "market-volume-trend": "market_rhythm",
@@ -450,6 +461,55 @@ def render_sales_report_prompt(template: str, sales_context: dict[str, Any]) -> 
 
 def _bounded_text(value: Any, max_length: int) -> str:
     return value.strip()[:max_length] if isinstance(value, str) else ""
+
+
+def normalize_product_storyline(value: Any, context: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or not isinstance(value.get("chapters"), list):
+        return None
+    raw_chapters = {
+        item.get("chapter_id"): item
+        for item in value["chapters"]
+        if isinstance(item, dict)
+    }
+    evidence_ids = {
+        str(item.get("comment_id"))
+        for item in (context.get("pko") or {}).get("evidence_comments", [])
+        if isinstance(item, dict) and item.get("comment_id")
+    }
+    chapters = []
+    for chapter_id in PRODUCT_STORY_CHAPTER_IDS:
+        item = raw_chapters.get(chapter_id)
+        if not isinstance(item, dict):
+            return None
+        metric_refs = item.get("metric_refs")
+        evidence_refs = item.get("evidence_refs")
+        chapters.append(
+            {
+                "chapter_id": chapter_id,
+                "title": _bounded_text(item.get("title"), 60),
+                "conclusion": _bounded_text(item.get("conclusion"), 240),
+                "body": _bounded_text(item.get("body"), 900),
+                "metric_refs": [
+                    ref
+                    for ref in metric_refs if isinstance(ref, str) and ref in PRODUCT_STORY_METRIC_REFS
+                ][:4]
+                if isinstance(metric_refs, list)
+                else [],
+                "evidence_refs": [
+                    ref
+                    for ref in evidence_refs if isinstance(ref, str) and ref in evidence_ids
+                ][:2]
+                if isinstance(evidence_refs, list)
+                else [],
+            }
+        )
+    if any(not item["title"] or not item["conclusion"] for item in chapters):
+        return None
+    return {
+        "headline": _bounded_text(value.get("headline"), 160),
+        "lead": _bounded_text(value.get("lead"), 600),
+        "chapters": chapters,
+    }
 
 
 def normalize_data_notes(value: Any) -> list[str]:

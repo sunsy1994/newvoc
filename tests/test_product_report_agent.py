@@ -110,6 +110,63 @@ def test_build_product_report_context_keeps_product_story_sections() -> None:
     assert context["evidence_comments"][0]["comment_text"] == "和ID.4比，价格没优势。"
 
 
+def test_product_storyline_keeps_only_fixed_real_references() -> None:
+    from app.services.report_agent import (
+        build_product_report_context,
+        normalize_product_storyline,
+    )
+
+    context = build_product_report_context(sample_product_dashboard())
+    raw = {
+        "headline": "用户讨论由外观吸引，价格比较形成主要分歧",
+        "lead": "讨论先集中到外观，随后进入价格与竞品比较。",
+        "chapters": [
+            {"chapter_id": "focus", "title": "用户在关注什么", "conclusion": "外观最受关注", "body": "讨论集中在外观。", "metric_refs": ["product_focus.aspects", "unknown.path"], "evidence_refs": []},
+            {"chapter_id": "attitude", "title": "用户如何评价", "conclusion": "外观正向", "body": "价格负向更集中。", "metric_refs": ["product_opportunity.summary"], "evidence_refs": []},
+            {"chapter_id": "comparison", "title": "用户在和谁比较", "conclusion": "主要比较 ID.4", "body": "价格是主要维度。", "metric_refs": ["pko.summary"], "evidence_refs": ["pko_001", "missing"]},
+            {"chapter_id": "evidence", "title": "证据如何支撑", "conclusion": "原话支持上述判断", "body": "证据来自真实评论。", "metric_refs": [], "evidence_refs": ["pko_001"]},
+        ],
+    }
+
+    storyline = normalize_product_storyline(raw, context)
+
+    assert [item["chapter_id"] for item in storyline["chapters"]] == ["focus", "attitude", "comparison", "evidence"]
+    assert storyline["chapters"][0]["metric_refs"] == ["product_focus.aspects"]
+    assert storyline["chapters"][2]["evidence_refs"] == ["pko_001"]
+
+
+def test_product_storyline_bounds_text_and_rejects_incomplete_chapters() -> None:
+    from app.services.report_agent import (
+        build_product_report_context,
+        normalize_product_storyline,
+    )
+
+    context = build_product_report_context(sample_product_dashboard())
+    chapters = [
+        {
+            "chapter_id": chapter_id,
+            "title": "标题" * 61,
+            "conclusion": "结论" * 241,
+            "body": "正文" * 901,
+            "metric_refs": [],
+            "evidence_refs": [],
+        }
+        for chapter_id in ("focus", "attitude", "comparison", "evidence")
+    ]
+
+    storyline = normalize_product_storyline(
+        {"headline": "标题" * 161, "lead": "导语" * 601, "chapters": chapters},
+        context,
+    )
+
+    assert len(storyline["headline"]) == 160
+    assert len(storyline["lead"]) == 600
+    assert len(storyline["chapters"][0]["title"]) == 60
+    assert len(storyline["chapters"][0]["conclusion"]) == 240
+    assert len(storyline["chapters"][0]["body"]) == 900
+    assert normalize_product_storyline({"chapters": chapters[:-1]}, context) is None
+
+
 def _product_cache_payload(*, sentiment_template: str, evidence_template: str) -> dict:
     sentiment_is_new = sentiment_template == "L15"
     evidence_is_new = evidence_template == "L6"

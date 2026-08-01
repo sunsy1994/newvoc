@@ -3702,7 +3702,7 @@ const localRequire = (id) => {
     return { buildProductStorylineView: () => null, isReportStoryline: () => false };
   }
   if (id === "@/components/voc/report-summary/marketStorylineData") {
-    return { buildMarketStorylineView: () => null, formatMarketStorylineCopyText: () => "" };
+    return { buildMarketStorylineView: () => null, formatMarketStorylineCopyText: () => "", isMarketStoryline: () => false };
   }
   if (id === "@/components/voc/report-summary/ReportSummaryStoryline") {
     return { ReportSummaryStoryline: () => null };
@@ -3778,3 +3778,20 @@ def test_market_storyline_is_wired_to_four_fixed_chapters() -> None:
     assert "summaryLabel={marketStoryline" in card_source
     assert "事件传播复盘" in card_source
     assert "formatMarketStorylineCopyText" in card_source
+
+
+def test_market_storyline_survives_report_narrative_normalization() -> None:
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+
+    assert "isMarketStoryline(narrativeValue.storyline)" in source
+
+
+def test_market_charts_keep_the_shared_title_and_insight_shell() -> None:
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "frontend/src/components/voc/report-visuals/MarketCharts.tsx").read_text(encoding="utf-8")
+
+    assert 'import { ReportVisualShell } from "./ReportVisualShell"' in source
+    assert source.count("<ReportVisualShell chart={chart}") == 5

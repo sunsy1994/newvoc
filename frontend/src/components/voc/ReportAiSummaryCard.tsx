@@ -16,7 +16,7 @@ import {
   isReportStoryline,
   productStorylineEventName,
 } from "@/components/voc/report-summary/productStorylineData";
-import { buildMarketStorylineView, formatMarketStorylineCopyText } from "@/components/voc/report-summary/marketStorylineData";
+import { buildMarketStorylineView, formatMarketStorylineCopyText, isMarketStoryline } from "@/components/voc/report-summary/marketStorylineData";
 import { apiBaseUrl } from "@/config/navigation";
 import type {
   DepartmentReportAgentPayload,
@@ -258,7 +258,9 @@ export function resolveDepartmentReportPresentation(summary: unknown): Departmen
       executive_summary: narrativeValue.executive_summary,
       section_insights: narrativeValue.section_insights,
       data_notes: narrativeValue.data_notes,
-      ...(isReportStoryline(narrativeValue.storyline) ? { storyline: narrativeValue.storyline } : {}),
+      ...(isReportStoryline(narrativeValue.storyline) || isMarketStoryline(narrativeValue.storyline)
+        ? { storyline: narrativeValue.storyline }
+        : {}),
     };
     const sectionCodes = matchingDepartmentSectionCodes(summary.structured_report);
     const narrativeCodes = Object.keys(reportNarrative.section_insights);

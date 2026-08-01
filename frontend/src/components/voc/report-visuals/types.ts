@@ -9,7 +9,11 @@ export type ReportTemplateId =
   | "L12"
   | "L13"
   | "L14"
-  | "L15";
+  | "L15"
+  | "P1"
+  | "P2"
+  | "P3"
+  | "P4";
 
 export type ReportVisualChart = {
   chart_id: string;

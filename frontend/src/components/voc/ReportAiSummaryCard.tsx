@@ -61,6 +61,22 @@ const DEPARTMENT_REPORT_CONTRACTS = [
       "product_pko_results",
     ],
     charts: [
+      ["product-focus", "P1"],
+      ["product-sentiment", "P2"],
+      ["product-opportunity", "P3"],
+      ["product-pko-evidence", "L6"],
+      ["product-pko-matrix", "P4"],
+    ],
+  },
+  {
+    sectionCodes: [
+      "product_focus",
+      "product_sentiment",
+      "product_opportunity",
+      "product_pko_relationships",
+      "product_pko_results",
+    ],
+    charts: [
       ["product-focus", "F5"],
       ["product-sentiment", "F6"],
       ["product-opportunity", "F5"],
@@ -677,7 +693,15 @@ function DepartmentReportView({
       {reportViewMode === "charts" ? (
         <div className="grid gap-4 xl:grid-cols-2">
           {structuredReport.charts.map((chart) => (
-            <div key={chart.chart_id} className={chart.template_id === "L6" ? "xl:col-span-2" : undefined}>
+            <div
+              key={chart.chart_id}
+              className={
+                chart.template_id === "L6"
+                || ["product-focus", "product-pko-matrix"].includes(chart.chart_id)
+                  ? "xl:col-span-2"
+                  : undefined
+              }
+            >
               <ReportChartRegistry chart={chart} />
             </div>
           ))}

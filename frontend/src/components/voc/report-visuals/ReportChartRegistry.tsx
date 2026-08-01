@@ -15,6 +15,12 @@ import {
   L14HundredField,
 } from "./NarrativeCharts";
 import { L15BallotTally } from "./SmallDataCharts";
+import {
+  P1ProductFocusBars,
+  P2SentimentStack,
+  P3OpportunityLanes,
+  P4PkoMatrix,
+} from "./ProductCharts";
 import type { ReportTemplateId, ReportVisualChart } from "./types";
 
 type ChartProps = {
@@ -33,6 +39,10 @@ const REPORT_CHARTS = {
   L13: L13HourglassStream,
   L14: L14HundredField,
   L15: L15BallotTally,
+  P1: P1ProductFocusBars,
+  P2: P2SentimentStack,
+  P3: P3OpportunityLanes,
+  P4: P4PkoMatrix,
 } satisfies Record<ReportTemplateId, ComponentType<ChartProps>>;
 
 export function isReportTemplateId(value: unknown): value is ReportTemplateId {

@@ -34,13 +34,13 @@ def test_product_report_chart_order_is_fixed():
         }
     )
     assert [(item["chart_id"], item["template_id"]) for item in charts] == [
-        ("product-focus", "F5"),
-        ("product-sentiment", "L15"),
-        ("product-opportunity", "F5"),
+        ("product-focus", "P1"),
+        ("product-sentiment", "P2"),
+        ("product-opportunity", "P3"),
         ("product-pko-evidence", "L6"),
-        ("product-pko-matrix", "F7"),
+        ("product-pko-matrix", "P4"),
     ]
-    assert {"L6", "L15", "F6", "L12"} <= REPORT_TEMPLATE_IDS
+    assert {"P1", "P2", "P3", "P4", "L6", "L15", "F6", "L12"} <= REPORT_TEMPLATE_IDS
 
 
 def test_l6_keeps_only_real_dimension_target_evidence_rows():

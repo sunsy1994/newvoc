@@ -4,7 +4,7 @@ import math
 from typing import Any
 
 
-REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15"}
+REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15", "P1", "P2", "P3", "P4"}
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 SALES_FUNNEL_STAGES = ("已打标评论", "车相关评论", "销售相关意图", "中/强购买信号")
 RESULT_BUCKETS = {"advantage", "disadvantage", "neutral", "unclear"}
@@ -164,11 +164,11 @@ def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, 
             if _first_text(row, LABEL_KEYS) and _first_number(row, VALUE_KEYS) is not None
         ]
         return normalized if sum(_first_number(row, VALUE_KEYS) or 0 for row in normalized) > 0 else []
-    if template_id == "F5":
+    if template_id in {"F5", "P1", "P3"}:
         return [row for row in rows if _valid_f5_row(row)]
     if template_id == "F6":
         return [row for row in rows if _valid_f6_row(row)]
-    if template_id == "F7":
+    if template_id in {"F7", "P4"}:
         return [row for row in rows if _valid_f7_row(row)]
     if template_id == "F8":
         return [row for row in rows if _valid_f8_row(row)]
@@ -216,7 +216,7 @@ def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, 
         if not percentages or abs(total - 100) > 1.01:
             return []
         return [row for row, _ in percentages]
-    if template_id == "L15":
+    if template_id in {"L15", "P2"}:
         normalized_rows = []
         for row in rows:
             rates = normalize_sentiment_rates(
@@ -371,11 +371,11 @@ def build_product_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]
     if not evidence:
         evidence_meta["empty_reason"] = "暂无可用数据"
     chart_data = [
-        ("product-focus", "F5", "产品关注点", "按提及占比展示", "product_focus.aspects", aspects),
-        ("product-sentiment", "L15", "产品点正负反馈", "一格代表固定百分点 · 正向 / 中性 / 负向", "product_focus.aspects", aspects),
-        ("product-opportunity", "F5", "机会、风险与转化", "系统计算的机会分", "product_opportunity", opportunity_rows),
+        ("product-focus", "P1", "产品关注点", "提及占比与反馈质量", "product_focus.aspects", aspects),
+        ("product-sentiment", "P2", "产品点正负反馈", "正向 / 中性 / 负向连续构成", "product_focus.aspects", aspects),
+        ("product-opportunity", "P3", "机会、风险与惊喜", "基于系统机会分归类", "product_opportunity", opportunity_rows),
         ("product-pko-evidence", "L6", "用户反馈构成", "中心为产品点 · 气泡面积代表真实对比次数", "pko.evidence_comments", evidence),
-        ("product-pko-matrix", "F7", "PKO 维度结果明细", "优势、劣势与中性结果", "pko.dimension_result_matrix", _rows(pko.get("dimension_result_matrix"))),
+        ("product-pko-matrix", "P4", "PKO 维度结果明细", "各产品维度的对比结果构成", "pko.dimension_result_matrix", _rows(pko.get("dimension_result_matrix"))),
     ]
     charts = [_chart(*item, meta=_meta(item[-1])) for item in chart_data]
     charts[3]["meta"] = evidence_meta

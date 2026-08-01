@@ -91,12 +91,19 @@ LEGACY_PRODUCT_REPORT_CHART_CONTRACT = (
     ("product-pko-evidence", "L12", "PKO 车系与对比维度", "每条线对应一条真实评论", "pko.evidence_comments"),
     ("product-pko-matrix", "F7", "PKO 维度结果明细", "优势、劣势与中性结果", "pko.dimension_result_matrix"),
 )
-PRODUCT_REPORT_CHART_CONTRACT = (
+PREVIOUS_PRODUCT_REPORT_CHART_CONTRACT = (
     ("product-focus", "F5", "产品关注点", "按提及占比展示", "product_focus.aspects"),
     ("product-sentiment", "L15", "产品点正负反馈", "一格代表固定百分点 · 正向 / 中性 / 负向", "product_focus.aspects"),
     ("product-opportunity", "F5", "机会、风险与转化", "系统计算的机会分", "product_opportunity"),
     ("product-pko-evidence", "L6", "用户反馈构成", "中心为产品点 · 气泡面积代表真实对比次数", "pko.evidence_comments"),
     ("product-pko-matrix", "F7", "PKO 维度结果明细", "优势、劣势与中性结果", "pko.dimension_result_matrix"),
+)
+PRODUCT_REPORT_CHART_CONTRACT = (
+    ("product-focus", "P1", "产品关注点", "提及占比与反馈质量", "product_focus.aspects"),
+    ("product-sentiment", "P2", "产品点正负反馈", "正向 / 中性 / 负向连续构成", "product_focus.aspects"),
+    ("product-opportunity", "P3", "机会、风险与惊喜", "基于系统机会分归类", "product_opportunity"),
+    ("product-pko-evidence", "L6", "用户反馈构成", "中心为产品点 · 气泡面积代表真实对比次数", "pko.evidence_comments"),
+    ("product-pko-matrix", "P4", "PKO 维度结果明细", "各产品维度的对比结果构成", "pko.dimension_result_matrix"),
 )
 SALES_REPORT_CHART_CONTRACT = (
     ("sales-lead-funnel", "L13", "线索转化漏斗", "固定转化阶段", "lead_quality.summary"),
@@ -114,6 +121,11 @@ REPORT_CACHE_CONTRACTS = (
         DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
         PRODUCT_REPORT_SECTION_CODES,
         PRODUCT_REPORT_CHART_CONTRACT,
+    ),
+    (
+        DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
+        PRODUCT_REPORT_SECTION_CODES,
+        PREVIOUS_PRODUCT_REPORT_CHART_CONTRACT,
     ),
     (
         DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,

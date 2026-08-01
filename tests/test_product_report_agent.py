@@ -205,6 +205,24 @@ def _product_cache_payload(*, sentiment_template: str, evidence_template: str) -
     }
 
 
+def _current_product_cache_payload() -> dict:
+    payload = _product_cache_payload(sentiment_template="L15", evidence_template="L6")
+    current_contract = (
+        ("P1", "提及占比与反馈质量"),
+        ("P2", "正向 / 中性 / 负向连续构成"),
+        ("P3", "基于系统机会分归类"),
+        ("L6", "中心为产品点 · 气泡面积代表真实对比次数"),
+        ("P4", "各产品维度的对比结果构成"),
+    )
+    for chart, (template_id, subtitle) in zip(
+        payload["structured_report"]["charts"], current_contract
+    ):
+        chart["template_id"] = template_id
+        chart["subtitle"] = subtitle
+    payload["structured_report"]["charts"][2]["title"] = "机会、风险与惊喜"
+    return payload
+
+
 def test_product_cache_accepts_new_and_legacy_visual_contracts() -> None:
     from app.services.report_agent import (
         DEFAULT_PRODUCT_REPORT_PROMPT_VERSION,
@@ -556,7 +574,7 @@ def test_l15_builder_cache_and_real_frontend_share_normalized_three_rate_contrac
         },
     ]
 
-    payload = _product_cache_payload(sentiment_template="L15", evidence_template="L6")
+    payload = _current_product_cache_payload()
     payload["structured_report"]["charts"][1] = l15_chart
     cached = normalize_cached_report_summary(
         payload,
@@ -596,21 +614,20 @@ function load(relativePath, stubs) {
 const shell = load("src/components/voc/report-visuals/ReportVisualShell.tsx", {
   "./chartTheme": theme,
 });
-const chartModule = load("src/components/voc/report-visuals/SmallDataCharts.tsx", {
+const chartModule = load("src/components/voc/report-visuals/ProductCharts.tsx", {
   "./chartTheme": theme,
   "./ReportVisualShell": shell,
 });
 const data = JSON.parse(process.argv[1]);
-const rows = chartModule.normalizeL15Rows(data);
 const markup = ReactDOMServer.renderToStaticMarkup(React.createElement(
-  chartModule.L15BallotTally,
+  chartModule.P2SentimentStack,
   { chart: {
-    chart_id: "product-sentiment", template_id: "L15", title: "产品点正负反馈",
+    chart_id: "product-sentiment", template_id: "P2", title: "产品点正负反馈",
     subtitle: "三率", insight: "一致", source_label: "product_focus.aspects",
     data, meta: {},
-  } },
+ } },
 ));
-process.stdout.write(JSON.stringify({ rows, markup }));
+process.stdout.write(JSON.stringify({ markup }));
 """
     completed = subprocess.run(
         ["node", "-e", frontend_script, json.dumps(cached_l15_data, ensure_ascii=False)],
@@ -621,12 +638,9 @@ process.stdout.write(JSON.stringify({ rows, markup }));
     )
     assert completed.returncode == 0, completed.stderr
     frontend = json.loads(completed.stdout)
-    assert frontend["rows"] == [
-        {"aspect": "外观", "positiveRate": 66.67, "neutralRate": 0, "negativeRate": 33.33},
-        {"aspect": "空间", "positiveRate": 83.33, "neutralRate": 0, "negativeRate": 16.67},
-    ]
     assert all(rate in frontend["markup"] for rate in ["66.67%", "33.33%", "83.33%", "16.67%"])
-    assert "<svg" in frontend["markup"]
+    assert "data-product-sentiment-stack" in frontend["markup"]
+    assert "<line" not in frontend["markup"]
 
 
 def test_product_pko_story_caps_after_removing_unrenderable_records() -> None:
@@ -812,7 +826,7 @@ def test_run_product_report_agent_returns_fixed_narrative_and_builder_charts(mon
         "data_notes": ["产品数据说明"],
     }
     charts = result["summary"]["structured_report"]["charts"]
-    assert [chart["template_id"] for chart in charts] == ["F5", "L15", "F5", "L6", "F7"]
+    assert [chart["template_id"] for chart in charts] == ["P1", "P2", "P3", "L6", "P4"]
     assert [chart["insight"] for chart in charts] == ["关注判断", "用户讨论集中在外观与价格。", "机会判断", "对比关系判断", "对比结果判断"]
     assert charts[0]["data"] == result["context"]["product_focus"]["aspects"]
     assert charts[3]["data"][0]["comment_id"] == "pko_001"

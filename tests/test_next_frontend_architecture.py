@@ -1873,11 +1873,28 @@ def test_report_chart_registry_is_closed_and_complete() -> None:
         "frontend/src/components/voc/report-visuals/ReportChartRegistry.tsx"
     ).read_text(encoding="utf-8")
 
-    for template_id in ["F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15"]:
+    for template_id in ["F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15", "P1", "P2", "P3", "P4"]:
         assert f"{template_id}:" in source
     assert "satisfies Record<ReportTemplateId" in source
     assert "dangerouslySetInnerHTML" not in source
     assert "eval(" not in source
+
+
+def test_product_report_visuals_have_dedicated_continuous_components() -> None:
+    source = Path("frontend/src/components/voc/report-visuals/ProductCharts.tsx").read_text(encoding="utf-8")
+
+    for export_name in (
+        "P1ProductFocusBars",
+        "P2SentimentStack",
+        "P3OpportunityLanes",
+        "P4PkoMatrix",
+    ):
+        assert f"export function {export_name}" in source
+    assert "boundedUnitCount" not in source
+    assert "data-product-continuous-bar" in source
+    assert "data-product-sentiment-stack" in source
+    assert "data-product-opportunity-lane" in source
+    assert "data-product-pko-matrix" in source
 
 
 @lru_cache(maxsize=1)
@@ -1932,6 +1949,10 @@ const smallData = loadTsx("src/components/voc/report-visuals/SmallDataCharts.tsx
   "./chartTheme": themeModule,
   "./ReportVisualShell": shell,
 });
+const productCharts = loadTsx("src/components/voc/report-visuals/ProductCharts.tsx", {
+  "./chartTheme": themeModule,
+  "./ReportVisualShell": shell,
+});
 const registry = loadTsx(
   "src/components/voc/report-visuals/ReportChartRegistry.tsx",
   {
@@ -1945,6 +1966,7 @@ const registry = loadTsx(
     },
     "./NarrativeCharts": narrative,
     "./SmallDataCharts": smallData,
+    "./ProductCharts": productCharts,
   },
 );
 
@@ -2116,11 +2138,13 @@ unsafeL12MetaV2.structured_report.charts[3].meta.displayed_count = { unsafe: tru
 unsafeL12MetaV2.report_markdown = "# L12 Meta 异常时保留 Markdown";
 const completeCurrentProductV2 = JSON.parse(JSON.stringify(completeProductV2));
 completeCurrentProductV2.report_markdown = "# 新产品契约不应回退";
-completeCurrentProductV2.structured_report.charts[1].template_id = "L15";
+completeCurrentProductV2.structured_report.charts[0].template_id = "P1";
+completeCurrentProductV2.structured_report.charts[1].template_id = "P2";
 completeCurrentProductV2.structured_report.charts[1].data = [{
   aspect: "外观", positive_rate: 66.67, neutral_rate: 0, negative_rate: 33.33,
 }];
 completeCurrentProductV2.structured_report.charts[1].meta = {};
+completeCurrentProductV2.structured_report.charts[2].template_id = "P3";
 completeCurrentProductV2.structured_report.charts[3].template_id = "L6";
 completeCurrentProductV2.structured_report.charts[3].data = [{
   comment_id: "pko-001", comment_text: "外观比竞品更协调", dimension: "外观",
@@ -2129,6 +2153,7 @@ completeCurrentProductV2.structured_report.charts[3].data = [{
 completeCurrentProductV2.structured_report.charts[3].meta = {
   displayed_count: 1, total_count: 1, unit: "条对比评论",
 };
+completeCurrentProductV2.structured_report.charts[4].template_id = "P4";
 const mixedCurrentProductV2 = JSON.parse(JSON.stringify(completeCurrentProductV2));
 mixedCurrentProductV2.structured_report.charts[3].template_id = "L12";
 mixedCurrentProductV2.report_markdown = "# 混合产品契约回退";
@@ -2138,7 +2163,7 @@ const currentProductMarkup = currentProductPresentation.kind === "department"
       React.Fragment,
       null,
       currentProductPresentation.structuredReport.charts
-        .filter((chart) => chart.template_id === "L6" || chart.template_id === "L15")
+        .filter((chart) => chart.template_id === "L6" || chart.template_id === "P2")
         .map((chart) => React.createElement(registry.ReportChartRegistry, {
           key: chart.chart_id,
           chart,
@@ -2243,15 +2268,15 @@ def test_report_card_keeps_markdown_when_v2_fields_are_incomplete() -> None:
     }
 
 
-def test_report_card_accepts_current_product_contract_and_real_ssr_renders_l6_l15() -> None:
+def test_report_card_accepts_current_product_contract_and_real_ssr_renders_l6_p2() -> None:
     probe = _run_report_card_boundary_probe()
 
     assert probe["currentProductPresentation"]["kind"] == "department"
     assert [
         chart["template_id"]
         for chart in probe["currentProductPresentation"]["structuredReport"]["charts"]
-    ] == ["F5", "L15", "F5", "L6", "F7"]
-    assert "情感计票图" in probe["currentProductMarkup"]
+    ] == ["P1", "P2", "P3", "L6", "P4"]
+    assert "data-product-sentiment-stack" in probe["currentProductMarkup"]
     assert "产品对比点簇图" in probe["currentProductMarkup"]
     assert "外观比竞品更协调" in probe["currentProductMarkup"]
     assert probe["mixedCurrentProductPresentation"] == {
@@ -2847,7 +2872,8 @@ def test_report_modal_uses_wide_viewport_flex_scroller_for_multiline_header() ->
 def test_l6_full_width_in_department_report_chart_grid() -> None:
     source = Path("frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
 
-    assert 'className={chart.template_id === "L6" ? "xl:col-span-2" : undefined}' in source
+    assert 'chart.template_id === "L6"' in source
+    assert '["product-focus", "product-pko-matrix"].includes(chart.chart_id)' in source
     assert "grid gap-4 xl:grid-cols-2" in source
 
 

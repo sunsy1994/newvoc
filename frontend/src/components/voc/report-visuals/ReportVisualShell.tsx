@@ -18,7 +18,7 @@ export function ReportVisualShell({ chart, children, hasData = chart.data.length
     <section
       role="figure"
       aria-label={`${chart.title}。${chart.subtitle}`}
-      className="rounded-2xl border p-5"
+      className="h-full rounded-2xl border p-5"
       style={{
         borderColor: reportChartTheme.border,
         background: reportChartTheme.white,

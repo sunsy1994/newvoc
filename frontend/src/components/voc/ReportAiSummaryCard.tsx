@@ -703,7 +703,7 @@ export function DepartmentReportView({
         : "text-[var(--theme-body)] hover:bg-[var(--theme-hover-bg)]"
     }`;
   const modeSwitcher = (
-    <div className="inline-flex rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-1 text-xs font-semibold shadow-[0_8px_18px_rgba(26,32,44,0.06)]">
+    <div className="inline-flex rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-1 text-xs font-semibold">
       <button type="button" onClick={() => setReportViewMode("summary")} className={modeClass("summary")} aria-pressed={reportViewMode === "summary"}>
         摘要模式
       </button>
@@ -718,9 +718,9 @@ export function DepartmentReportView({
 
   return (
     <div className="space-y-5">
-      {isStorylineSummary ? (
-        <div className="flex justify-end">{modeSwitcher}</div>
-      ) : (
+      <div className="flex justify-end">{modeSwitcher}</div>
+
+      {!isStorylineSummary ? (
         <div className="rounded-2xl border border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-white),var(--theme-selected-bg))] p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-3xl">
@@ -740,10 +740,9 @@ export function DepartmentReportView({
                 <p className="mt-2 text-sm text-[var(--theme-muted)]">集中查看数据说明，以及当前报告中实际提供的证据和计算口径。</p>
               ) : null}
             </div>
-            {modeSwitcher}
           </div>
         </div>
-      )}
+      ) : null}
 
       {reportViewMode === "summary" ? (
         storylineView ? (

@@ -2485,6 +2485,169 @@ def test_storyline_summary_renders_one_hero_and_four_ordered_chapters() -> None:
     assert "完整产品 v2" not in wired_markup
     assert "结构完整" not in wired_markup
     assert "摘要模式" in wired_markup
+    assert "rgba(" not in wired_markup
+
+
+def _run_storyline_mode_structure_probe() -> dict:
+    script = r"""
+const fs = require("fs");
+const path = require("path");
+const base = path.resolve("frontend");
+const ts = require(path.join(base, "node_modules", "typescript"));
+const React = require(path.join(base, "node_modules", "react"));
+const jsxRuntime = require(path.join(base, "node_modules", "react", "jsx-runtime"));
+
+function loadTsx(relativePath, stubs, reactModule = React) {
+  const source = fs.readFileSync(path.join(base, relativePath), "utf8");
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2017,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  const localRequire = (id) => {
+    if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
+    if (id === "react") return reactModule;
+    if (id === "react/jsx-runtime") return jsxRuntime;
+    throw new Error(`Unexpected import: ${id}`);
+  };
+  new Function("require", "module", "exports", output)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
+}
+
+const storylineData = loadTsx(
+  "src/components/voc/report-summary/productStorylineData.ts",
+  {},
+);
+const storylineSummary = loadTsx(
+  "src/components/voc/report-summary/ReportSummaryStoryline.tsx",
+  {},
+);
+const emptyIcon = () => null;
+function loadReportCard(mode) {
+  const reactWithControlledMode = {
+    ...React,
+    useState: () => [mode, () => {}],
+  };
+  return loadTsx(
+    "src/components/voc/ReportAiSummaryCard.tsx",
+    {
+      "lucide-react": {
+        Bot: emptyIcon,
+        Check: emptyIcon,
+        Clipboard: emptyIcon,
+        Loader2: emptyIcon,
+        Sparkles: emptyIcon,
+        X: emptyIcon,
+      },
+      "@/components/ui/hover-border-gradient": {
+        HoverBorderGradient: ({ children }) => React.createElement("button", null, children),
+      },
+      "@/components/voc/report-visuals/ReportChartRegistry": {
+        ReportChartRegistry: () => null,
+        isReportTemplateId: () => true,
+      },
+      "@/components/voc/report-summary/productStorylineData": storylineData,
+      "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
+      "@/config/navigation": { apiBaseUrl: "" },
+    },
+    reactWithControlledMode,
+  );
+}
+
+const chapterIds = ["focus", "attitude", "comparison", "evidence"];
+const props = {
+  reportNarrative: {
+    headline: "旧摘要标题",
+    executive_summary: "旧摘要结论",
+    section_insights: {},
+    data_notes: [],
+    storyline: {
+      headline: "故事线结论",
+      lead: "故事线导语",
+      chapters: chapterIds.map((chapter_id, index) => ({
+        chapter_id,
+        title: `章节${index + 1}`,
+        conclusion: "结论",
+        body: "正文",
+        metric_refs: [],
+        evidence_refs: [],
+      })),
+    },
+  },
+  structuredReport: {
+    charts: [
+      ["product-focus", "P1"],
+      ["product-sentiment", "P2"],
+      ["product-opportunity", "P3"],
+      ["product-pko-evidence", "L6"],
+      ["product-pko-matrix", "P4"],
+    ].map(([chart_id, template_id]) => ({
+      chart_id,
+      template_id,
+      title: chart_id,
+      subtitle: "",
+      insight: "",
+      source_label: chart_id,
+      data: [],
+      meta: {},
+    })),
+  },
+};
+
+function findModeSwitchers(node, pathParts = [], found = []) {
+  if (!React.isValidElement(node)) return found;
+  const children = React.Children.toArray(node.props.children);
+  const labels = children.map((child) => (
+    React.isValidElement(child) && child.type === "button" ? child.props.children : null
+  ));
+  if (labels.join("|") === "摘要模式|图表模式|数据依据") {
+    found.push({
+      path: pathParts.join("."),
+      type: node.type,
+      pressed: children.map((child) => child.props["aria-pressed"]),
+    });
+  }
+  children.forEach((child, index) => {
+    findModeSwitchers(child, [...pathParts, index], found);
+  });
+  return found;
+}
+
+function inspect(mode) {
+  const reportCard = loadReportCard(mode);
+  return findModeSwitchers(reportCard.DepartmentReportView(props));
+}
+
+process.stdout.write(JSON.stringify({
+  summary: inspect("summary"),
+  charts: inspect("charts"),
+  evidence: inspect("evidence"),
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=10,
+    )
+    return json.loads(completed.stdout)
+
+
+def test_storyline_mode_switcher_keeps_stable_reconciliation_path() -> None:
+    probe = _run_storyline_mode_structure_probe()
+
+    assert all(len(probe[mode]) == 1 for mode in ["summary", "charts", "evidence"])
+    assert {probe[mode][0]["type"] for mode in probe} == {"div"}
+    assert len({probe[mode][0]["path"] for mode in probe}) == 1
+    assert probe["summary"][0]["pressed"] == [True, False, False]
+    assert probe["charts"][0]["pressed"] == [False, True, False]
+    assert probe["evidence"][0]["pressed"] == [False, False, True]
 
 
 def test_storyline_summary_uses_only_shared_theme_tokens() -> None:

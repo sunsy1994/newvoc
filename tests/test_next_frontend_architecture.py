@@ -2082,6 +2082,10 @@ const storylineData = loadTsx(
   "src/components/voc/report-summary/productStorylineData.ts",
   {},
 );
+const storylineSummary = loadTsx(
+  "src/components/voc/report-summary/ReportSummaryStoryline.tsx",
+  {},
+);
 
 function renderRegistry(chart) {
   try {
@@ -2116,6 +2120,7 @@ const reportCard = loadTsx(
       isReportTemplateId: registry.isReportTemplateId,
     },
     "@/components/voc/report-summary/productStorylineData": storylineData,
+    "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
     "@/config/navigation": { apiBaseUrl: "" },
   },
 );
@@ -2253,12 +2258,20 @@ unsafeL12MetaV2.report_markdown = "# L12 Meta 异常时保留 Markdown";
 const completeCurrentProductV2 = JSON.parse(JSON.stringify(completeProductV2));
 completeCurrentProductV2.report_markdown = "# 新产品契约不应回退";
 completeCurrentProductV2.structured_report.charts[0].template_id = "P1";
+completeCurrentProductV2.structured_report.charts[0].data = [{
+  aspect: "外观", mention_rate: 72,
+}];
+completeCurrentProductV2.structured_report.charts[0].meta = {};
 completeCurrentProductV2.structured_report.charts[1].template_id = "P2";
 completeCurrentProductV2.structured_report.charts[1].data = [{
   aspect: "外观", positive_rate: 66.67, neutral_rate: 0, negative_rate: 33.33,
 }];
 completeCurrentProductV2.structured_report.charts[1].meta = {};
 completeCurrentProductV2.structured_report.charts[2].template_id = "P3";
+completeCurrentProductV2.structured_report.charts[2].data = [{
+  point_type: "surprise", aspect: "外观", opportunity_score: 88,
+}];
+completeCurrentProductV2.structured_report.charts[2].meta = {};
 completeCurrentProductV2.structured_report.charts[3].template_id = "L6";
 completeCurrentProductV2.structured_report.charts[3].data = [{
   comment_id: "pko-001", comment_text: "外观比竞品更协调", dimension: "外观",
@@ -2268,6 +2281,11 @@ completeCurrentProductV2.structured_report.charts[3].meta = {
   displayed_count: 1, total_count: 1, unit: "条对比评论",
 };
 completeCurrentProductV2.structured_report.charts[4].template_id = "P4";
+completeCurrentProductV2.structured_report.charts[4].data = [{
+  dimension: "外观", advantage_count: 1, disadvantage_count: 0,
+  neutral_count: 0, unclear_count: 0,
+}];
+completeCurrentProductV2.structured_report.charts[4].meta = {};
 completeCurrentProductV2.report_narrative.storyline = {
   headline: "外观吸引关注，价格比较形成分歧",
   lead: "讨论从外观进入价格比较。",
@@ -2276,9 +2294,10 @@ completeCurrentProductV2.report_narrative.storyline = {
     ["attitude", "用户如何评价"],
     ["comparison", "用户在和谁比较"],
     ["evidence", "证据如何支撑"],
-  ].map(([chapter_id, title]) => ({
+  ].map(([chapter_id, title], index) => ({
     chapter_id, title, conclusion: `${title}的结论`, body: "真实数据形成叙事。",
-    metric_refs: [], evidence_refs: [],
+    metric_refs: index === 0 ? ["product_focus.aspects"] : [],
+    evidence_refs: index === 3 ? ["pko-001"] : [],
   })),
 };
 const invalidStorylineProductV2 = JSON.parse(JSON.stringify(completeCurrentProductV2));
@@ -2287,6 +2306,26 @@ const mixedCurrentProductV2 = JSON.parse(JSON.stringify(completeCurrentProductV2
 mixedCurrentProductV2.structured_report.charts[3].template_id = "L12";
 mixedCurrentProductV2.report_markdown = "# 混合产品契约回退";
 const currentProductPresentation = resolvePresentation(completeCurrentProductV2);
+const historicalProductPresentation = resolvePresentation(completeProductV2);
+const storylineView = storylineData.buildProductStorylineView(
+  currentProductPresentation.reportNarrative.storyline,
+  currentProductPresentation.structuredReport.charts,
+);
+const storylineSummaryMarkup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(storylineSummary.ReportSummaryStoryline, { storyline: storylineView }),
+);
+const currentProductSummaryMarkup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(reportCard.DepartmentReportView, {
+    reportNarrative: currentProductPresentation.reportNarrative,
+    structuredReport: currentProductPresentation.structuredReport,
+  }),
+);
+const legacyProductSummaryMarkup = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(reportCard.DepartmentReportView, {
+    reportNarrative: historicalProductPresentation.reportNarrative,
+    structuredReport: historicalProductPresentation.structuredReport,
+  }),
+);
 const currentProductMarkup = currentProductPresentation.kind === "department"
   ? ReactDOMServer.renderToStaticMarkup(React.createElement(
       React.Fragment,
@@ -2345,10 +2384,13 @@ process.stdout.write(JSON.stringify({
     typeof resolvePresentation === "function"
       ? resolvePresentation(unsafeL12MetaV2)
       : null,
-  historicalProductPresentation: resolvePresentation(completeProductV2),
+  historicalProductPresentation,
   currentProductPresentation,
   invalidStorylineProductPresentation: resolvePresentation(invalidStorylineProductV2),
   currentProductMarkup,
+  storylineSummaryMarkup,
+  currentProductSummaryMarkup,
+  legacyProductSummaryMarkup,
   mixedCurrentProductPresentation: resolvePresentation(mixedCurrentProductV2),
 }));
 """
@@ -2418,6 +2460,58 @@ def test_report_card_accepts_current_product_contract_and_real_ssr_renders_l6_p2
         "kind": "markdown",
         "reportMarkdown": "# 混合产品契约回退",
     }
+
+
+def test_storyline_summary_renders_one_hero_and_four_ordered_chapters() -> None:
+    probe = _run_report_card_boundary_probe()
+    markup = probe["storylineSummaryMarkup"]
+    wired_markup = probe["currentProductSummaryMarkup"]
+
+    assert markup.count("data-report-storyline-hero") == 1
+    assert markup.index('data-story-chapter="focus"') < markup.index(
+        'data-story-chapter="attitude"'
+    )
+    assert markup.index('data-story-chapter="attitude"') < markup.index(
+        'data-story-chapter="comparison"'
+    )
+    assert markup.index('data-story-chapter="comparison"') < markup.index(
+        'data-story-chapter="evidence"'
+    )
+    assert "P1" not in markup and "P2" not in markup
+    assert "72%" in markup
+    assert "外观比竞品更协调" in markup
+    assert wired_markup.count("data-report-storyline-hero") == 1
+    assert 'data-story-chapter="evidence"' in wired_markup
+    assert "完整产品 v2" not in wired_markup
+    assert "结构完整" not in wired_markup
+    assert "摘要模式" in wired_markup
+
+
+def test_storyline_summary_uses_only_shared_theme_tokens() -> None:
+    source = Path(
+        "frontend/src/components/voc/report-summary/ReportSummaryStoryline.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "from-[var(--theme-selected-bg)] to-[var(--theme-white)]" in source
+    assert "var(--theme-primary)" in source
+    assert "theme-selected-bg" in source
+    assert "theme-ink" in source
+    assert "theme-border" in source
+    assert "theme-soft-panel" in source
+    assert "lg:grid-cols-[minmax(0,1fr)_280px]" in source
+    assert "rgba(" not in source
+    assert "bg-rose-" not in source and "bg-emerald-" not in source
+
+
+def test_legacy_product_summary_keeps_existing_insight_cards() -> None:
+    markup = _run_report_card_boundary_probe()["legacyProductSummaryMarkup"]
+
+    assert "data-report-storyline-hero" not in markup
+    assert "完整产品 v2" in markup
+    assert "结构完整" in markup
+    assert "product-focus" in markup
+    assert "product-pko-matrix" in markup
+    assert "F5" in markup and "L12" in markup
 
 
 def test_narrative_charts_use_defined_tokens_and_explicit_interactions() -> None:
@@ -3065,7 +3159,10 @@ const localRequire = (id) => {
     };
   }
   if (id === "@/components/voc/report-summary/productStorylineData") {
-    return { isReportStoryline: () => false };
+    return { buildProductStorylineView: () => null, isReportStoryline: () => false };
+  }
+  if (id === "@/components/voc/report-summary/ReportSummaryStoryline") {
+    return { ReportSummaryStoryline: () => null };
   }
   if (id === "@/config/navigation") return { apiBaseUrl: "" };
   throw new Error(`Unexpected import: ${id}`);

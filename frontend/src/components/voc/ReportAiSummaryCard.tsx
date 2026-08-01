@@ -9,7 +9,11 @@ import {
   ReportChartRegistry,
 } from "@/components/voc/report-visuals/ReportChartRegistry";
 import type { ReportVisualChart } from "@/components/voc/report-visuals/types";
-import { isReportStoryline } from "@/components/voc/report-summary/productStorylineData";
+import { ReportSummaryStoryline } from "@/components/voc/report-summary/ReportSummaryStoryline";
+import {
+  buildProductStorylineView,
+  isReportStoryline,
+} from "@/components/voc/report-summary/productStorylineData";
 import { apiBaseUrl } from "@/config/navigation";
 import type {
   DepartmentReportAgentPayload,
@@ -110,6 +114,14 @@ const DEPARTMENT_REPORT_CONTRACTS = [
       ["sales-source-efficiency", "F6"],
     ],
   },
+] as const;
+
+const PRODUCT_STORYLINE_CHART_CONTRACT = [
+  ["product-focus", "P1"],
+  ["product-sentiment", "P2"],
+  ["product-opportunity", "P3"],
+  ["product-pko-evidence", "L6"],
+  ["product-pko-matrix", "P4"],
 ] as const;
 
 function buildUrl(path: string, eventId: string) {
@@ -632,7 +644,44 @@ export function StructuredReportView({ report }: { report: StructuredReport }) {
   );
 }
 
-function DepartmentReportView({
+export function LegacyDepartmentSummary({
+  reportNarrative,
+  charts,
+}: {
+  reportNarrative: ReportNarrative;
+  charts: ReportVisualChart[];
+}) {
+  return (
+    <div
+      aria-label={`${reportNarrative.headline || "部门 VOC 报告"}摘要章节`}
+      className="grid gap-3 md:grid-cols-2"
+    >
+      {charts.map((chart) => (
+        <section key={chart.chart_id} className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--theme-muted)]">{chart.template_id}</p>
+          <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">{chart.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--theme-body)]">
+            {chart.insight || "该章节暂无可用判断。"}
+          </p>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function matchesProductStorylineContract(charts: ReportVisualChart[]) {
+  return (
+    charts.length === PRODUCT_STORYLINE_CHART_CONTRACT.length
+    && PRODUCT_STORYLINE_CHART_CONTRACT.every(
+      ([chartId, templateId], index) => (
+        charts[index]?.chart_id === chartId
+        && charts[index]?.template_id === templateId
+      ),
+    )
+  );
+}
+
+export function DepartmentReportView({
   reportNarrative,
   structuredReport,
 }: {
@@ -643,60 +692,68 @@ function DepartmentReportView({
   const evidenceReferences = structuredReport.evidence_references ?? [];
   const calculationNotes = structuredReport.calculation_notes ?? [];
   const hasEvidence = reportNarrative.data_notes.length > 0 || evidenceReferences.length > 0 || calculationNotes.length > 0;
+  const storylineView = reportNarrative.storyline && matchesProductStorylineContract(structuredReport.charts)
+    ? buildProductStorylineView(reportNarrative.storyline, structuredReport.charts)
+    : null;
+  const isStorylineSummary = reportViewMode === "summary" && Boolean(storylineView);
   const modeClass = (mode: ReportViewMode) =>
     `rounded-lg px-3 py-1.5 transition ${
       reportViewMode === mode
         ? "bg-[var(--theme-primary)] text-white"
         : "text-[var(--theme-body)] hover:bg-[var(--theme-hover-bg)]"
     }`;
+  const modeSwitcher = (
+    <div className="inline-flex rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-1 text-xs font-semibold shadow-[0_8px_18px_rgba(26,32,44,0.06)]">
+      <button type="button" onClick={() => setReportViewMode("summary")} className={modeClass("summary")} aria-pressed={reportViewMode === "summary"}>
+        摘要模式
+      </button>
+      <button type="button" onClick={() => setReportViewMode("charts")} className={modeClass("charts")} aria-pressed={reportViewMode === "charts"}>
+        图表模式
+      </button>
+      <button type="button" onClick={() => setReportViewMode("evidence")} className={modeClass("evidence")} aria-pressed={reportViewMode === "evidence"}>
+        数据依据
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-white),var(--theme-selected-bg))] p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--theme-primary)]">Department Report</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--theme-ink)]">
-              {reportNarrative.headline || "部门 VOC 报告"}
-            </h1>
-            {reportViewMode === "summary" ? (
-              <p className="mt-2 text-sm leading-6 text-[var(--theme-body)]">
-                {reportNarrative.executive_summary || "当前输入不足以生成执行摘要。"}
-              </p>
-            ) : null}
-            {reportViewMode === "charts" ? (
-              <p className="mt-2 text-sm text-[var(--theme-muted)]">图表类型、顺序与数值由系统固定，图上解读来自本次报告文案。</p>
-            ) : null}
-            {reportViewMode === "evidence" ? (
-              <p className="mt-2 text-sm text-[var(--theme-muted)]">集中查看数据说明，以及当前报告中实际提供的证据和计算口径。</p>
-            ) : null}
-          </div>
-          <div className="inline-flex rounded-xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-1 text-xs font-semibold shadow-[0_8px_18px_rgba(26,32,44,0.06)]">
-            <button type="button" onClick={() => setReportViewMode("summary")} className={modeClass("summary")} aria-pressed={reportViewMode === "summary"}>
-              摘要模式
-            </button>
-            <button type="button" onClick={() => setReportViewMode("charts")} className={modeClass("charts")} aria-pressed={reportViewMode === "charts"}>
-              图表模式
-            </button>
-            <button type="button" onClick={() => setReportViewMode("evidence")} className={modeClass("evidence")} aria-pressed={reportViewMode === "evidence"}>
-              数据依据
-            </button>
+      {isStorylineSummary ? (
+        <div className="flex justify-end">{modeSwitcher}</div>
+      ) : (
+        <div className="rounded-2xl border border-[var(--theme-border)] bg-[linear-gradient(135deg,var(--theme-white),var(--theme-selected-bg))] p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--theme-primary)]">Department Report</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--theme-ink)]">
+                {reportNarrative.headline || "部门 VOC 报告"}
+              </h1>
+              {reportViewMode === "summary" ? (
+                <p className="mt-2 text-sm leading-6 text-[var(--theme-body)]">
+                  {reportNarrative.executive_summary || "当前输入不足以生成执行摘要。"}
+                </p>
+              ) : null}
+              {reportViewMode === "charts" ? (
+                <p className="mt-2 text-sm text-[var(--theme-muted)]">图表类型、顺序与数值由系统固定，图上解读来自本次报告文案。</p>
+              ) : null}
+              {reportViewMode === "evidence" ? (
+                <p className="mt-2 text-sm text-[var(--theme-muted)]">集中查看数据说明，以及当前报告中实际提供的证据和计算口径。</p>
+              ) : null}
+            </div>
+            {modeSwitcher}
           </div>
         </div>
-      </div>
+      )}
 
       {reportViewMode === "summary" ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          {structuredReport.charts.map((chart) => (
-            <section key={chart.chart_id} className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-white)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--theme-muted)]">{chart.template_id}</p>
-              <h2 className="mt-1 text-base font-semibold text-[var(--theme-ink)]">{chart.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--theme-body)]">
-                {chart.insight || "该章节暂无可用判断。"}
-              </p>
-            </section>
-          ))}
-        </div>
+        storylineView ? (
+          <ReportSummaryStoryline storyline={storylineView} />
+        ) : (
+          <LegacyDepartmentSummary
+            reportNarrative={reportNarrative}
+            charts={structuredReport.charts}
+          />
+        )
       ) : null}
 
       {reportViewMode === "charts" ? (

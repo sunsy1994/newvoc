@@ -1,6 +1,44 @@
 from __future__ import annotations
 
 
+def test_sales_v3_uses_lead_review_contract() -> None:
+    from app.services.report_agent import SALES_REPORT_CHART_CONTRACT, SALES_REPORT_SECTION_CODES
+
+    assert SALES_REPORT_SECTION_CODES == (
+        "sales_output", "sales_needs", "sales_sources", "sales_follow_up"
+    )
+    assert [(item[0], item[1]) for item in SALES_REPORT_CHART_CONTRACT] == [
+        ("sales-lead-output", "S1"),
+        ("sales-user-needs", "S2"),
+        ("sales-content-sources", "S3"),
+        ("sales-follow-up-pool", "S4"),
+    ]
+
+
+def test_normalize_sales_storyline_keeps_fixed_chapters_and_real_refs() -> None:
+    from app.services.report_agent import normalize_sales_storyline
+
+    chapters = [
+        {"chapter_id": chapter_id, "title": title, "conclusion": "确定结论", "body": "只解释现有数据。", "metric_refs": [ref, "unknown"], "evidence_refs": ["user-1", "fake"]}
+        for chapter_id, title, ref in (
+            ("output", "线索产出", "lead_quality.summary"),
+            ("needs", "用户需求", "lead_quality.intent_distribution"),
+            ("sources", "线索来源", "lead_source.content_leads"),
+            ("follow_up", "承接对象", "recommended_follow_up_users"),
+        )
+    ]
+    result = normalize_sales_storyline(
+        {"headline": "形成可承接线索", "lead": "线索集中来自头部内容。", "chapters": chapters},
+        {"recommended_follow_up_users": [{"comment_user_id": "user-1"}]},
+    )
+
+    assert result is not None
+    assert [item["chapter_id"] for item in result["chapters"]] == ["output", "needs", "sources", "follow_up"]
+    assert result["chapters"][0]["metric_refs"] == ["lead_quality.summary"]
+    assert result["chapters"][0]["evidence_refs"] == ["user-1"]
+    assert normalize_sales_storyline({"headline": "x", "lead": "y", "chapters": chapters[:-1]}, {}) is None
+
+
 def sample_sales_dashboard() -> dict:
     return {
         "event": {
@@ -151,11 +189,11 @@ def test_run_sales_report_agent_returns_fixed_narrative_and_builder_charts(monke
         return {
             "headline": "销售测试标题",
             "executive_summary": "销售测试摘要",
-            "section_insights": {
-                "sales_funnel": "漏斗判断",
-                "sales_signals": "信号判断",
-                "sales_intents": "意图判断",
-                "sales_sources": "",
+                "section_insights": {
+                    "sales_output": "产出判断",
+                    "sales_needs": "需求判断",
+                    "sales_sources": "",
+                    "sales_follow_up": "承接判断",
             },
             "data_notes": ["销售数据说明"],
             "structured_report": {
@@ -173,17 +211,17 @@ def test_run_sales_report_agent_returns_fixed_narrative_and_builder_charts(monke
     assert result["summary"]["report_narrative"] == {
         "headline": "销售测试标题",
         "executive_summary": "销售测试摘要",
-        "section_insights": {
-                "sales_funnel": "漏斗判断",
-                "sales_signals": "信号判断",
-                "sales_intents": "意图判断",
-                "sales_sources": "懂车帝贡献了最多高意向线索。",
+            "section_insights": {
+                    "sales_output": "产出判断",
+                    "sales_needs": "需求判断",
+                    "sales_sources": "懂车帝贡献了最多高意向线索。",
+                    "sales_follow_up": "承接判断",
         },
         "data_notes": ["销售数据说明"],
     }
     charts = result["summary"]["structured_report"]["charts"]
-    assert [chart["template_id"] for chart in charts] == ["L13", "F4", "F5", "F6"]
-    assert [chart["insight"] for chart in charts] == ["漏斗判断", "信号判断", "意图判断", "懂车帝贡献了最多高意向线索。"]
+    assert [chart["template_id"] for chart in charts] == ["S1", "S2", "S3", "S4"]
+    assert [chart["insight"] for chart in charts] == ["产出判断", "需求判断", "懂车帝贡献了最多高意向线索。", "承接判断"]
     assert charts[0]["data"][-1] == {"stage": "中/强购买信号", "count": 51}
     assert all(chart["chart_id"] != "llm-chart" for chart in charts)
     assert result["context"]["lead_source"]["summary"]["top_platform"] == "懂车帝"

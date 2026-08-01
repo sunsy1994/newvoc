@@ -392,7 +392,7 @@ export type ReportAgentPayload = {
 };
 
 export type ReportStoryChapter = {
-  chapter_id: "focus" | "attitude" | "comparison" | "evidence" | "rhythm" | "topics" | "subjects" | "channels";
+  chapter_id: "focus" | "attitude" | "comparison" | "evidence" | "rhythm" | "topics" | "subjects" | "channels" | "output" | "needs" | "sources" | "follow_up";
   title: string;
   conclusion: string;
   body: string;

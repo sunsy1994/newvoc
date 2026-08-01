@@ -116,7 +116,7 @@ def test_sales_report_chart_order_is_fixed():
             "lead_source": {"platform_efficiency": []},
         }
     )
-    assert [item["template_id"] for item in charts] == ["L13", "F4", "F5", "F6"]
+    assert [item["template_id"] for item in charts] == ["S1", "S2", "S3", "S4"]
 
 
 def test_sales_funnel_uses_the_real_mid_high_purchase_signal_field():

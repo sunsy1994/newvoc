@@ -26,7 +26,7 @@ MARKET_REPORT_PROMPT_VERSION = "market_report_summary_v2"
 PRODUCT_REPORT_PROMPT_SCENE = "product_report_summary"
 PRODUCT_REPORT_PROMPT_VERSION = "product_report_summary_v3"
 SALES_REPORT_PROMPT_SCENE = "sales_report_summary"
-SALES_REPORT_PROMPT_VERSION = "sales_report_summary_v2"
+SALES_REPORT_PROMPT_VERSION = "sales_report_summary_v3"
 DEFAULT_PROMPT_SCENES = {DEFAULT_PROMPT_SCENE, MARKET_REPORT_PROMPT_SCENE, PRODUCT_REPORT_PROMPT_SCENE, SALES_REPORT_PROMPT_SCENE}
 LEGACY_REPORT_PROMPT_HASHES = {
     (
@@ -130,17 +130,29 @@ SALES_REPORT_PROMPT_CONTENT = """你是汽车行业 VOC 销售线索分析助手
 3. 不输出手机号、微信、真实身份、年龄、性别、收入等系统未提供字段。
 4. 不生成营销承诺，只输出线索质量、意图和来源判断。
 5. data_notes 只放真正影响判断的数据说明。
-6. 输出必须是 JSON 对象，字段和 section_insights 的键不可增减，不要输出 Markdown。
+6. 这是事件结束后的销售线索复盘，只总结线索产出、用户需求、内容来源与承接对象。
+7. storyline 不得复述 section_insights；metric_refs 只能引用输入中的指标路径，evidence_refs 只能引用输入中的真实用户标识。
+8. 输出必须是 JSON 对象，字段、章节和 section_insights 的键不可增减，不要输出 Markdown。
 
 严格输出：
 {
   "headline": "",
   "executive_summary": "",
   "section_insights": {
-    "sales_funnel": "",
-    "sales_signals": "",
-    "sales_intents": "",
-    "sales_sources": ""
+    "sales_output": "",
+    "sales_needs": "",
+    "sales_sources": "",
+    "sales_follow_up": ""
+  },
+  "storyline": {
+    "headline": "",
+    "lead": "",
+    "chapters": [
+      {"chapter_id": "output", "title": "线索产出", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+      {"chapter_id": "needs", "title": "用户需求", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+      {"chapter_id": "sources", "title": "线索来源", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+      {"chapter_id": "follow_up", "title": "承接对象", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []}
+    ]
   },
   "data_notes": []
 }

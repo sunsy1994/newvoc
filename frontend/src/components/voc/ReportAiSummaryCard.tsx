@@ -17,6 +17,7 @@ import {
   productStorylineEventName,
 } from "@/components/voc/report-summary/productStorylineData";
 import { buildMarketStorylineView, formatMarketStorylineCopyText, isMarketStoryline } from "@/components/voc/report-summary/marketStorylineData";
+import { buildSalesStorylineView, formatSalesStorylineCopyText, isSalesStoryline } from "@/components/voc/report-summary/salesStorylineData";
 import { apiBaseUrl } from "@/config/navigation";
 import type {
   DepartmentReportAgentPayload,
@@ -115,6 +116,15 @@ const DEPARTMENT_REPORT_CONTRACTS = [
       ["product-opportunity", "F5"],
       ["product-pko-evidence", "L6"],
       ["product-pko-matrix", "F7"],
+    ],
+  },
+  {
+    sectionCodes: ["sales_output", "sales_needs", "sales_sources", "sales_follow_up"],
+    charts: [
+      ["sales-lead-output", "S1"],
+      ["sales-user-needs", "S2"],
+      ["sales-content-sources", "S3"],
+      ["sales-follow-up-pool", "S4"],
     ],
   },
   {
@@ -258,7 +268,7 @@ export function resolveDepartmentReportPresentation(summary: unknown): Departmen
       executive_summary: narrativeValue.executive_summary,
       section_insights: narrativeValue.section_insights,
       data_notes: narrativeValue.data_notes,
-      ...(isReportStoryline(narrativeValue.storyline) || isMarketStoryline(narrativeValue.storyline)
+      ...(isReportStoryline(narrativeValue.storyline) || isMarketStoryline(narrativeValue.storyline) || isSalesStoryline(narrativeValue.storyline)
         ? { storyline: narrativeValue.storyline }
         : {}),
     };
@@ -701,10 +711,12 @@ const MARKET_STORYLINE_CHART_CONTRACT = [
   ["market-subject-contribution", "M3"],
   ["market-channel-efficiency", "M4"],
 ] as const;
+const SALES_STORYLINE_CHART_CONTRACT = [["sales-lead-output","S1"],["sales-user-needs","S2"],["sales-content-sources","S3"],["sales-follow-up-pool","S4"]] as const;
 
 function matchesMarketStorylineContract(charts: ReportVisualChart[]) {
   return charts.length === 4 && MARKET_STORYLINE_CHART_CONTRACT.every(([chartId, templateId], index) => charts[index]?.chart_id === chartId && charts[index]?.template_id === templateId);
 }
+function matchesSalesStorylineContract(charts: ReportVisualChart[]) { return charts.length===4&&SALES_STORYLINE_CHART_CONTRACT.every(([id,template],i)=>charts[i]?.chart_id===id&&charts[i]?.template_id===template); }
 
 export function DepartmentReportView({
   reportNarrative,
@@ -723,7 +735,8 @@ export function DepartmentReportView({
     ? buildMarketStorylineView(reportNarrative.storyline, structuredReport.charts, eventName) : null;
   const productStoryline = reportNarrative.storyline && matchesProductStorylineContract(structuredReport.charts)
     ? buildProductStorylineView(reportNarrative.storyline, structuredReport.charts, eventName) : null;
-  const storylineView = marketStoryline ?? productStoryline;
+  const salesStoryline = reportNarrative.storyline && matchesSalesStorylineContract(structuredReport.charts) ? buildSalesStorylineView(reportNarrative.storyline, structuredReport.charts, eventName) : null;
+  const storylineView = marketStoryline ?? salesStoryline ?? productStoryline;
   const isStorylineSummary = reportViewMode === "summary" && Boolean(storylineView);
   const modeClass = (mode: ReportViewMode) =>
     `rounded-lg px-3 py-1.5 transition ${
@@ -775,7 +788,7 @@ export function DepartmentReportView({
 
       {reportViewMode === "summary" ? (
         storylineView ? (
-          <ReportSummaryStoryline storyline={storylineView} summaryLabel={marketStoryline ? "事件传播复盘" : undefined} />
+          <ReportSummaryStoryline storyline={storylineView} summaryLabel={marketStoryline ? "事件传播复盘" : salesStoryline ? "销售线索复盘" : undefined} />
         ) : (
           <LegacyDepartmentSummary
             reportNarrative={reportNarrative}
@@ -869,6 +882,8 @@ export function buildDepartmentCopyText(
     ? buildMarketStorylineView(reportNarrative.storyline, structuredReport.charts, eventName)
     : null;
   if (marketStoryline) return formatMarketStorylineCopyText(marketStoryline);
+  const salesStoryline = reportNarrative.storyline && matchesSalesStorylineContract(structuredReport.charts) ? buildSalesStorylineView(reportNarrative.storyline, structuredReport.charts, eventName) : null;
+  if (salesStoryline) return formatSalesStorylineCopyText(salesStoryline);
   const storylineView = reportNarrative.storyline
     && matchesProductStorylineContract(structuredReport.charts)
     ? buildProductStorylineView(reportNarrative.storyline, structuredReport.charts, eventName)

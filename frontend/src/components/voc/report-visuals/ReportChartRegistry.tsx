@@ -23,6 +23,7 @@ import {
 } from "./ProductCharts";
 import type { ReportTemplateId, ReportVisualChart } from "./types";
 import { M1VolumeRhythm, M2TopicDrivers, M3SubjectContribution, M4ChannelEfficiency } from "./MarketCharts";
+import { S1LeadOutputFunnel, S2UserNeeds, S3ContentSources, S4FollowUpPool } from "./SalesCharts";
 
 type ChartProps = {
   chart: ReportVisualChart;
@@ -48,6 +49,10 @@ const REPORT_CHARTS = {
   M2: M2TopicDrivers,
   M3: M3SubjectContribution,
   M4: M4ChannelEfficiency,
+  S1: S1LeadOutputFunnel,
+  S2: S2UserNeeds,
+  S3: S3ContentSources,
+  S4: S4FollowUpPool,
 } satisfies Record<ReportTemplateId, ComponentType<ChartProps>>;
 
 export function isReportTemplateId(value: unknown): value is ReportTemplateId {

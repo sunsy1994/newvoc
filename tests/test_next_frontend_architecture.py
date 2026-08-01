@@ -2399,6 +2399,12 @@ const registry = loadTsx(
       M3SubjectContribution: chartStub,
       M4ChannelEfficiency: chartStub,
     },
+    "./SalesCharts": {
+      S1LeadOutputFunnel: chartStub,
+      S2UserNeeds: chartStub,
+      S3ContentSources: chartStub,
+      S4FollowUpPool: chartStub,
+    },
   },
 );
 const storylineData = loadTsx(
@@ -2407,6 +2413,10 @@ const storylineData = loadTsx(
 );
 const marketStorylineData = loadTsx(
   "src/components/voc/report-summary/marketStorylineData.ts",
+  {},
+);
+const salesStorylineData = loadTsx(
+  "src/components/voc/report-summary/salesStorylineData.ts",
   {},
 );
 const storylineSummary = loadTsx(
@@ -2448,6 +2458,7 @@ const reportCard = loadTsx(
     },
     "@/components/voc/report-summary/productStorylineData": storylineData,
     "@/components/voc/report-summary/marketStorylineData": marketStorylineData,
+    "@/components/voc/report-summary/salesStorylineData": salesStorylineData,
     "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
     "@/config/navigation": { apiBaseUrl: "" },
   },
@@ -2898,6 +2909,10 @@ const marketStorylineData = loadTsx(
   "src/components/voc/report-summary/marketStorylineData.ts",
   {},
 );
+const salesStorylineData = loadTsx(
+  "src/components/voc/report-summary/salesStorylineData.ts",
+  {},
+);
 const storylineSummary = loadTsx(
   "src/components/voc/report-summary/ReportSummaryStoryline.tsx",
   {},
@@ -2928,6 +2943,7 @@ function loadReportCard(mode) {
       },
       "@/components/voc/report-summary/productStorylineData": storylineData,
       "@/components/voc/report-summary/marketStorylineData": marketStorylineData,
+      "@/components/voc/report-summary/salesStorylineData": salesStorylineData,
       "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
       "@/config/navigation": { apiBaseUrl: "" },
     },
@@ -3704,6 +3720,9 @@ const localRequire = (id) => {
   if (id === "@/components/voc/report-summary/marketStorylineData") {
     return { buildMarketStorylineView: () => null, formatMarketStorylineCopyText: () => "", isMarketStoryline: () => false };
   }
+  if (id === "@/components/voc/report-summary/salesStorylineData") {
+    return { buildSalesStorylineView: () => null, formatSalesStorylineCopyText: () => "", isSalesStoryline: () => false };
+  }
   if (id === "@/components/voc/report-summary/ReportSummaryStoryline") {
     return { ReportSummaryStoryline: () => null };
   }
@@ -3795,3 +3814,23 @@ def test_market_charts_keep_the_shared_title_and_insight_shell() -> None:
 
     assert 'import { ReportVisualShell } from "./ReportVisualShell"' in source
     assert source.count("<ReportVisualShell chart={chart}") == 5
+
+
+def test_sales_report_visuals_and_storyline_are_wired() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    charts = (root / "frontend/src/components/voc/report-visuals/SalesCharts.tsx").read_text(encoding="utf-8")
+    registry = (root / "frontend/src/components/voc/report-visuals/ReportChartRegistry.tsx").read_text(encoding="utf-8")
+    card = (root / "frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+    storyline = (root / "frontend/src/components/voc/report-summary/salesStorylineData.ts").read_text(encoding="utf-8")
+
+    for template_id in ("S1", "S2", "S3", "S4"):
+        assert f"{template_id}:" in registry
+    assert charts.count("<ReportVisualShell chart={chart}") >= 4
+    for label in ("线索产出图", "用户需求图", "内容线索来源图", "承接对象图"):
+        assert f'aria-label="{label}"' in charts
+    assert "allUsers.length" in charts
+    assert 'const CHAPTER_IDS = ["output", "needs", "sources", "follow_up"]' in storyline
+    assert "isSalesStoryline(narrativeValue.storyline)" in card
+    assert "buildSalesStorylineView" in card

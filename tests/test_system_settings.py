@@ -52,8 +52,8 @@ def test_department_default_prompts_use_fixed_narrative_contracts() -> None:
         ),
         (
             system_settings.SALES_REPORT_PROMPT_SCENE,
-            "sales_report_summary_v2",
-            ("sales_funnel", "sales_signals", "sales_intents", "sales_sources"),
+            "sales_report_summary_v3",
+            ("sales_output", "sales_needs", "sales_sources", "sales_follow_up"),
         ),
     )
 

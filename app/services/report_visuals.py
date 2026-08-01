@@ -4,7 +4,7 @@ import math
 from typing import Any
 
 
-REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15", "P1", "P2", "P3", "P4", "M1", "M2", "M3", "M4"}
+REPORT_TEMPLATE_IDS = {"F3", "F4", "F5", "F6", "F7", "F8", "L6", "L12", "L13", "L14", "L15", "P1", "P2", "P3", "P4", "M1", "M2", "M3", "M4", "S1", "S2", "S3", "S4"}
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 SALES_FUNNEL_STAGES = ("已打标评论", "车相关评论", "销售相关意图", "中/强购买信号")
 RESULT_BUCKETS = {"advantage", "disadvantage", "neutral", "unclear"}
@@ -151,6 +151,17 @@ def _result_bucket(value: Any) -> str:
 
 def normalize_report_chart_data(template_id: str, value: Any) -> list[dict[str, Any]]:
     rows = _rows(value)
+    if template_id == "S1":
+        if len(rows) != len(SALES_FUNNEL_STAGES):
+            return []
+        counts = [_number(row.get("count"), clamp_negative=False) for row in rows]
+        return rows if all(count is not None for count in counts) and all(right <= left for left, right in zip(counts, counts[1:])) else []
+    if template_id == "S2":
+        return [row for row in rows if _text(row.get("row_type")) in {"intent", "signal"} and _text(row.get("label")) and _number(row.get("count")) is not None]
+    if template_id == "S3":
+        return [row for row in rows if _text(row.get("source_level")) in {"content", "platform"} and (_text(row.get("title")) or _text(row.get("platform"))) and _number(row.get("high_intent_comment_count")) is not None][:8]
+    if template_id == "S4":
+        return [row for row in rows if _text(row.get("comment_user_id")) and _text(row.get("purchase_signal")) in {"强", "中", "strong", "medium"}][:10]
     if template_id == "M1":
         return [
             row for row in rows
@@ -424,11 +435,36 @@ def build_sales_report_charts(context: dict[str, Any]) -> list[dict[str, Any]]:
         }
         for row in _rows(lead_source.get("platform_efficiency"))
     ]
+    needs = [
+        {**row, "row_type": "intent"}
+        for row in _rows(lead_quality.get("intent_distribution"))
+    ] + [
+        {**row, "row_type": "signal"}
+        for row in _rows(lead_quality.get("purchase_signal_distribution"))
+    ]
+    content_sources = [
+        {**row, "source_level": "content"}
+        for row in _rows(lead_source.get("content_leads"))
+    ]
+    if not content_sources:
+        content_sources = [{**row, "source_level": "platform"} for row in source_efficiency]
+    follow_up = []
+    seen_users = set()
+    signal_rank = {"强": 0, "strong": 0, "中": 1, "medium": 1}
+    for row in sorted(
+        _rows(context.get("recommended_follow_up_users")),
+        key=lambda item: signal_rank.get(str(item.get("purchase_signal") or ""), 9),
+    ):
+        user_id = str(row.get("comment_user_id") or "")
+        if not user_id or user_id in seen_users or str(row.get("purchase_signal") or "") not in signal_rank:
+            continue
+        seen_users.add(user_id)
+        follow_up.append(row)
     chart_data = [
-        ("sales-lead-funnel", "L13", "线索转化漏斗", "固定转化阶段", "lead_quality.summary", funnel),
-        ("sales-purchase-signals", "F4", "购买信号结构", "强、中、弱及未标注信号", "lead_quality.purchase_signal_distribution", _rows(lead_quality.get("purchase_signal_distribution"))),
-        ("sales-intents", "F5", "用户意图分布", "评论数与占比", "lead_quality.intent_distribution", _rows(lead_quality.get("intent_distribution"))),
-        ("sales-source-efficiency", "F6", "渠道线索效率", "总反馈量与销售线索量", "lead_source.platform_efficiency", source_efficiency),
+        ("sales-lead-output", "S1", "线索产出", "从已打标评论到中/强购买信号", "lead_quality.summary", funnel),
+        ("sales-user-needs", "S2", "用户需求", "意图结构与购买信号", "lead_quality.intent_distribution", needs),
+        ("sales-content-sources", "S3", "线索来源", "带来中高意向的内容", "lead_source.content_leads", content_sources),
+        ("sales-follow-up-pool", "S4", "承接对象", "强、中购买信号用户梯队", "recommended_follow_up_users", follow_up),
     ]
     return [_chart(*item, meta=_meta(item[-1])) for item in chart_data]
 
@@ -458,5 +494,19 @@ def build_event_report_charts(
         _rows(product_focus.get("aspects")),
         meta=_meta(_rows(product_focus.get("aspects"))),
     )
-    sales_charts = build_sales_report_charts(sales)
-    return [event_market_trend, event_market_feedback, event_product_sentiment, sales_charts[0]]
+    sales_summary = (sales.get("lead_quality") or {}).get("summary") or {}
+    event_sales_funnel = _chart(
+        "sales-lead-funnel", "L13", "线索转化漏斗", "固定转化阶段",
+        "lead_quality.summary",
+        [
+            {"stage": label, "count": sales_summary.get(key)}
+            for label, key in (
+                ("已打标评论", "labeled_comment_count"),
+                ("车相关评论", "vehicle_related_count"),
+                ("销售相关意图", "sales_intent_comment_count"),
+                ("中/强购买信号", "mid_high_purchase_signal_count"),
+            )
+            if sales_summary.get(key) is not None
+        ],
+    )
+    return [event_market_trend, event_market_feedback, event_product_sentiment, event_sales_funnel]

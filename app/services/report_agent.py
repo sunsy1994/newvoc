@@ -68,7 +68,15 @@ PRODUCT_STORY_METRIC_REFS = {
     "pko.summary",
     "pko.dimension_result_matrix",
 }
-SALES_REPORT_SECTION_CODES = ("sales_funnel", "sales_signals", "sales_intents", "sales_sources")
+SALES_REPORT_SECTION_CODES = ("sales_output", "sales_needs", "sales_sources", "sales_follow_up")
+SALES_STORY_CHAPTER_IDS = ("output", "needs", "sources", "follow_up")
+SALES_STORY_METRIC_REFS = {
+    "lead_quality.summary", "lead_quality.intent_distribution",
+    "lead_quality.purchase_signal_distribution", "lead_quality.profile_segments",
+    "lead_source.summary", "lead_source.platform_efficiency",
+    "lead_source.content_leads", "lead_source.lead_comments",
+    "recommended_follow_up_users",
+}
 MARKET_REPORT_CHART_SECTIONS = {
     "market-volume-rhythm": "market_rhythm",
     "market-topic-drivers": "market_topics",
@@ -83,10 +91,10 @@ PRODUCT_REPORT_CHART_SECTIONS = {
     "product-pko-matrix": "product_pko_results",
 }
 SALES_REPORT_CHART_SECTIONS = {
-    "sales-lead-funnel": "sales_funnel",
-    "sales-purchase-signals": "sales_signals",
-    "sales-intents": "sales_intents",
-    "sales-source-efficiency": "sales_sources",
+    "sales-lead-output": "sales_output",
+    "sales-user-needs": "sales_needs",
+    "sales-content-sources": "sales_sources",
+    "sales-follow-up-pool": "sales_follow_up",
 }
 MAX_REPORT_HEADLINE_LENGTH = 120
 MAX_REPORT_EXECUTIVE_SUMMARY_LENGTH = 1200
@@ -129,11 +137,17 @@ PRODUCT_REPORT_CHART_CONTRACT = (
     ("product-pko-evidence", "L6", "用户反馈构成", "中心为产品点 · 气泡面积代表真实对比次数", "pko.evidence_comments"),
     ("product-pko-matrix", "P4", "PKO 维度结果明细", "各产品维度的对比结果构成", "pko.dimension_result_matrix"),
 )
-SALES_REPORT_CHART_CONTRACT = (
+LEGACY_SALES_REPORT_CHART_CONTRACT = (
     ("sales-lead-funnel", "L13", "线索转化漏斗", "固定转化阶段", "lead_quality.summary"),
     ("sales-purchase-signals", "F4", "购买信号结构", "强、中、弱及未标注信号", "lead_quality.purchase_signal_distribution"),
     ("sales-intents", "F5", "用户意图分布", "评论数与占比", "lead_quality.intent_distribution"),
     ("sales-source-efficiency", "F6", "渠道线索效率", "总反馈量与销售线索量", "lead_source.platform_efficiency"),
+)
+SALES_REPORT_CHART_CONTRACT = (
+    ("sales-lead-output", "S1", "线索产出", "从已打标评论到中/强购买信号", "lead_quality.summary"),
+    ("sales-user-needs", "S2", "用户需求", "意图结构与购买信号", "lead_quality.intent_distribution"),
+    ("sales-content-sources", "S3", "线索来源", "带来中高意向的内容", "lead_source.content_leads"),
+    ("sales-follow-up-pool", "S4", "承接对象", "强、中购买信号用户梯队", "recommended_follow_up_users"),
 )
 PRODUCT_REPORT_CACHE_CONTRACTS = tuple(
     (prompt_version, PRODUCT_REPORT_SECTION_CODES, chart_contract)
@@ -160,6 +174,11 @@ REPORT_CACHE_CONTRACTS = (
         DEFAULT_SALES_REPORT_PROMPT_VERSION,
         SALES_REPORT_SECTION_CODES,
         SALES_REPORT_CHART_CONTRACT,
+    ),
+    (
+        "sales_report_summary_v2",
+        ("sales_funnel", "sales_signals", "sales_intents", "sales_sources"),
+        LEGACY_SALES_REPORT_CHART_CONTRACT,
     ),
 )
 
@@ -415,7 +434,7 @@ def build_sales_report_context(dashboard: dict[str, Any]) -> dict[str, Any]:
                     "segment_id": segment.get("segment_id"),
                     "segment_label": segment.get("label"),
                     "comment_user_id": user.get("comment_user_id"),
-                    "nickname": user.get("nickname"),
+                    "nickname": user.get("nickname") or user.get("comment_author_name"),
                     "platform": user.get("platform"),
                     "purchase_signal": user.get("purchase_signal"),
                     "profile_status": user.get("profile_status"),
@@ -565,6 +584,39 @@ def normalize_market_storyline(value: Any, context: dict[str, Any]) -> dict[str,
     return {"headline": headline, "lead": lead, "chapters": chapters}
 
 
+def normalize_sales_storyline(value: Any, context: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or not isinstance(value.get("chapters"), list):
+        return None
+    headline = _bounded_text(value.get("headline"), 160)
+    lead = _bounded_text(value.get("lead"), 600)
+    if not headline or not lead:
+        return None
+    raw_chapters = {item.get("chapter_id"): item for item in value["chapters"] if isinstance(item, dict)}
+    evidence_ids = {
+        str(item.get("comment_user_id"))
+        for item in context.get("recommended_follow_up_users", [])
+        if isinstance(item, dict) and item.get("comment_user_id")
+    }
+    chapters = []
+    for chapter_id in SALES_STORY_CHAPTER_IDS:
+        item = raw_chapters.get(chapter_id)
+        if not isinstance(item, dict):
+            return None
+        metric_refs = item.get("metric_refs")
+        evidence_refs = item.get("evidence_refs")
+        chapters.append({
+            "chapter_id": chapter_id,
+            "title": _bounded_text(item.get("title"), 60),
+            "conclusion": _bounded_text(item.get("conclusion"), 240),
+            "body": _bounded_text(item.get("body"), 900),
+            "metric_refs": [ref for ref in metric_refs if isinstance(ref, str) and ref in SALES_STORY_METRIC_REFS][:4] if isinstance(metric_refs, list) else [],
+            "evidence_refs": [ref for ref in evidence_refs if isinstance(ref, str) and ref in evidence_ids][:2] if isinstance(evidence_refs, list) else [],
+        })
+    if any(not item["title"] or not item["conclusion"] for item in chapters):
+        return None
+    return {"headline": headline, "lead": lead, "chapters": chapters}
+
+
 def normalize_data_notes(value: Any) -> list[str]:
     raw_notes = [value] if isinstance(value, str) else value if isinstance(value, list) else []
     notes = [
@@ -654,10 +706,10 @@ def _sales_fallback_insights(context: dict[str, Any]) -> dict[str, str]:
     lead_source = context.get("lead_source") or {}
     quality_conclusion = _rule_based_conclusion(lead_quality.get("summary"))
     return {
-        "sales_funnel": quality_conclusion,
-        "sales_signals": quality_conclusion,
-        "sales_intents": quality_conclusion,
+        "sales_output": quality_conclusion,
+        "sales_needs": quality_conclusion,
         "sales_sources": _rule_based_conclusion(lead_source.get("summary")),
+        "sales_follow_up": quality_conclusion,
     }
 
 
@@ -705,6 +757,7 @@ def ensure_report_prompt_contract(
     *,
     include_product_storyline: bool = False,
     include_market_storyline: bool = False,
+    include_sales_storyline: bool = False,
 ) -> str:
     contract = {
         "headline": "",
@@ -727,6 +780,20 @@ def ensure_report_prompt_contract(
             "这是事件结束后的传播复盘，不得输出营销建议；"
             "storyline 不得复述 section_insights；"
             "metric_refs 只能引用输入中提供的指标路径，evidence_refs 必须为空数组。\n"
+        )
+    if include_sales_storyline:
+        contract["storyline"] = {
+            "headline": "", "lead": "",
+            "chapters": [
+                {"chapter_id": "output", "title": "线索产出", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "needs", "title": "用户需求", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "sources", "title": "线索来源", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+                {"chapter_id": "follow_up", "title": "承接对象", "conclusion": "", "body": "", "metric_refs": [], "evidence_refs": []},
+            ],
+        }
+        product_storyline_rules = (
+            "不得补造个人信息、成交判断或营销承诺；storyline 不得复述 section_insights；"
+            "metric_refs 只能引用输入中的指标路径，evidence_refs 只能引用真实用户标识。\n"
         )
     if include_product_storyline:
         contract["storyline"] = {
@@ -767,6 +834,7 @@ def resolve_report_prompt(
     *,
     include_product_storyline: bool = False,
     include_market_storyline: bool = False,
+    include_sales_storyline: bool = False,
 ) -> tuple[str, str]:
     try:
         prompt_row = get_default_prompt_template(scene, database_url=database_url)
@@ -784,6 +852,7 @@ def resolve_report_prompt(
             section_codes,
             include_product_storyline=include_product_storyline,
             include_market_storyline=include_market_storyline,
+            include_sales_storyline=include_sales_storyline,
         ),
         prompt_version,
     )
@@ -818,6 +887,7 @@ def resolve_sales_report_prompt(database_url: str = DATABASE_URL) -> tuple[str, 
         DEFAULT_SALES_REPORT_PROMPT_VERSION,
         SALES_REPORT_SECTION_CODES,
         database_url,
+        include_sales_storyline=True,
     )
 
 
@@ -1164,17 +1234,19 @@ def run_sales_report_agent(
         model=resolved_model,
         timeout_seconds=resolved_timeout,
     )
+    charts = build_sales_report_charts(context)
+    summary = build_report_summary(
+        llm_result, charts, SALES_REPORT_SECTION_CODES,
+        _sales_fallback_insights(context), SALES_REPORT_CHART_SECTIONS,
+    )
+    storyline = normalize_sales_storyline(llm_result.get("storyline"), context)
+    if storyline and any(has_renderable_data(chart) for chart in charts):
+        summary["report_narrative"]["storyline"] = storyline
     result = {
         "event_id": event_id,
         "prompt_version": prompt_version,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "summary": build_report_summary(
-            llm_result,
-            build_sales_report_charts(context),
-            SALES_REPORT_SECTION_CODES,
-            _sales_fallback_insights(context),
-            SALES_REPORT_CHART_SECTIONS,
-        ),
+        "summary": summary,
         "context": context,
         "rendered_prompt": prompt,
     }

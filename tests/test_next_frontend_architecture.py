@@ -3834,3 +3834,22 @@ def test_sales_report_visuals_and_storyline_are_wired() -> None:
     assert 'const CHAPTER_IDS = ["output", "needs", "sources", "follow_up"]' in storyline
     assert "isSalesStoryline(narrativeValue.storyline)" in card
     assert "buildSalesStorylineView" in card
+
+
+def test_department_data_basis_registry_covers_three_storylines() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "frontend/src/components/voc/report-data-basis/reportDataBasis.ts").read_text(encoding="utf-8")
+    for department in ("市场部", "产品部", "销售部"):
+        assert f'"{department}"' in source
+    for chapter_id in (
+        "rhythm", "topics", "subjects", "channels",
+        "focus", "attitude", "comparison", "evidence",
+        "output", "needs", "sources", "follow_up",
+    ):
+        assert f'chapterId: "{chapter_id}"' in source
+    for process_type in ("direct", "rule", "llm_label", "llm_summary"):
+        assert f'"{process_type}"' in source
+    assert "完整 Prompt" not in source
+    assert "结构化 JSON" not in source

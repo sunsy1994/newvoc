@@ -3853,3 +3853,17 @@ def test_department_data_basis_registry_covers_three_storylines() -> None:
         assert f'"{process_type}"' in source
     assert "完整 Prompt" not in source
     assert "结构化 JSON" not in source
+
+
+def test_report_data_basis_view_uses_business_sections_and_process_labels() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "frontend/src/components/voc/report-data-basis/ReportDataBasisView.tsx").read_text(encoding="utf-8")
+    assert "resolveDepartmentDataBasis" in source
+    for label in ("使用数据", "数据来源", "处理过程", "指标口径", "支撑内容", "数据完整性"):
+        assert label in source
+    for label in ("直接统计", "规则计算", "LLM 标签", "LLM 总结"):
+        assert label in source
+    assert 'eventName || "未记录"' in source
+    assert 'generatedAt || "未记录"' in source

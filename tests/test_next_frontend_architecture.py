@@ -2460,6 +2460,7 @@ const reportCard = loadTsx(
     "@/components/voc/report-summary/marketStorylineData": marketStorylineData,
     "@/components/voc/report-summary/salesStorylineData": salesStorylineData,
     "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
+    "@/components/voc/report-data-basis/ReportDataBasisView": { ReportDataBasisView: () => null },
     "@/config/navigation": { apiBaseUrl: "" },
   },
 );
@@ -2945,6 +2946,7 @@ function loadReportCard(mode) {
       "@/components/voc/report-summary/marketStorylineData": marketStorylineData,
       "@/components/voc/report-summary/salesStorylineData": salesStorylineData,
       "@/components/voc/report-summary/ReportSummaryStoryline": storylineSummary,
+      "@/components/voc/report-data-basis/ReportDataBasisView": { ReportDataBasisView: () => null },
       "@/config/navigation": { apiBaseUrl: "" },
     },
     reactWithControlledMode,
@@ -3726,6 +3728,9 @@ const localRequire = (id) => {
   if (id === "@/components/voc/report-summary/ReportSummaryStoryline") {
     return { ReportSummaryStoryline: () => null };
   }
+  if (id === "@/components/voc/report-data-basis/ReportDataBasisView") {
+    return { ReportDataBasisView: () => null };
+  }
   if (id === "@/config/navigation") return { apiBaseUrl: "" };
   throw new Error(`Unexpected import: ${id}`);
 };
@@ -3867,3 +3872,16 @@ def test_report_data_basis_view_uses_business_sections_and_process_labels() -> N
         assert label in source
     assert 'eventName || "未记录"' in source
     assert 'generatedAt || "未记录"' in source
+
+
+def test_department_report_evidence_mode_uses_fixed_data_basis_and_collapses_technical_details() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "frontend/src/components/voc/ReportAiSummaryCard.tsx").read_text(encoding="utf-8")
+    assert 'import { ReportDataBasisView } from "@/components/voc/report-data-basis/ReportDataBasisView"' in source
+    assert "departmentName={departmentName}" in source
+    assert "generatedAt={payload?.generated_at}" in source
+    assert "<ReportDataBasisView" in source
+    assert 'title="技术详情"' in source
+    assert "当前报告没有额外的数据说明、证据引用或计算备注。" not in source

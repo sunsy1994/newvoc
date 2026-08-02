@@ -4,6 +4,7 @@ import { Bot, Check, Clipboard, Loader2, Sparkles, X } from "lucide-react";
 import { Fragment, useState } from "react";
 
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
+import { ReportDataBasisView } from "@/components/voc/report-data-basis/ReportDataBasisView";
 import {
   isReportTemplateId,
   ReportChartRegistry,
@@ -721,16 +722,17 @@ function matchesSalesStorylineContract(charts: ReportVisualChart[]) { return cha
 export function DepartmentReportView({
   reportNarrative,
   structuredReport,
+  departmentName,
   eventName,
+  generatedAt,
 }: {
   reportNarrative: ReportNarrative;
   structuredReport: DepartmentStructuredReport;
+  departmentName: string;
   eventName?: string;
+  generatedAt?: string | null;
 }) {
   const [reportViewMode, setReportViewMode] = useState<ReportViewMode>("summary");
-  const evidenceReferences = structuredReport.evidence_references ?? [];
-  const calculationNotes = structuredReport.calculation_notes ?? [];
-  const hasEvidence = reportNarrative.data_notes.length > 0 || evidenceReferences.length > 0 || calculationNotes.length > 0;
   const marketStoryline = reportNarrative.storyline && matchesMarketStorylineContract(structuredReport.charts)
     ? buildMarketStorylineView(reportNarrative.storyline, structuredReport.charts, eventName) : null;
   const productStoryline = reportNarrative.storyline && matchesProductStorylineContract(structuredReport.charts)
@@ -779,7 +781,7 @@ export function DepartmentReportView({
                 <p className="mt-2 text-sm text-[var(--theme-muted)]">图表类型、顺序与数值由系统固定，图上解读来自本次报告文案。</p>
               ) : null}
               {reportViewMode === "evidence" ? (
-                <p className="mt-2 text-sm text-[var(--theme-muted)]">集中查看数据说明，以及当前报告中实际提供的证据和计算口径。</p>
+                <p className="mt-2 text-sm text-[var(--theme-muted)]">查看本报告使用的数据、来源、处理方式与指标口径。</p>
               ) : null}
             </div>
           </div>
@@ -816,46 +818,11 @@ export function DepartmentReportView({
       ) : null}
 
       {reportViewMode === "evidence" ? (
-        hasEvidence ? (
-          <div className="space-y-4">
-            {reportNarrative.data_notes.length ? (
-              <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
-                <h2 className="text-sm font-semibold text-[var(--theme-ink)]">数据说明</h2>
-                <div className="mt-2 space-y-1">
-                  {reportNarrative.data_notes.map((note, index) => (
-                    <p key={`${index}-${note}`} className="text-xs leading-5 text-[var(--theme-body)]">- {note}</p>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-            {evidenceReferences.length ? (
-              <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
-                <h2 className="text-sm font-semibold text-[var(--theme-ink)]">证据引用</h2>
-                <div className="mt-2 space-y-2">
-                  {evidenceReferences.map((item, index) => (
-                    <p key={`${item.source_path}-${index}`} className="text-xs leading-5 text-[var(--theme-body)]">
-                      - {item.source}：{item.quote}
-                    </p>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-            {calculationNotes.length ? (
-              <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-soft-panel)] p-4">
-                <h2 className="text-sm font-semibold text-[var(--theme-ink)]">数据计算方式</h2>
-                <div className="mt-2 space-y-2">
-                  {calculationNotes.map((item) => (
-                    <p key={item.metric} className="text-xs leading-5 text-[var(--theme-body)]">- {item.metric}：{item.method}</p>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-[var(--theme-border)] bg-[var(--theme-white)] p-8 text-center text-sm text-[var(--theme-muted)]">
-            当前报告没有额外的数据说明、证据引用或计算备注。
-          </div>
-        )
+        <ReportDataBasisView
+          departmentName={departmentName}
+          eventName={eventName}
+          generatedAt={generatedAt}
+        />
       ) : null}
     </div>
   );
@@ -1067,7 +1034,9 @@ export function ReportAiSummaryCard({
                   <DepartmentReportView
                     reportNarrative={reportNarrative}
                     structuredReport={structuredReport}
+                    departmentName={departmentName}
                     eventName={eventName}
+                    generatedAt={payload?.generated_at}
                   />
                 ) : reportMarkdown ? (
                   <div className="space-y-1">{renderMarkdownReport(reportMarkdown)}</div>
@@ -1091,12 +1060,18 @@ export function ReportAiSummaryCard({
                 </section>
               ) : null}
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                <DetailsBlock title="使用的 Prompt">
-                  <pre className="whitespace-pre-wrap break-words">{payload?.rendered_prompt || "生成后展示完整 Prompt。"}</pre>
-                </DetailsBlock>
-                <DetailsBlock title="输入给 AI 的结构化数据">
-                  <pre className="whitespace-pre-wrap break-words">{payload?.context ? JSON.stringify(payload.context, null, 2) : "生成后展示本次输入数据。"}</pre>
+              <div className="mt-4">
+                <DetailsBlock title="技术详情">
+                  <div className="space-y-5">
+                    <section>
+                      <h3 className="font-semibold text-[var(--theme-ink)]">使用的 Prompt</h3>
+                      <pre className="mt-2 whitespace-pre-wrap break-words">{payload?.rendered_prompt || "生成后展示完整 Prompt。"}</pre>
+                    </section>
+                    <section className="border-t border-[var(--theme-border)] pt-4">
+                      <h3 className="font-semibold text-[var(--theme-ink)]">输入给 AI 的结构化数据</h3>
+                      <pre className="mt-2 whitespace-pre-wrap break-words">{payload?.context ? JSON.stringify(payload.context, null, 2) : "生成后展示本次输入数据。"}</pre>
+                    </section>
+                  </div>
                 </DetailsBlock>
               </div>
             </div>

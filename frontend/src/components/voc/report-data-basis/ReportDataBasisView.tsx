@@ -32,7 +32,7 @@ export function ReportDataBasisView({
 }: {
   departmentName: string;
   eventName?: string;
-  generatedAt?: string;
+  generatedAt?: string | null;
 }) {
   const sections = resolveDepartmentDataBasis(departmentName);
 

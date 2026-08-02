@@ -230,6 +230,40 @@ def test_run_sales_report_agent_returns_fixed_narrative_and_builder_charts(monke
     assert captured["model"] == "report-model"
 
 
+def test_sales_v2_custom_prompt_cache_accepts_current_storyline_charts() -> None:
+    from app.services import report_agent
+
+    context = report_agent.build_sales_report_context(sample_sales_dashboard())
+    charts = report_agent.build_sales_report_charts(context)
+    summary = report_agent.build_report_summary(
+        {
+            "headline": "销售线索复盘",
+            "executive_summary": "形成了可承接线索。",
+            "section_insights": {
+                "sales_output": "产出判断",
+                "sales_needs": "需求判断",
+                "sales_sources": "来源判断",
+                "sales_follow_up": "承接判断",
+            },
+            "data_notes": [],
+        },
+        charts,
+        report_agent.SALES_REPORT_SECTION_CODES,
+        report_agent._sales_fallback_insights(context),
+        report_agent.SALES_REPORT_CHART_SECTIONS,
+    )
+
+    normalized = report_agent.normalize_cached_report_summary(
+        summary,
+        "sales_report_summary_v2",
+    )
+
+    assert normalized["report_narrative"]["headline"] == "销售线索复盘"
+    assert [chart["template_id"] for chart in normalized["structured_report"]["charts"]] == [
+        "S1", "S2", "S3", "S4"
+    ]
+
+
 def test_sales_report_agent_api_runs_and_reads_latest(tmp_path, monkeypatch) -> None:
     from fastapi.testclient import TestClient
 

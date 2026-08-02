@@ -177,6 +177,11 @@ REPORT_CACHE_CONTRACTS = (
     ),
     (
         "sales_report_summary_v2",
+        SALES_REPORT_SECTION_CODES,
+        SALES_REPORT_CHART_CONTRACT,
+    ),
+    (
+        "sales_report_summary_v2",
         ("sales_funnel", "sales_signals", "sales_intents", "sales_sources"),
         LEGACY_SALES_REPORT_CHART_CONTRACT,
     ),
